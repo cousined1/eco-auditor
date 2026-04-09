@@ -1,0 +1,16 @@
+{
+  "mcp": {
+    "insforge": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@insforge/mcp@latest"
+      ],
+      "environment": {
+        "API_KEY": "ik_sehrni5g1w9ptlg52cx3sx32nlrvsgmz",
+        "API_BASE_URL": "https://insforge-production-0d5a.up.railway.app"
+      }
+    }
+  }
+}

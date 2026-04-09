@@ -1,0 +1,220 @@
+Use the godmythosv7 skill to design and build a production-grade SaaS web app called “Eco-Auditor.”
+
+Product concept:
+Eco-Auditor is an AI-powered ESG and carbon accounting platform for small and midsize businesses that need a simple, affordable, audit-ready way to track Scope 1, 2, and relevant Scope 3 emissions, prepare disclosure workflows, and respond to customer, lender, and regulatory pressure. Position it for companies roughly in the $10M–$500M revenue band, especially manufacturers, food/beverage businesses, and SaaS/exporters selling into regulated supply chains.
+
+Important market framing:
+Do not inaccurately claim that California SB 253 already applies to $50M businesses. Reflect current reality: SB 253 applies to companies over $1B revenue doing business in California, and SB 261 applies to companies over $500M. However, smaller companies are still under rising pressure because they sell to larger firms, export into regulated markets, and increasingly need emissions data for contracts, procurement, insurance, and financing. Also reflect that EU CBAM entered its definitive regime in 2026, with 2027 being a key operational reporting/compliance milestone for covered imports. Build the product messaging around “compliance readiness, buyer pressure, and auditability,” not fake legal claims.
+
+Core app goal:
+Make carbon accounting feel as easy as bookkeeping. The app should help an operations, finance, or sustainability lead answer:
+- What data do I need?
+- What are we missing?
+- What are our estimated emissions by scope?
+- What assumptions were used?
+- Can I export a clean report and defend it in an audit?
+
+Target users:
+- CFO or controller at a midsize company
+- Operations manager at a manufacturer or distributor
+- Sustainability lead at a growing SMB
+- Founder/operator at an exporter needing customer-ready emissions reporting
+
+Build a polished SaaS app prototype with realistic flows, not a landing page.
+Create a single-page web app experience with app-style navigation and rich mock data.
+The UI must feel like a serious compliance product: calm, trustworthy, precise, modern, and premium, but still simple enough for non-experts.
+
+Required product modules:
+1. Executive dashboard
+- Total estimated emissions
+- Scope 1 / 2 / 3 breakdown
+- Reporting readiness score
+- Missing data alerts
+- Upcoming filing/compliance tasks
+- Trend chart over time
+- Estimated risk flags
+
+2. Data ingestion workspace
+- Upload utility bills, invoices, freight docs, and supplier spreadsheets
+- OCR extraction cards showing detected fields
+- Accounting integrations mockups for QuickBooks and Xero
+- Shipment data connectors mockups for UPS/FedEx
+- Data quality confidence scores
+- Human review queue for ambiguous records
+
+3. AI Carbon Assistant
+- Chat-style panel trained on GHG Protocol logic
+- Example questions:
+  - “How should we classify cloud hosting emissions?”
+  - “Can we estimate missing vendor emissions?”
+  - “Why is this fuel purchase categorized as Scope 1?”
+- Assistant should cite methodology cards, show assumptions, and recommend next actions
+- Include suggested prompts and workflow nudges
+
+4. Emissions ledger
+- Immutable-style audit trail view
+- Every entry should show source file, extraction method, emission factor source, reviewer, timestamp, and version history
+- Include change log and assumption register
+- Make this one of the strongest moat-like screens
+
+5. Reporting center
+- Generate mock reports for:
+  - California climate readiness package
+  - CBAM supplier data package
+  - Annual GHG inventory summary
+  - Customer procurement disclosure packet
+- Include export buttons, status badges, completeness warnings, and signoff workflow
+
+6. Supplier engagement hub
+- Supplier request tracker
+- Vendor questionnaires
+- Response rates
+- Estimated vs primary data tags
+- Follow-up reminders
+- Segment suppliers by spend and emissions relevance
+
+7. Settings and methodology
+- Organizational boundary setup
+- Facility list
+- Market-based vs location-based electricity method toggle
+- Emission factor library manager
+- Approval permissions
+- Regional rules / disclosure templates
+
+Design direction:
+- Enterprise-trust aesthetic, not generic “AI startup”
+- Minimal, high-clarity dashboard
+- Strong typography, spacious layout, restrained color palette
+- Use deep green/teal with warm neutrals and subtle data colors
+- Avoid flashy gradients, neon, or crypto aesthetics
+- Include light and dark mode
+- The brand should feel like “Stripe meets Watershed for SMBs”
+- Build a custom inline SVG logo for Eco-Auditor
+
+Strategic direction:
+Design the app so a CFO immediately understands three things within the first 30 seconds:
+1. Cost avoidance — where bad data, missed deadlines, consultant spend, and manual reporting create financial risk
+2. Contract readiness — whether the company can satisfy customer, procurement, lender, or importer requests for emissions data
+3. Audit defensibility — whether every number in the inventory can be traced back to a source, assumption, reviewer, and methodology
+
+The app should visually emphasize:
+- dollars at risk avoided
+- reporting completeness
+- supplier response coverage
+- audit trail strength
+- confidence levels on emissions estimates
+- readiness status by disclosure/use case
+
+Product wedge:
+Start with food/beverage and light manufacturing templates first, then expand horizontally into other SMB segments.
+
+Why these first:
+- They have document-heavy operations, freight activity, energy usage, packaging inputs, and supplier complexity
+- They face strong buyer and supply-chain pressure for emissions data
+- They are more likely to need practical carbon accounting before they can justify enterprise software
+- Their workflows make Eco-Auditor’s ingestion + estimation + audit trail especially valuable
+
+Initial vertical templates to build:
+1. Food & Beverage
+- Multi-facility operations
+- Refrigeration, electricity, gas, packaging, ingredient sourcing, freight
+- Supplier engagement for ingredients and packaging vendors
+- Customer disclosure packets for retail and foodservice buyers
+
+2. Light Manufacturing
+- Facility-based energy use
+- Purchased materials
+- Domestic and international freight
+- Vendor data requests
+- Export / customer-ready emissions reporting workflows
+
+The dashboard and onboarding should ask the user to choose a company template:
+- Food & Beverage
+- Light Manufacturing
+- Generic SMB
+
+Each template should preconfigure:
+- common emissions categories
+- typical suppliers
+- suggested data sources
+- default task checklists
+- reporting views most relevant to that industry
+
+The CFO dashboard must make the ROI legible in business language, not sustainability jargon.
+Use labels like:
+- “Estimated consultant spend avoided”
+- “Contracts at risk due to missing supplier data”
+- “Records defensible in audit”
+- “Reporting package readiness”
+- “Primary data coverage”
+- “Estimated exposure from incomplete disclosures”
+
+Avoid generic ESG marketing language. Speak like a finance and operations system, not a climate activism brand.
+
+UX requirements:
+- Make onboarding extremely clear for non-experts
+- Include a first-run checklist:
+  - Connect finance system
+  - Upload first utility bill
+  - Add facilities
+  - Invite reviewer
+  - Generate baseline inventory
+- Include empty states, loading states, error states, and review-needed states
+- Make auditability and confidence visible throughout
+- Use realistic compliance copy, but avoid promising legal advice
+
+Navigation:
+- Left sidebar with sections:
+  Dashboard
+  Data Intake
+  AI Assistant
+  Ledger
+  Reports
+  Suppliers
+  Methodology
+  Settings
+
+Data realism:
+- Populate the app with a fictional company example, such as “Northstar Foods,” a midsize California-based packaged foods company with 3 facilities and EU-facing retail customers
+- Include believable emissions numbers, missing data gaps, uploaded files, supplier names, review timestamps, and compliance tasks
+- Show where estimates are used versus primary data
+- Display confidence levels and materiality hints
+
+Strategic differentiation to express in product copy:
+- Cheaper and simpler than enterprise carbon platforms
+- More audit-ready than spreadsheets
+- Built for SMB operational reality: messy data, partial systems, lean teams
+- Converts fragmented bills, shipping records, and accounting data into reviewable emissions records
+- Helps companies become “customer-ready” and “regulator-ready”
+
+Important copy constraints:
+- Do not fabricate that all SMBs are legally required right now
+- Phrase urgency as:
+  - “Large-company disclosure rules are cascading through supply chains”
+  - “Exporters and suppliers are under growing pressure to provide emissions data”
+  - “Audit-ready carbon data is becoming a commercial requirement”
+- Keep product messaging factual and credible
+
+Feature details to show visually:
+- OCR extraction preview
+- Confidence badges like 92%, 71%, etc.
+- “3 suppliers missing primary emissions data”
+- “12 records need human review”
+- “Scope 3 estimate applied to freight lane EU-West”
+- “CBAM-related supplier packet draft ready”
+- “Electricity factors updated for CAISO region”
+- “Variance detected vs prior quarter: +14%”
+
+Technical build expectations:
+- Build as a refined static HTML/CSS/JS SaaS prototype with realistic interactivity
+- Use mock data and polished UI components
+- Include charts, tables, filters, tabs, drawers, and modal flows
+- Use semantic HTML and accessibility best practices
+- Ensure desktop-first SaaS quality with solid mobile responsiveness
+- Keep everything in one navigable app experience
+
+Deliverable expectations:
+- Return the complete app, not just wireframes
+- Include a crisp hero/app shell, high-fidelity inner screens, and meaningful interactions
+- Prioritize the Dashboard, Data Intake, AI Assistant, Ledger, and Reports screens
+- Make it look investor-demo ready and customer-demo ready
