@@ -1,8 +1,12 @@
 [phases.install]
-cmds = ["npm install", "npm run build"]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
 
 [phases.start]
 cmds = ["node server.cjs"]
 
 [variables]
+NODE_ENV = "production"
 PORT = "3000"
