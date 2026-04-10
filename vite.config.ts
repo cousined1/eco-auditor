@@ -32,7 +32,7 @@ export default defineConfig({
   plugins: [react(), spaFallback()],
 
   build: {
-    outDir: 'dist',
+    outDir: 'static',
     // Emit a sourcemap for production error tracking (remove if bundle size is a concern)
     sourcemap: false,
     // Raise the warning threshold slightly; recharts bundles are large by design

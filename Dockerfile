@@ -1,9 +1,9 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 RUN npm run build
@@ -11,5 +11,6 @@ RUN npm run build
 EXPOSE 3000
 
 ENV PORT=3000
+ENV NODE_ENV=production
 
 CMD ["node", "server.cjs"]

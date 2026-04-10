@@ -10,3 +10,6 @@ cmds = ["node server.cjs"]
 [variables]
 NODE_ENV = "production"
 PORT = "3000"
+
+[nodejs]
+version = "20"
