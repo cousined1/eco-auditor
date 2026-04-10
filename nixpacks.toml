@@ -1,5 +1,8 @@
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm ci"]
 
 [phases.build]
 cmds = ["npm run build"]
@@ -10,6 +13,3 @@ cmds = ["node server.cjs"]
 [variables]
 NODE_ENV = "production"
 PORT = "3000"
-
-[nodejs]
-version = "20"
