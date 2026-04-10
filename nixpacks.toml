@@ -4,5 +4,5 @@ cmds = ["npm install", "npm run build"]
 [phases.start]
 cmds = ["node server.cjs"]
 
-[start]
-command = "node server.cjs"
+[variables]
+PORT = "3000"
