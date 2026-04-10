@@ -1,5 +1,8 @@
 [phases.install]
-cmd = "npm install && npm run build"
+cmds = ["npm install", "npm run build"]
 
 [phases.start]
-cmd = "node server.cjs"
+cmds = ["node server.cjs"]
+
+[start]
+command = "node server.cjs"
