@@ -15,7 +15,12 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+static
 *.local
+
+# Large media (served locally / CDN in production)
+public/*.mp4
+assets/*.mp4
 
 # Editor directories and files
 .vscode/*
