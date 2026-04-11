@@ -7,6 +7,39 @@ export default function Settings() {
   const [activeSection, setActiveSection] = useState<'general' | 'team' | 'billing' | 'templates' | 'notifications'>('general');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showChangePlan, setShowChangePlan] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
+
+  const handlePortalSession = async () => {
+    setBillingError(null);
+    const result = await createBillingPortalSession();
+    if (result.ok) {
+      window.location.href = result.data.url;
+    } else {
+      setBillingError(result.error);
+    }
+  };
+
+  const handleChangePlan = async (planId: string, billingCycle: 'monthly' | 'annual') => {
+    setBillingError(null);
+    const result = await changeSubscription(planId, billingCycle);
+    if (result.ok) {
+      setShowChangePlan(false);
+      window.location.reload();
+    } else {
+      setBillingError(result.error);
+    }
+  };
+
+  const handleCancel = async () => {
+    setBillingError(null);
+    const result = await cancelSubscription();
+    if (result.ok) {
+      setShowCancelConfirm(false);
+      window.location.reload();
+    } else {
+      setBillingError(result.error);
+    }
+  };
 
   const sub = BILLING_SUBSCRIPTION;
   const currentPlan = PLANS[sub.plan];
@@ -132,9 +165,12 @@ export default function Settings() {
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowChangePlan(!showChangePlan)} className="btn-primary text-xs">Change plan</button>
-              <button onClick={() => createBillingPortalSession()} className="btn-secondary text-xs">Manage billing portal</button>
+              <button onClick={handlePortalSession} className="btn-secondary text-xs">Manage billing portal</button>
               <button onClick={() => setShowCancelConfirm(true)} className="btn-ghost text-xs text-risk-high">Cancel subscription</button>
             </div>
+            {billingError && (
+              <div className="mt-2 p-2.5 rounded-lg bg-risk-high/10 border border-risk-high/20 text-xs text-risk-high">{billingError}</div>
+            )}
             <p className="text-2xs text-surface-400 mt-2">By continuing, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.</p>
           </div>
 
@@ -152,7 +188,7 @@ export default function Settings() {
                       <span className="badge-green">Current</span>
                     ) : (
                       <button
-                        onClick={() => { changeSubscription(plan.id, sub.billing); setShowChangePlan(false); }}
+                        onClick={() => handleChangePlan(plan.id, sub.billing)}
                         className={plan.monthly > currentPlan.monthly ? 'btn-primary text-xs' : 'btn-secondary text-xs'}
                       >
                         {plan.monthly > currentPlan.monthly ? 'Upgrade' : 'Downgrade'}
@@ -173,7 +209,7 @@ export default function Settings() {
                 Your historical emissions data and reports will be preserved for 90 days.
               </p>
               <div className="flex gap-2">
-                <button onClick={() => { cancelSubscription(); setShowCancelConfirm(false); }} className="text-xs px-3 py-1.5 rounded-lg bg-risk-high text-white font-medium">Confirm cancellation</button>
+                <button onClick={handleCancel} className="text-xs px-3 py-1.5 rounded-lg bg-risk-high text-white font-medium">Confirm cancellation</button>
                 <button onClick={() => setShowCancelConfirm(false)} className="btn-secondary text-xs">Keep my plan</button>
               </div>
             </div>

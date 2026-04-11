@@ -1,12 +1,31 @@
 import { useState } from 'react';
+import { insforge, isInsForgeConfigured } from '../lib/insforge';
 
 export default function ContactUs() {
   const [form, setForm] = useState({ name: '', company: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setSubmitError(null);
+
+    if (!isInsForgeConfigured) {
+      setSubmitError('Form submission is not available — backend not configured.');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      await insforge.from('contact_submissions').insert([{ ...form, created_at: new Date().toISOString() }]);
+      setSubmitted(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to send message. Please try again or email us directly.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -95,7 +114,8 @@ export default function ContactUs() {
                   <label className="block text-xs text-surface-500 mb-1">Message</label>
                   <textarea className="input" rows={4} placeholder="How can we help?" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} required />
                 </div>
-                <button type="submit" className="btn-primary">Send message</button>
+                <button type="submit" className="btn-primary" disabled={submitting}>{submitting ? 'Sending...' : 'Send message'}</button>
+                {submitError && <p className="text-xs text-risk-high mt-2">{submitError}</p>}
               </form>
             )}
           </div>

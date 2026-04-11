@@ -8,6 +8,17 @@ type BillingCycle = 'monthly' | 'annual';
 export default function Pricing() {
   const [billing, setBilling] = useState<BillingCycle>('annual');
   const [showComparison, setShowComparison] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const handleCheckout = async (planId: string, billingCycle: BillingCycle, trial: boolean | undefined) => {
+    setCheckoutError(null);
+    const result = await createCheckoutSession({ priceId: `${planId}_${billingCycle}`, planId, billing: billingCycle, trial });
+    if (result.ok) {
+      window.location.href = result.data.url;
+    } else {
+      setCheckoutError(result.error);
+    }
+  };
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8 overflow-y-auto">
@@ -81,7 +92,7 @@ export default function Pricing() {
               </div>
               <div className="p-5 pt-0 space-y-2">
                 <button
-                  onClick={() => createCheckoutSession({ priceId: `${plan.id}_${billing}`, planId: plan.id, billing, trial: plan.trial })}
+                  onClick={() => handleCheckout(plan.id, billing, plan.trial)}
                   className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                     isPopular
                       ? 'bg-brand-600 hover:bg-brand-700 text-white'
@@ -101,6 +112,12 @@ export default function Pricing() {
           );
         })}
       </div>
+
+      {checkoutError && (
+        <div className="p-3 rounded-lg bg-risk-high/10 border border-risk-high/20 text-sm text-risk-high">
+          {checkoutError}
+        </div>
+      )}
 
       <div className="card">
         <div className="flex items-center justify-between mb-4">

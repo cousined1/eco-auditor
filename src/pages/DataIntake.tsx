@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { UPLOADED_FILES, OCR_PREVIEW, FACILITIES } from '../data/mockData';
 
 const INTEGRATIONS = [
@@ -16,11 +16,19 @@ export default function DataIntake() {
   const [actionStatus, setActionStatus] = useState<ActionStatus>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showStatus = (type: 'success' | 'error', message: string) => {
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, []);
+
+  const showStatus = useCallback((type: 'success' | 'error', message: string) => {
     setActionStatus({ type, message });
-    setTimeout(() => setActionStatus(null), 4000);
-  };
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setActionStatus(null), 4000);
+  }, []);
 
   const handleApprove = async () => {
     if (selectedFile === null) return;

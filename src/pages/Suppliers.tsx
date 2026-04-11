@@ -1,8 +1,9 @@
 import { SUPPLIERS } from '../data/mockData';
 
 export default function Suppliers() {
-  const responseRate = Math.round((SUPPLIERS.filter((s) => s.responseStatus === 'received').length / SUPPLIERS.length) * 100);
-  const primaryDataPct = Math.round((SUPPLIERS.filter((s) => s.dataType === 'primary').length / SUPPLIERS.length) * 100);
+  const total = SUPPLIERS.length || 1;
+  const responseRate = Math.round((SUPPLIERS.filter((s) => s.responseStatus === 'received').length / total) * 100);
+  const primaryDataPct = Math.round((SUPPLIERS.filter((s) => s.dataType === 'primary').length / total) * 100);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -50,7 +51,7 @@ export default function Suppliers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-              {SUPPLIERS.sort((a, b) => (a.relevance === b.relevance ? 0 : a.relevance === 'high' ? -1 : 1)).map((s) => (
+              {[...SUPPLIERS].sort((a, b) => (a.relevance === b.relevance ? 0 : a.relevance === 'high' ? -1 : 1)).map((s) => (
                 <tr key={s.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-surface-800 dark:text-surface-200">{s.name}</td>
                   <td className="px-4 py-3 text-surface-600 dark:text-surface-400">{s.category}</td>
@@ -108,7 +109,7 @@ export default function Suppliers() {
             {['high', 'medium', 'low'].map((relevance) => {
               const count = SUPPLIERS.filter((s) => s.relevance === relevance).length;
               const totalEmissions = SUPPLIERS.filter((s) => s.relevance === relevance).reduce((a, s) => a + s.emissions, 0);
-              const primaryPct = Math.round((SUPPLIERS.filter((s) => s.relevance === relevance && s.dataType === 'primary').length / count) * 100);
+              const primaryPct = count ? Math.round((SUPPLIERS.filter((s) => s.relevance === relevance && s.dataType === 'primary').length / count) * 100) : 0;
               return (
                 <div key={relevance} className="flex items-center gap-3 p-2.5 rounded-lg bg-surface-50 dark:bg-surface-800/50">
                   <span className={`badge ${relevance === 'high' ? 'badge-red' : relevance === 'medium' ? 'badge-amber' : 'badge-gray'}`}>{relevance}</span>

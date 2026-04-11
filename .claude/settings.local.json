@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(railway config:*)",
+      "Bash(railway --help)",
+      "Bash(railway service:*)",
+      "Bash(railway status:*)",
+      "Bash(railway list:*)",
+      "Bash(railway variables:*)",
+      "Read(//c/Users/Eddie/.railway/**)",
+      "Read(//c/Users/Eddie/AppData/Local/railway/**)",
+      "Read(//c/Users/Eddie/AppData/Roaming/railway/**)",
+      "Bash(curl:*)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'{f[\\\\\"name\\\\\"]}: {f[\\\\\"type\\\\\"][\\\\\"name\\\\\"] or f[\\\\\"type\\\\\"][\\\\\"ofType\\\\\"][\\\\\"name\\\\\"]}'\\) for f in data['data']['__type']['fields']]\")",
+      "Bash(python3 -c ':*)",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); d.data.__type.fields.filter\\(f=>/builder|serviceUpdate|deploy/i.test\\(f.name\\)\\).forEach\\(f=>console.log\\(f.name+' - '+f.description\\)\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); if\\(d.data.__type\\) d.data.__type.inputFields.forEach\\(f=>console.log\\(f.name+': '+\\(f.type.name||f.type.ofType?.name||''\\)\\)\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); const fields=d.data.__schema.mutationType.fields; fields.forEach\\(f=>{const deployArgs=f.args.filter\\(a=>a.name==='input'\\); if\\(deployArgs.length\\){const inp=deployArgs[0].type; const typeName=inp.name||inp.ofType?.name||''; if\\(typeName.includes\\('Deploy'\\)\\){console.log\\(f.name+' -> '+typeName\\)}}}\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); d.data.__schema.types.filter\\(t=>t.name.toLowerCase\\(\\).includes\\('builder'\\)||t.name.toLowerCase\\(\\).includes\\('serviceinstance'\\)\\).forEach\\(t=>console.log\\(t.name\\)\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); d.data.__type.fields.forEach\\(f=>console.log\\(f.name+': '+\\(f.type.name||f.type.ofType?.name||''\\)\\)\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); d.data.__type.inputFields.forEach\\(f=>console.log\\(f.name+': '+\\(f.type.name||f.type.ofType?.name||''\\)\\)\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); d.data.__schema.mutationType.fields.filter\\(f=>f.name==='serviceInstanceUpdate'\\).forEach\\(f=>console.log\\(JSON.stringify\\(f.args,null,2\\)\\)\\)\")",
+      "Bash(railway up:*)",
+      "Bash(railway logs:*)",
+      "Bash(npm audit:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

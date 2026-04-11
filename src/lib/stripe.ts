@@ -1,10 +1,14 @@
-const STRIPE_PK = import.meta.env.VITE_STRIPE_PK || 'pk_test_placeholder';
+const STRIPE_PK = import.meta.env.VITE_STRIPE_PK;
+
+if (!STRIPE_PK || STRIPE_PK === 'pk_test_placeholder') {
+  console.warn('[Stripe] VITE_STRIPE_PK is not configured — billing features will be unavailable');
+}
 
 interface CheckoutParams {
   priceId: string;
   planId: string;
   billing: 'monthly' | 'annual';
-  trial?: boolean;
+  trial?: boolean | undefined;
 }
 
 const PRICE_IDS: Record<string, Record<'monthly' | 'annual', string>> = {
@@ -13,28 +17,86 @@ const PRICE_IDS: Record<string, Record<'monthly' | 'annual', string>> = {
   pro: { monthly: 'price_pro_monthly', annual: 'price_pro_annual' },
 };
 
-export async function createCheckoutSession({ planId, billing, trial }: CheckoutParams): Promise<{ url: string } | { error: string }> {
+type StripeResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+export async function createCheckoutSession({ planId, billing, trial }: CheckoutParams): Promise<StripeResult<{ url: string }>> {
   const priceId = PRICE_IDS[planId]?.[billing];
-  if (!priceId) return { error: 'Invalid plan selection' };
+  if (!priceId) return { ok: false, error: 'Invalid plan selection' };
+  if (!STRIPE_PK) return { ok: false, error: 'Stripe is not configured' };
 
-  console.log('[Stripe] Creating checkout session:', { priceId, planId, billing, trial, pk: STRIPE_PK });
+  try {
+    const resp = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId, planId, billing, trial }),
+    });
 
-  return { url: `${window.location.origin}/settings?checkout=success&plan=${planId}` };
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      return { ok: false, error: (body as { error?: string }).error || 'Checkout session creation failed' };
+    }
+
+    const data = (await resp.json()) as { url: string };
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
+  }
 }
 
-export async function createBillingPortalSession(): Promise<{ url: string } | { error: string }> {
-  console.log('[Stripe] Creating billing portal session');
-  return { url: `${window.location.origin}/settings?portal=return` };
+export async function createBillingPortalSession(): Promise<StripeResult<{ url: string }>> {
+  if (!STRIPE_PK) return { ok: false, error: 'Stripe is not configured' };
+
+  try {
+    const resp = await fetch('/api/stripe/portal', { method: 'POST' });
+
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      return { ok: false, error: (body as { error?: string }).error || 'Billing portal session creation failed' };
+    }
+
+    const data = (await resp.json()) as { url: string };
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
+  }
 }
 
-export async function changeSubscription(planId: string, billing: 'monthly' | 'annual'): Promise<{ success: boolean } | { error: string }> {
-  console.log('[Stripe] Changing subscription:', { planId, billing });
-  return { success: true };
+export async function changeSubscription(planId: string, billing: 'monthly' | 'annual'): Promise<StripeResult<{ success: boolean }>> {
+  if (!STRIPE_PK) return { ok: false, error: 'Stripe is not configured' };
+
+  try {
+    const resp = await fetch('/api/stripe/subscription', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planId, billing }),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      return { ok: false, error: (body as { error?: string }).error || 'Subscription change failed' };
+    }
+
+    return { ok: true, data: { success: true } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
+  }
 }
 
-export async function cancelSubscription(): Promise<{ success: boolean } | { error: string }> {
-  console.log('[Stripe] Canceling subscription');
-  return { success: true };
+export async function cancelSubscription(): Promise<StripeResult<{ success: boolean }>> {
+  if (!STRIPE_PK) return { ok: false, error: 'Stripe is not configured' };
+
+  try {
+    const resp = await fetch('/api/stripe/subscription', { method: 'DELETE' });
+
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      return { ok: false, error: (body as { error?: string }).error || 'Cancellation failed' };
+    }
+
+    return { ok: true, data: { success: true } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
+  }
 }
 
 export type StripeEventType = 'checkout.session.completed' | 'customer.subscription.updated' | 'customer.subscription.deleted' | 'invoice.paid' | 'invoice.payment_failed';
@@ -47,29 +109,17 @@ export interface StripeWebhookEvent {
 }
 
 const WEBHOOK_HANDLERS: Record<StripeEventType, (data: Record<string, unknown>) => void> = {
-  'checkout.session.completed': (data) => {
-    console.log('[Webhook] Checkout completed:', data);
-  },
-  'customer.subscription.updated': (data) => {
-    console.log('[Webhook] Subscription updated:', data);
-  },
-  'customer.subscription.deleted': (data) => {
-    console.log('[Webhook] Subscription deleted:', data);
-  },
-  'invoice.paid': (data) => {
-    console.log('[Webhook] Invoice paid:', data);
-  },
-  'invoice.payment_failed': (data) => {
-    console.log('[Webhook] Invoice payment failed:', data);
-  },
+  'checkout.session.completed': (data) => { void data; },
+  'customer.subscription.updated': (data) => { void data; },
+  'customer.subscription.deleted': (data) => { void data; },
+  'invoice.paid': (data) => { void data; },
+  'invoice.payment_failed': (data) => { void data; },
 };
 
 export function handleWebhookEvent(event: StripeWebhookEvent): void {
   const handler = WEBHOOK_HANDLERS[event.type];
   if (handler) {
     handler(event.data.object);
-  } else {
-    console.warn('[Webhook] Unhandled event type:', event.type);
   }
 }
 

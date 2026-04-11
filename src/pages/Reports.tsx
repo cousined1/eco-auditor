@@ -45,7 +45,8 @@ export default function Reports() {
 
         <div className="lg:col-span-2 space-y-4">
           {selectedReport ? (() => {
-            const report = REPORTS.find((r) => r.id === selectedReport)!;
+            const report = REPORTS.find((r) => r.id === selectedReport);
+            if (!report) { setSelectedReport(null); return null; }
             return (
               <>
                 <div className="card">
