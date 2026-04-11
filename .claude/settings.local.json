@@ -23,7 +23,12 @@
       "Bash(railway up:*)",
       "Bash(railway logs:*)",
       "Bash(npm audit:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"const sdk = require\\('@insforge/sdk'\\); console.log\\(Object.keys\\(sdk\\)\\)\")",
+      "Bash(npm run:*)",
+      "Bash(npm install:*)",
+      "Bash(npm ls:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
