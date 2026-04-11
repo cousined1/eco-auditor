@@ -98,8 +98,9 @@
 
 ## Outstanding Items
 
-1. **Stripe backend routes** — Express server needs `/api/stripe/*` route handlers with signature verification
-2. **Missing static assets** — `favicon.svg`, `manifest.webmanifest`, `og-image.png` need to be created
-3. **Contact form** — Requires InsForge `contact_submissions` table to exist in the database
+1. ~~**Stripe backend routes**~~ ✅ Implemented in server.cjs (checkout, portal, subscription CRUD, webhook)
+2. ~~**Missing static assets**~~ ✅ Created favicon.svg, manifest.webmanifest, og-image.svg
+3. **Contact form** — Requires InsForge `contact_submissions` table to exist in the database (schema added to Drizzle)
 4. **Video file** — `eco-auditor-intro.mp4` must be in `static/` or Railway volume `/app/videos/`
 5. **Multiple placeholder buttons** — UI buttons with no onClick handlers (by design for MVP phase)
+6. **OG Image** — Convert og-image.svg to og-image.png for full social crawler compatibility
