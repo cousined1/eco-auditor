@@ -1,5 +1,6 @@
-import { Routes, Route, NavLink, Link } from 'react-router-dom';
+import { Routes, Route, NavLink, Link, Navigate } from 'react-router-dom';
 import { useTheme } from './hooks/useTheme';
+import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
 import AIAssistant from './pages/AIAssistant';
@@ -18,22 +19,24 @@ import Footer from './components/Footer';
 const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: DashboardIcon },
-  { to: '/intake', label: 'Data Intake', icon: DataIcon },
-  { to: '/assistant', label: 'AI Assistant', icon: AssistantIcon },
-  { to: '/ledger', label: 'Ledger', icon: LedgerIcon },
-  { to: '/reports', label: 'Reports', icon: ReportsIcon },
-  { to: '/suppliers', label: 'Suppliers', icon: SuppliersIcon },
-  { to: '/methodology', label: 'Methodology', icon: MethodologyIcon },
-  { to: '/pricing', label: 'Pricing', icon: PricingIcon },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+  { to: '/app', label: 'Dashboard', icon: DashboardIcon, end: true },
+  { to: '/app/intake', label: 'Data Intake', icon: DataIcon },
+  { to: '/app/assistant', label: 'AI Assistant', icon: AssistantIcon },
+  { to: '/app/ledger', label: 'Ledger', icon: LedgerIcon },
+  { to: '/app/reports', label: 'Reports', icon: ReportsIcon },
+  { to: '/app/suppliers', label: 'Suppliers', icon: SuppliersIcon },
+  { to: '/app/methodology', label: 'Methodology', icon: MethodologyIcon },
+  { to: '/app/pricing', label: 'Pricing', icon: PricingIcon },
+  { to: '/app/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 export default function App() {
   const { theme, toggle } = useTheme();
   const location = window.location.pathname;
   const isLegalPage = LEGAL_PATHS.includes(location);
+  const isAppPage = location.startsWith('/app');
 
+  /* ─── Legal pages (standalone layout) ─── */
   if (isLegalPage) {
     return (
       <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
@@ -59,97 +62,107 @@ export default function App() {
     );
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-surface-50 dark:bg-surface-950">
-      <aside className="hidden md:flex flex-col w-60 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-surface-200 dark:border-surface-800">
-          <EcoLogo />
-          <div>
-            <div className="font-semibold text-sm text-surface-900 dark:text-white tracking-tight">Eco-Auditor</div>
-            <div className="text-2xs text-surface-500">Carbon Accounting</div>
-          </div>
-        </div>
-        <nav aria-label="Main navigation" className="flex-1 overflow-y-auto py-3 px-3 scrollbar-thin">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              aria-label={item.label}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
-                  isActive
-                    ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
-                    : 'text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800'
-                }`
-              }
-            >
-              <item.icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="border-t border-surface-200 dark:border-surface-800 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-xs font-semibold text-brand-700 dark:text-brand-200">SC</div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-surface-800 dark:text-surface-200 truncate">Sarah Chen</div>
-              <div className="text-2xs text-surface-500 truncate">Sustainability Lead</div>
+  /* ─── App shell (sidebar + dashboard pages) ─── */
+  if (isAppPage) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-surface-50 dark:bg-surface-950">
+        <aside className="hidden md:flex flex-col w-60 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-surface-200 dark:border-surface-800">
+            <Link to="/">
+              <EcoLogo />
+            </Link>
+            <div>
+              <Link to="/" className="font-semibold text-sm text-surface-900 dark:text-white tracking-tight hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Eco-Auditor</Link>
+              <div className="text-2xs text-surface-500">Carbon Accounting</div>
             </div>
           </div>
+          <nav aria-label="Main navigation" className="flex-1 overflow-y-auto py-3 px-3 scrollbar-thin">
+            {NAV_ITEMS.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end || false}
+                aria-label={item.label}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
+                    isActive
+                      ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
+                      : 'text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800'
+                  }`
+                }
+              >
+                <item.icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="border-t border-surface-200 dark:border-surface-800 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-xs font-semibold text-brand-700 dark:text-brand-200">SC</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-surface-800 dark:text-surface-200 truncate">Sarah Chen</div>
+                <div className="text-2xs text-surface-500 truncate">Sustainability Lead</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <header className="flex items-center justify-between px-6 py-3 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+            <div className="flex items-center gap-3 md:hidden">
+              <EcoLogo />
+              <span className="font-semibold text-sm">Eco-Auditor</span>
+            </div>
+            <div className="hidden md:flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
+              <span className="text-surface-400">Northstar Foods</span>
+              <span className="text-surface-300">/</span>
+              <span className="font-medium text-surface-800 dark:text-surface-200">FY 2026</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggle}
+                className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
+                aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              >
+                {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+              </button>
+              <button
+                type="button"
+                className="relative p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
+                aria-label="Notifications — 1 unread alert"
+              >
+                <BellIcon aria-hidden="true" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-risk-high rounded-full" aria-hidden="true" />
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-y-auto">
+            <Routes>
+              <Route path="/app" element={<Dashboard />} />
+              <Route path="/app/intake" element={<DataIntake />} />
+              <Route path="/app/assistant" element={<AIAssistant />} />
+              <Route path="/app/ledger" element={<Ledger />} />
+              <Route path="/app/reports" element={<Reports />} />
+              <Route path="/app/suppliers" element={<Suppliers />} />
+              <Route path="/app/methodology" element={<Methodology />} />
+              <Route path="/app/pricing" element={<Pricing />} />
+              <Route path="/app/settings" element={<Settings />} />
+            </Routes>
+          </main>
         </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-6 py-3 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
-          <div className="flex items-center gap-3 md:hidden">
-            <EcoLogo />
-            <span className="font-semibold text-sm">Eco-Auditor</span>
-          </div>
-          <div className="hidden md:flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
-            <span className="text-surface-400">Northstar Foods</span>
-            <span className="text-surface-300">/</span>
-            <span className="font-medium text-surface-800 dark:text-surface-200">FY 2026</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={toggle}
-              className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
-              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            >
-              {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-            </button>
-            <button
-              type="button"
-              className="relative p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
-              aria-label="Notifications — 1 unread alert"
-            >
-              <BellIcon aria-hidden="true" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-risk-high rounded-full" aria-hidden="true" />
-            </button>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/intake" element={<DataIntake />} />
-            <Route path="/assistant" element={<AIAssistant />} />
-            <Route path="/ledger" element={<Ledger />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/methodology" element={<Methodology />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<TermsOfService />} />
-            <Route path="/contact" element={<ContactUs />} />
-            <Route path="/dpa" element={<DataProcessingAddendum />} />
-          </Routes>
-        </main>
       </div>
-    </div>
+    );
+  }
+
+  /* ─── Public pages (landing, pricing standalone) ─── */
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/pricing" element={<LandingPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 

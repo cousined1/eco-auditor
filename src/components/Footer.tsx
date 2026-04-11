@@ -24,10 +24,10 @@ export default function Footer() {
           <nav aria-label="Product links">
             <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Product</h4>
             <ul className="space-y-1.5">
-              <li><Link to="/" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Dashboard</Link></li>
-              <li><Link to="/pricing" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Pricing</Link></li>
-              <li><Link to="/intake" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Data Intake</Link></li>
-              <li><Link to="/reports" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Reports</Link></li>
+              <li><Link to="/app" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Dashboard</Link></li>
+              <li><Link to="/app/pricing" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Pricing</Link></li>
+              <li><Link to="/app/intake" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Data Intake</Link></li>
+              <li><Link to="/app/reports" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Reports</Link></li>
             </ul>
           </nav>
 
