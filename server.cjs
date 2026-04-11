@@ -20,27 +20,6 @@ function findVideoPath() {
   return null;
 }
 
-// ─── One-time video upload route (remove after first upload) ───
-const UPLOAD_SECRET = process.env.VIDEO_UPLOAD_SECRET || 'eco-upload-2026';
-app.put('/api/video/upload', function (req, res) {
-  if (req.headers['x-upload-secret'] !== UPLOAD_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  var volumePath = path.join('/app/videos', VIDEO_FILENAME);
-  var ws = fs.createWriteStream(volumePath);
-  var bytes = 0;
-  req.on('data', function (chunk) { bytes += chunk.length; });
-  req.pipe(ws);
-  ws.on('finish', function () {
-    console.log('Video uploaded: ' + bytes + ' bytes → ' + volumePath);
-    res.json({ ok: true, bytes: bytes, path: volumePath });
-  });
-  ws.on('error', function (err) {
-    console.error('Upload error:', err);
-    res.status(500).json({ error: err.message });
-  });
-});
-
 // ─── Video streaming route (supports Range requests for seek/resume) ───
 app.get('/api/video', function (req, res) {
   const filePath = findVideoPath();
