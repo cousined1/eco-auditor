@@ -51,7 +51,7 @@ export default function LandingPage() {
             className="absolute inset-0 w-full h-full object-cover opacity-[0.08] dark:opacity-[0.06] mix-blend-multiply dark:mix-blend-screen pointer-events-none"
             aria-hidden="true"
           >
-            <source src="/eco-auditor-intro.mp4" type="video/mp4" />
+            <source src="/api/video" type="video/mp4" />
           </video>
         </div>
         <div className="relative max-w-5xl mx-auto px-6 pt-20 pb-24 text-center">
@@ -89,7 +89,7 @@ export default function LandingPage() {
             controls
             className="w-full h-auto"
           >
-            <source src="/eco-auditor-intro.mp4" type="video/mp4" />
+            <source src="/api/video" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
         </div>
