@@ -13,3 +13,9 @@ static
 LICENSE
 tests
 coverage
+src
+public
+*.ts
+*.tsx
+*.jsx
+*.map

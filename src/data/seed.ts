@@ -55,7 +55,7 @@ async function seed() {
     .insert(schema.facilities)
     .values(
       FACILITIES.map((f) => ({
-        companyId: company.id,
+        companyId: company!.id,
         name: f.name,
         type: f.type,
         city: f.city,

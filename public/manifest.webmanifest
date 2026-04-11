@@ -1,0 +1,16 @@
+{
+  "name": "Eco-Auditor",
+  "short_name": "Eco-Auditor",
+  "description": "Carbon accounting and sustainability reporting platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0fdf4",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
