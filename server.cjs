@@ -229,6 +229,77 @@ function findVideoPath() {
   return null;
 }
 
+// ─── AI Chat endpoint ───
+app.post('/api/chat', express.json(), async function (req, res) {
+  const { message, sessionId } = req.body || {};
+
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ success: false, error: 'Message is required' });
+  }
+
+  if (message.length > 5000) {
+    return res.status(400).json({ success: false, error: 'Message too long (max 5000 chars)' });
+  }
+
+  const chatModel = process.env.CHAT_MODEL;
+  const chatApiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+
+  if (!chatApiKey) {
+    // Graceful fallback — respond with a helpful message
+    return res.json({
+      success: true,
+      response: 'Thanks for reaching out! The AI assistant is currently being configured. Please email hello@developer312.com for immediate assistance, or check our docs at ecoauditor.com/docs.',
+    });
+  }
+
+  try {
+    const systemPrompt = `You are the EcoAuditor AI assistant — an expert in carbon accounting, emissions reporting, GHG protocols, Scope 1/2/3, California AB 1305, CBAM, SEC climate disclosure, and sustainability compliance for SMBs. Answer clearly and concisely. When uncertain, say so rather than guessing. Do not provide legal or regulatory advice — recommend consulting a specialist for specific compliance questions.`;
+
+    let result;
+    if (chatModel === 'anthropic' || process.env.ANTHROPIC_API_KEY) {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: message.trim() }],
+        }),
+      });
+      const data = await response.json();
+      result = data.content?.[0]?.text || 'Sorry, I could not process that request.';
+    } else {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          max_tokens: 1024,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message.trim() },
+          ],
+        }),
+      });
+      const data = await response.json();
+      result = data.choices?.[0]?.message?.content || 'Sorry, I could not process that request.';
+    }
+
+    return res.json({ success: true, response: result.trim() });
+  } catch (err) {
+    log('error', 'Chat API error', { error: String(err) });
+    return res.status(500).json({ success: false, error: 'Internal error. Please try again.' });
+  }
+});
+
 app.get('/api/video', function (req, res) {
   const filePath = findVideoPath();
   if (!filePath) {
