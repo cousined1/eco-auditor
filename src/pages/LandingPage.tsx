@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 import Footer from '../components/Footer';
+import ChatbotWidget from '../components/ChatbotWidget';
 
 export default function LandingPage() {
   const { theme, toggle } = useTheme();
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
+      <ChatbotWidget />
       {/* ─── Header / Navbar ─── */}
       <header className="sticky top-0 z-50 border-b border-surface-200/80 dark:border-surface-800/80 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
