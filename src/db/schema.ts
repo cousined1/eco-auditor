@@ -181,6 +181,16 @@ export const missingDataAlerts = pgTable('missing_data_alerts', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+export const contactSubmissions = pgTable('contact_submissions', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  company: text('company'),
+  email: text('email').notNull(),
+  subject: text('subject').notNull(),
+  message: text('message').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 export const trendData = pgTable('trend_data', {
   id: serial('id').primaryKey(),
   month: text('month').notNull(),

@@ -3,6 +3,19 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// ─── Stripe SDK (lazy init) ───
+let stripe = null;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+if (STRIPE_SECRET_KEY) {
+  try {
+    const Stripe = require('stripe');
+    stripe = new Stripe(STRIPE_SECRET_KEY);
+  } catch (err) {
+    // stripe package not installed — billing routes will return 503
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT;
 
@@ -74,6 +87,129 @@ app.get('/ready', function (_req, res) {
   });
 });
 
+// ─── Stripe API routes ───
+function stripeGuard(_req, res, next) {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Billing not configured' });
+  }
+  next();
+}
+
+// JSON body parser for Stripe API routes (NOT webhook)
+app.use('/api/stripe/checkout', express.json());
+app.use('/api/stripe/portal', express.json());
+
+// Subscription routes need method-specific handling
+app.patch('/api/stripe/subscription', express.json(), stripeGuard, async function (req, res) {
+  try {
+    // In production: look up customer's subscription from your DB
+    // For now, return a placeholder that the frontend can handle
+    const { planId, billing } = req.body;
+    log('info', 'Subscription change requested', { planId, billing });
+    // TODO: Implement actual subscription update when customer auth is wired
+    return res.json({ success: true, message: 'Subscription update queued' });
+  } catch (err) {
+    log('error', 'Subscription change failed', { error: String(err) });
+    return res.status(500).json({ error: 'Subscription change failed' });
+  }
+});
+
+app.delete('/api/stripe/subscription', express.json(), stripeGuard, async function (_req, res) {
+  try {
+    log('info', 'Subscription cancellation requested');
+    // TODO: Implement actual cancellation when customer auth is wired
+    return res.json({ success: true, message: 'Subscription cancelled' });
+  } catch (err) {
+    log('error', 'Subscription cancel failed', { error: String(err) });
+    return res.status(500).json({ error: 'Cancellation failed' });
+  }
+});
+
+app.post('/api/stripe/checkout', stripeGuard, async function (req, res) {
+  try {
+    const { priceId, trial } = req.body;
+    if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
+
+    const sessionParams = {
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: (process.env.APP_URL || 'http://localhost:3000') + '/app?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: (process.env.APP_URL || 'http://localhost:3000') + '/pricing',
+    };
+
+    if (trial) {
+      sessionParams.subscription_data = { trial_period_days: 14 };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+    return res.json({ url: session.url });
+  } catch (err) {
+    log('error', 'Checkout session failed', { error: String(err) });
+    return res.status(500).json({ error: 'Checkout session creation failed' });
+  }
+});
+
+app.post('/api/stripe/portal', stripeGuard, async function (req, res) {
+  try {
+    // TODO: Get customer ID from authenticated user session
+    const customerId = req.body.customerId;
+    if (!customerId) return res.status(400).json({ error: 'Missing customerId' });
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: (process.env.APP_URL || 'http://localhost:3000') + '/app/settings',
+    });
+    return res.json({ url: session.url });
+  } catch (err) {
+    log('error', 'Billing portal failed', { error: String(err) });
+    return res.status(500).json({ error: 'Billing portal session creation failed' });
+  }
+});
+
+// Webhook uses raw body for signature verification
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), function (req, res) {
+  if (!stripe) return res.status(503).json({ error: 'Billing not configured' });
+
+  let event;
+  try {
+    if (STRIPE_WEBHOOK_SECRET) {
+      const sig = req.headers['stripe-signature'];
+      event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    } else {
+      event = JSON.parse(req.body.toString());
+      log('warn', 'Processing webhook without signature verification');
+    }
+  } catch (err) {
+    log('error', 'Webhook signature verification failed', { error: String(err) });
+    return res.status(400).json({ error: 'Webhook signature verification failed' });
+  }
+
+  log('info', 'Stripe webhook received', { type: event.type, id: event.id });
+
+  switch (event.type) {
+    case 'checkout.session.completed':
+      // TODO: Provision user subscription in DB
+      log('info', 'Checkout completed', { sessionId: event.data.object.id });
+      break;
+    case 'customer.subscription.updated':
+      log('info', 'Subscription updated', { subId: event.data.object.id, status: event.data.object.status });
+      break;
+    case 'customer.subscription.deleted':
+      log('info', 'Subscription deleted', { subId: event.data.object.id });
+      break;
+    case 'invoice.paid':
+      log('info', 'Invoice paid', { invoiceId: event.data.object.id });
+      break;
+    case 'invoice.payment_failed':
+      log('warn', 'Invoice payment failed', { invoiceId: event.data.object.id });
+      break;
+    default:
+      log('info', 'Unhandled webhook event', { type: event.type });
+  }
+
+  return res.json({ received: true });
+});
+
 // ─── Video streaming ───
 const VIDEO_FILENAME = 'eco-auditor-intro.mp4';
 const VIDEO_PATHS = [
@@ -92,6 +228,77 @@ function findVideoPath() {
   }
   return null;
 }
+
+// ─── AI Chat endpoint ───
+app.post('/api/chat', express.json(), async function (req, res) {
+  const { message, sessionId } = req.body || {};
+
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ success: false, error: 'Message is required' });
+  }
+
+  if (message.length > 5000) {
+    return res.status(400).json({ success: false, error: 'Message too long (max 5000 chars)' });
+  }
+
+  const chatModel = process.env.CHAT_MODEL;
+  const chatApiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+
+  if (!chatApiKey) {
+    // Graceful fallback — respond with a helpful message
+    return res.json({
+      success: true,
+      response: 'Thanks for reaching out! The AI assistant is currently being configured. Please email hello@developer312.com for immediate assistance, or check our docs at ecoauditor.com/docs.',
+    });
+  }
+
+  try {
+    const systemPrompt = `You are the EcoAuditor AI assistant — an expert in carbon accounting, emissions reporting, GHG protocols, Scope 1/2/3, California AB 1305, CBAM, SEC climate disclosure, and sustainability compliance for SMBs. Answer clearly and concisely. When uncertain, say so rather than guessing. Do not provide legal or regulatory advice — recommend consulting a specialist for specific compliance questions.`;
+
+    let result;
+    if (chatModel === 'anthropic' || process.env.ANTHROPIC_API_KEY) {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: message.trim() }],
+        }),
+      });
+      const data = await response.json();
+      result = data.content?.[0]?.text || 'Sorry, I could not process that request.';
+    } else {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          max_tokens: 1024,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message.trim() },
+          ],
+        }),
+      });
+      const data = await response.json();
+      result = data.choices?.[0]?.message?.content || 'Sorry, I could not process that request.';
+    }
+
+    return res.json({ success: true, response: result.trim() });
+  } catch (err) {
+    log('error', 'Chat API error', { error: String(err) });
+    return res.status(500).json({ success: false, error: 'Internal error. Please try again.' });
+  }
+});
 
 app.get('/api/video', function (req, res) {
   const filePath = findVideoPath();

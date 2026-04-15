@@ -19,7 +19,7 @@ export default function ContactUs() {
     }
 
     try {
-      await insforge.from('contact_submissions').insert([{ ...form, created_at: new Date().toISOString() }]);
+      await insforge.database.from('contact_submissions').insert([{ ...form, created_at: new Date().toISOString() }]);
       setSubmitted(true);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to send message. Please try again or email us directly.');
