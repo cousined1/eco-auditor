@@ -68,6 +68,18 @@ setInterval(function () {
   }
 }, 120_000);
 
+// ─── Version endpoint (for forced-update watchdog) ───
+app.get('/api/version', function (_req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json({
+    version: process.env.npm_package_version || process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
+    build: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || null,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ─── Health check ───
 app.get('/health', function (_req, res) {
   res.json({
