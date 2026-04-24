@@ -160,7 +160,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/pricing" element={<LandingPage />} />
+      <Route path="/pricing" element={<Pricing />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

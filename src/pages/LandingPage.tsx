@@ -18,10 +18,10 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-sm" aria-label="Main navigation">
-            <a href="#features" className="inline-flex items-center text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Features</a>
-            <a href="#how-it-works" className="inline-flex items-center text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">How It Works</a>
-            <Link to="/pricing" className="inline-flex items-center text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Pricing</Link>
-            <Link to="/app" className="inline-flex items-center text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Login</Link>
+            <a href="#features" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Features</a>
+            <a href="#how-it-works" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">How It Works</a>
+            <Link to="/pricing" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Pricing</Link>
+            <Link to="/app" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Login</Link>
           </nav>
 
           <div className="flex items-center gap-3">
