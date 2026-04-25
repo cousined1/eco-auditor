@@ -135,7 +135,7 @@ app.delete('/api/stripe/subscription', express.json(), stripeGuard, async functi
   }
 });
 
-app.post('/api/stripe/checkout', stripeGuard, async function (req, res) {
+app.post('/api/stripe/checkout', express.json(), stripeGuard, async function (req, res) {
   try {
     const { priceId, trial } = req.body;
     if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
@@ -159,7 +159,7 @@ app.post('/api/stripe/checkout', stripeGuard, async function (req, res) {
   }
 });
 
-app.post('/api/stripe/portal', stripeGuard, async function (req, res) {
+app.post('/api/stripe/portal', express.json(), stripeGuard, async function (req, res) {
   try {
     const customerId = req.body.customerId;
     if (!customerId) return res.status(400).json({ error: 'Missing customerId' });
