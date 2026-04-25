@@ -428,6 +428,7 @@ function getBotResponse(message, state = {}) {
 
 // ─── CHAT API ───
 app.post('/api/chat', express.json(), async function (req, res) {
+  const startTime = Date.now();
   const { message, sessionId, state = {} } = req.body || {};
 
   if (!message || typeof message !== 'string' || message.trim().length === 0) {
