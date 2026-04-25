@@ -110,8 +110,6 @@ function stripeGuard(_req, res, next) {
 }
 
 // JSON body parser for Stripe API routes (NOT webhook)
-app.use('/api/stripe/checkout', express.json());
-app.use('/api/stripe/portal', express.json());
 
 // Subscription routes need method-specific handling
 app.patch('/api/stripe/subscription', express.json(), stripeGuard, async function (req, res) {
