@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// ─── Version 2.0.0 - Salesbot with quick replies ───
+
 // ─── Stripe SDK (lazy init) ───
 let stripe = null;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
