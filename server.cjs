@@ -439,6 +439,7 @@ app.post('/api/chat', express.json(), async function (req, res) {
   }
 
   // Use salesbot engine first
+  // Salesbot engine v2
   const botResult = getBotResponse(message.trim(), state);
   
   // If we have a specific flow response, return it immediately
