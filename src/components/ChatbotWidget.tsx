@@ -5,6 +5,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  quickReplies?: string[];
 }
 
 interface ChatWidgetProps {
@@ -14,15 +15,18 @@ interface ChatWidgetProps {
   welcomeMessage?: string;
 }
 
+const QUICK_REPLIES = ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales'];
+
 export default function ChatWidget({
   primaryColor = '#059669',
   position = 'bottom-right',
-  welcomeMessage = 'Hi! I\'m your EcoAuditor AI assistant. Ask me anything about carbon accounting, emissions reporting, Scope 1/2/3, CBAM, GHG protocols, and more!',
+  welcomeMessage = "Hi! 👋 I'm your EcoAuditor sales assistant. I can help you with pricing, book a demo, or answer questions about carbon accounting and emissions reporting. What would you like to explore?",
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [chatState, setChatState] = useState<Record<string, any>>({});
   const [sessionId] = useState<string>(() => {
     const stored = localStorage.getItem('ecochat_session_id');
     if (stored) return stored;
@@ -41,6 +45,7 @@ export default function ChatWidget({
         role: 'assistant',
         content: welcomeMessage,
         timestamp: Date.now(),
+        quickReplies: QUICK_REPLIES,
       }]);
     }
   }, [isOpen, messages.length, welcomeMessage]);
@@ -50,9 +55,8 @@ export default function ChatWidget({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = inputValue.trim();
+  const sendMessage = async (text: string, newState?: Record<string, any>) => {
+    const trimmed = text.trim();
     if (!trimmed || isLoading) return;
 
     const userMessage: Message = {
@@ -74,7 +78,11 @@ export default function ChatWidget({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify({ message: trimmed, sessionId }),
+        body: JSON.stringify({
+          message: trimmed,
+          sessionId,
+          state: newState || chatState,
+        }),
       });
 
       const data = await response.json();
@@ -85,14 +93,19 @@ export default function ChatWidget({
           role: 'assistant',
           content: data.response,
           timestamp: Date.now(),
+          quickReplies: data.quickReplies || QUICK_REPLIES,
         };
         setMessages(prev => [...prev, assistantMessage]);
+        if (data.state) {
+          setChatState(data.state);
+        }
       } else {
         const errorMsg: Message = {
           id: `error_${Date.now()}`,
           role: 'assistant',
           content: data.error || 'Sorry, something went wrong. Please try again.',
           timestamp: Date.now(),
+          quickReplies: QUICK_REPLIES,
         };
         setMessages(prev => [...prev, errorMsg]);
       }
@@ -102,6 +115,7 @@ export default function ChatWidget({
         role: 'assistant',
         content: 'Network error. Please check your connection and try again.',
         timestamp: Date.now(),
+        quickReplies: QUICK_REPLIES,
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -109,6 +123,15 @@ export default function ChatWidget({
       setIsLoading(false);
       inputRef.current?.focus();
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendMessage(inputValue);
+  };
+
+  const handleQuickReply = (reply: string) => {
+    sendMessage(reply);
   };
 
   const positionStyle = position === 'bottom-right'
@@ -133,6 +156,15 @@ export default function ChatWidget({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(5, 150, 105, 0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(5, 150, 105, 0.4)';
           }}
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
@@ -180,8 +212,8 @@ export default function ChatWidget({
                 </svg>
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>EcoAuditor Support</h3>
-                <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>AI Assistant</p>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>EcoAuditor Sales</h3>
+                <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>Online now</p>
               </div>
             </div>
             <button
@@ -201,7 +233,7 @@ export default function ChatWidget({
                 justifyContent: 'center',
               }}
             >
-              x
+              ×
             </button>
           </div>
 
@@ -216,22 +248,61 @@ export default function ChatWidget({
             backgroundColor: '#f9fafb',
           }}>
             {messages.map((msg) => (
-              <div
-                key={msg.id}
-                style={{
-                  maxWidth: '85%',
-                  alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                  backgroundColor: msg.role === 'user' ? primaryColor : '#ffffff',
-                  color: msg.role === 'user' ? '#ffffff' : '#1f2937',
-                  padding: '10px 14px',
-                  borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                  fontSize: '14px',
-                  lineHeight: 1.5,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                  border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
-                }}
-              >
-                {msg.content}
+              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div
+                  style={{
+                    maxWidth: '85%',
+                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                    backgroundColor: msg.role === 'user' ? primaryColor : '#ffffff',
+                    color: msg.role === 'user' ? '#ffffff' : '#1f2937',
+                    padding: '10px 14px',
+                    borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                    fontSize: '14px',
+                    lineHeight: 1.5,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                    border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {msg.content}
+                </div>
+                {msg.quickReplies && msg.role === 'assistant' && (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    alignSelf: 'flex-start',
+                    marginTop: '4px',
+                  }}>
+                    {msg.quickReplies.map((reply) => (
+                      <button
+                        key={reply}
+                        onClick={() => handleQuickReply(reply)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '18px',
+                          border: `1.5px solid ${primaryColor}`,
+                          backgroundColor: 'white',
+                          color: primaryColor,
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = primaryColor;
+                          e.currentTarget.style.color = 'white';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'white';
+                          e.currentTarget.style.color = primaryColor;
+                        }}
+                      >
+                        {reply}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 
@@ -248,17 +319,17 @@ export default function ChatWidget({
                 <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                   <div style={{
                     width: '8px', height: '8px', borderRadius: '50%',
-                    backgroundColor: '#059669', opacity: 0.5,
+                    backgroundColor: primaryColor, opacity: 0.5,
                     animation: 'ecoBounce 1.2s infinite ease-in-out',
                   }}/>
                   <div style={{
                     width: '8px', height: '8px', borderRadius: '50%',
-                    backgroundColor: '#059669', opacity: 0.7,
+                    backgroundColor: primaryColor, opacity: 0.7,
                     animation: 'ecoBounce 1.2s infinite ease-in-out 0.15s',
                   }}/>
                   <div style={{
                     width: '8px', height: '8px', borderRadius: '50%',
-                    backgroundColor: '#059669', opacity: 0.9,
+                    backgroundColor: primaryColor, opacity: 0.9,
                     animation: 'ecoBounce 1.2s infinite ease-in-out 0.3s',
                   }}/>
                 </div>
@@ -285,7 +356,7 @@ export default function ChatWidget({
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask about carbon accounting..."
+              placeholder={chatState.flow ? 'Type your answer...' : 'Ask about carbon accounting...'}
               disabled={isLoading}
               style={{
                 flex: 1,
