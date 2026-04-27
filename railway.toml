@@ -2,6 +2,10 @@
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
+[[build.args]]
+name = "VITE_STRIPE_PK"
+value = "${VITE_STRIPE_PK}"
+
 [deploy]
 startCommand = "node server.cjs"
 restartPolicyType = "ON_FAILURE"
