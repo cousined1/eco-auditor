@@ -1,13 +1,14 @@
 # ─── Stage 1: Build ───
 FROM node:22-alpine AS builder
 
-# Vite bakes env vars at build time — pass them as build args
-ARG VITE_STRIPE_PK
-
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci
+
+# Vite bakes env vars at build time — pass as build args
+# ARG must come AFTER COPY to invalidate cache when values change
+ARG VITE_STRIPE_PK
 
 COPY . .
 ENV VITE_STRIPE_PK=$VITE_STRIPE_PK
