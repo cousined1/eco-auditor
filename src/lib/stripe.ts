@@ -48,7 +48,7 @@ export async function createCheckoutSession({ planId, billing, trial }: Checkout
   }
 
   try {
-    const resp = await fetch('/billing/checkout', {
+    const resp = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priceId, planId, billing, trial }),
@@ -72,7 +72,7 @@ export async function createBillingPortalSession(): Promise<StripeResult<{ url: 
   }
 
   try {
-    const resp = await fetch('/billing/portal', { method: 'POST' });
+    const resp = await fetch('/api/portal', { method: 'POST' });
 
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
@@ -92,7 +92,7 @@ export async function changeSubscription(planId: string, billing: 'monthly' | 'a
   }
 
   try {
-    const resp = await fetch('/billing/subscription', {
+    const resp = await fetch('/api/subscription', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ planId, billing }),
@@ -115,7 +115,7 @@ export async function cancelSubscription(): Promise<StripeResult<{ success: bool
   }
 
   try {
-    const resp = await fetch('/billing/subscription', { method: 'DELETE' });
+    const resp = await fetch('/api/subscription', { method: 'DELETE' });
 
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
