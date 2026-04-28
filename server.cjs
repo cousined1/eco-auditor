@@ -133,7 +133,11 @@ app.delete('/api/stripe/subscription', express.json(), stripeGuard, async functi
   }
 });
 
-app.get('/api/stripe/checkout', function (_req, res) { res.json({ message: 'GET works', stripe: !!stripe }); });\n\napp.post('/api/stripe/checkout', express.json(), stripeGuard, async function (req, res) {
+app.get('/api/stripe/checkout', function (_req, res) {
+  res.json({ message: 'GET works', stripe: !!stripe });
+});
+
+app.post('/api/stripe/checkout', express.json(), stripeGuard, async function (req, res) {
   try {
     const { priceId, trial } = req.body;
     console.log('[checkout] Received request:', { priceId, trial, stripeInitialized: !!stripe });
