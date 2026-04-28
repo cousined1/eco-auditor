@@ -1,3 +1,4 @@
+import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import type { Plugin, Connect } from 'vite';
@@ -30,6 +31,12 @@ function spaFallback(): Plugin {
 
 export default defineConfig({
   plugins: [react(), spaFallback()],
+
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
 
   build: {
     outDir: 'static',

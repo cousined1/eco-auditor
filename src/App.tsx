@@ -1,5 +1,7 @@
 import { Routes, Route, NavLink, Link, Navigate } from 'react-router-dom';
 import { useTheme } from './hooks/useTheme';
+import { ConsentProvider } from './lib/consent-context';
+import { CookieConsentBanner } from './components/CookieConsentBanner';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
@@ -31,6 +33,15 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
+  return (
+    <ConsentProvider>
+      <AppContent />
+      <CookieConsentBanner />
+    </ConsentProvider>
+  );
+}
+
+function AppContent() {
   const { theme, toggle } = useTheme();
   const location = window.location.pathname;
   const isLegalPage = LEGAL_PATHS.includes(location);
