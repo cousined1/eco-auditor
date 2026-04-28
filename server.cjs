@@ -112,7 +112,7 @@ function stripeGuard(_req, res, next) {
 // JSON body parser for Stripe API routes (NOT webhook)
 
 // Subscription routes need method-specific handling
-app.patch('/api/stripe/subscription', express.json(), stripeGuard, async function (req, res) {
+app.patch('/billing/subscription', express.json(), stripeGuard, async function (req, res) {
   try {
     const { planId, billing } = req.body;
     log('info', 'Subscription change requested', { planId, billing });
@@ -123,7 +123,7 @@ app.patch('/api/stripe/subscription', express.json(), stripeGuard, async functio
   }
 });
 
-app.delete('/api/stripe/subscription', express.json(), stripeGuard, async function (_req, res) {
+app.delete('/billing/subscription', express.json(), stripeGuard, async function (_req, res) {
   try {
     log('info', 'Subscription cancellation requested');
     return res.json({ success: true, message: 'Subscription cancelled' });
@@ -133,11 +133,11 @@ app.delete('/api/stripe/subscription', express.json(), stripeGuard, async functi
   }
 });
 
-app.get('/api/stripe/checkout', function (_req, res) {
+app.get('/billing/checkout', function (_req, res) {
   res.json({ message: 'GET works', stripe: !!stripe });
 });
 
-app.post('/api/stripe/checkout', express.json(), stripeGuard, async function (req, res) {
+app.post('/billing/checkout', express.json(), stripeGuard, async function (req, res) {
   try {
     const { priceId, trial } = req.body;
     console.log('[checkout] Received request:', { priceId, trial, stripeInitialized: !!stripe });
@@ -165,7 +165,7 @@ app.post('/api/stripe/checkout', express.json(), stripeGuard, async function (re
   }
 });
 
-app.post('/api/stripe/portal', express.json(), stripeGuard, async function (req, res) {
+app.post('/billing/portal', express.json(), stripeGuard, async function (req, res) {
   try {
     const customerId = req.body.customerId;
     if (!customerId) return res.status(400).json({ error: 'Missing customerId' });
@@ -182,7 +182,7 @@ app.post('/api/stripe/portal', express.json(), stripeGuard, async function (req,
 });
 
 // Webhook uses raw body for signature verification
-app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), function (req, res) {
+app.post('/billing/webhook', express.raw({ type: 'application/json' }), function (req, res) {
   if (!stripe) return res.status(503).json({ error: 'Billing not configured' });
 
   let event;
