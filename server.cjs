@@ -136,6 +136,7 @@ app.delete('/api/stripe/subscription', express.json(), stripeGuard, async functi
 app.post('/api/stripe/checkout', express.json(), stripeGuard, async function (req, res) {
   try {
     const { priceId, trial } = req.body;
+    console.log('[checkout] Received request:', { priceId, trial, stripeInitialized: !!stripe });
     if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
 
     const sessionParams = {
@@ -149,11 +150,14 @@ app.post('/api/stripe/checkout', express.json(), stripeGuard, async function (re
       sessionParams.subscription_data = { trial_period_days: 14 };
     }
 
+    console.log('[checkout] Creating session with params:', JSON.stringify(sessionParams));
     const session = await stripe.checkout.sessions.create(sessionParams);
+    console.log('[checkout] Session created:', session.id);
     return res.json({ url: session.url });
   } catch (err) {
+    console.error('[checkout] Error:', err.message);
     log('error', 'Checkout session failed', { error: String(err) });
-    return res.status(500).json({ error: 'Checkout session creation failed' });
+    return res.status(500).json({ error: 'Checkout session creation failed', details: err.message });
   }
 });
 
