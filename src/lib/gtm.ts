@@ -1,6 +1,6 @@
 import { useConsent } from './consent-context';
 
-const GTM_ID = import.meta.env.VITE_GTM_ID;
+const GTM_ID = import.meta.env.VITE_GTM_ID || 'GTM-PS2XR44V';
 
 export function useGTM() {
   const { consentState } = useConsent();
