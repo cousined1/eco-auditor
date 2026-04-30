@@ -1,7 +1,8 @@
-import { Routes, Route, NavLink, Link, Navigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Link, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
-import { ConsentProvider } from './lib/consent-context';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
+import { useGTM } from './lib/gtm';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
@@ -32,12 +33,24 @@ const NAV_ITEMS = [
   { to: '/app/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
+function TrackPageViews() {
+  const location = useLocation();
+  const { trackPageView } = useGTM();
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+
+  return null;
+}
+
 export default function App() {
   return (
-    <ConsentProvider>
+    <>
       <AppContent />
       <CookieConsentBanner />
-    </ConsentProvider>
+      <TrackPageViews />
+    </>
   );
 }
 

@@ -137,6 +137,26 @@ app.get('/api/checkout', function (_req, res) {
   res.json({ message: 'GET works', stripe: !!stripe });
 });
 
+// ─── Public config endpoint for Stripe price IDs (frontend fetches these at runtime) ───
+app.get('/api/config/prices', function (_req, res) {
+  res.setHeader('Cache-Control', 'public, max-age=300'); // 5 min client-side cache
+  res.json({
+    starter: {
+      monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || process.env.VITE_STRIPE_PRICE_STARTER_MONTHLY || null,
+      annual:  process.env.STRIPE_PRICE_STARTER_ANNUAL  || process.env.VITE_STRIPE_PRICE_STARTER_ANNUAL  || null,
+    },
+    growth: {
+      monthly: process.env.STRIPE_PRICE_GROWTH_MONTHLY || process.env.VITE_STRIPE_PRICE_GROWTH_MONTHLY || null,
+      annual:  process.env.STRIPE_PRICE_GROWTH_ANNUAL  || process.env.VITE_STRIPE_PRICE_GROWTH_ANNUAL  || null,
+    },
+    pro: {
+      monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || process.env.VITE_STRIPE_PRICE_PRO_MONTHLY || null,
+      annual:  process.env.STRIPE_PRICE_PRO_ANNUAL  || process.env.VITE_STRIPE_PRICE_PRO_ANNUAL  || null,
+    },
+    pk: process.env.VITE_STRIPE_PK || null,
+  });
+});
+
 app.post('/api/checkout', express.json(), stripeGuard, async function (req, res) {
   try {
     const { priceId, trial } = req.body;

@@ -3,12 +3,6 @@
 // The VITE_STRIPE_PK must be set at build time for client-side checkout to work.
 // The server-side /api/stripe/checkout route uses STRIPE_SECRET_KEY at runtime.
 
-const STRIPE_PK = import.meta.env.VITE_STRIPE_PK;
-
-if (!STRIPE_PK || STRIPE_PK === 'pk_test_placeholder' || STRIPE_PK === 'pk_live_placeholder') {
-  console.warn('[Stripe] VITE_STRIPE_PK is not configured — billing features will be unavailable');
-}
-
 interface CheckoutParams {
   priceId: string;
   planId: string;
@@ -16,35 +10,65 @@ interface CheckoutParams {
   trial?: boolean | undefined;
 }
 
-// Price IDs: Environment variables take priority, then fallback to Stripe Dashboard IDs
-// Set VITE_STRIPE_PRICE_STARTER_MONTHLY etc. in your .env or Railway env
-const PRICE_IDS: Record<string, Record<'monthly' | 'annual', string>> = {
-  starter: {
-    monthly: import.meta.env.VITE_STRIPE_PRICE_STARTER_MONTHLY || 'price_starter_monthly',
-    annual: import.meta.env.VITE_STRIPE_PRICE_STARTER_ANNUAL || 'price_starter_annual',
-  },
-  growth: {
-    monthly: import.meta.env.VITE_STRIPE_PRICE_GROWTH_MONTHLY || 'price_growth_monthly',
-    annual: import.meta.env.VITE_STRIPE_PRICE_GROWTH_ANNUAL || 'price_growth_annual',
-  },
-  pro: {
-    monthly: import.meta.env.VITE_STRIPE_PRICE_PRO_MONTHLY || 'price_pro_monthly',
-    annual: import.meta.env.VITE_STRIPE_PRICE_PRO_ANNUAL || 'price_pro_annual',
-  },
-};
+interface PriceConfig {
+  starter: { monthly: string | null; annual: string | null };
+  growth:  { monthly: string | null; annual: string | null };
+  pro:     { monthly: string | null; annual: string | null };
+  pk:      string | null;
+}
+
+let _priceCache: PriceConfig | null = null;
+let _priceCachePromise: Promise<PriceConfig> | null = null;
+
+async function fetchPriceConfig(): Promise<PriceConfig> {
+  if (_priceCache) return _priceCache;
+  if (_priceCachePromise) return _priceCachePromise;
+
+  _priceCachePromise = fetch('/api/config/prices')
+    .then(async (res) => {
+      if (!res.ok) throw new Error('Failed to load price config');
+      const data = (await res.json()) as PriceConfig;
+      _priceCache = data;
+      return data;
+    })
+    .catch((err) => {
+      console.warn('[Stripe] Could not fetch price config, using placeholders:', err);
+      const fallback: PriceConfig = {
+        starter: { monthly: null, annual: null },
+        growth:  { monthly: null, annual: null },
+        pro:     { monthly: null, annual: null },
+        pk:      null,
+      };
+      _priceCache = fallback;
+      return fallback;
+    });
+
+  return _priceCachePromise;
+}
+
+function clearPriceCache(): void {
+  _priceCache = null;
+  _priceCachePromise = null;
+}
+
+
+
+// Legacy build-time fallback (used only before fetch completes)
+const STRIPE_PK = import.meta.env.VITE_STRIPE_PK;
+if (!STRIPE_PK || STRIPE_PK === 'pk_test_placeholder' || STRIPE_PK === 'pk_live_placeholder') {
+  console.warn('[Stripe] VITE_STRIPE_PK is not configured — billing features will be unavailable');
+}
 
 type StripeResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export async function createCheckoutSession({ planId, billing, trial }: CheckoutParams): Promise<StripeResult<{ url: string }>> {
-  const priceId = PRICE_IDS[planId]?.[billing];
+  const config = await fetchPriceConfig();
+  const priceId = config[planId as keyof Omit<PriceConfig, 'pk'>]?.[billing];
   if (!priceId) return { ok: false, error: 'Invalid plan selection' };
-  if (!STRIPE_PK || STRIPE_PK === 'pk_test_placeholder' || STRIPE_PK === 'pk_live_placeholder') {
-    return { ok: false, error: 'Stripe is not configured' };
-  }
 
-  // Check if this is still a placeholder price ID (not yet configured)
-  if (priceId.startsWith('price_starter') || priceId.startsWith('price_growth') || priceId.startsWith('price_pro')) {
-    return { ok: false, error: 'Stripe pricing not yet configured. Please create products in Stripe Dashboard and set the price ID environment variables.' };
+  const pk = config.pk || STRIPE_PK;
+  if (!pk || pk === 'pk_test_placeholder' || pk === 'pk_live_placeholder') {
+    return { ok: false, error: 'Stripe is not configured' };
   }
 
   try {
@@ -152,4 +176,5 @@ export function handleWebhookEvent(event: StripeWebhookEvent): void {
   }
 }
 
-export { STRIPE_PK, PRICE_IDS };
+export { STRIPE_PK, fetchPriceConfig, clearPriceCache };
+export type { PriceConfig };
