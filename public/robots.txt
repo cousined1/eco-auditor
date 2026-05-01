@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://eco-auditor.developer312.com/sitemap.xml
+Sitemap: https://ecoauditor.io/sitemap.xml
