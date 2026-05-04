@@ -57,6 +57,11 @@ export default function Footer() {
           <p className="text-2xs text-surface-400">© {year} Developer312. All rights reserved.</p>
           <p className="text-2xs text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
         </div>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '1rem 0', marginTop: '2rem', fontSize: '0.85rem', color: '#94a3b8', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>Developer312 suite:</span>
+          <a href="https://sim2real.com" style={{ color: '#60a5fa', textDecoration: 'none' }}>Sim2Real</a>
+          <a href="https://provenance-os.com" style={{ color: '#60a5fa', textDecoration: 'none' }}>ProvenanceOS</a>
+        </div>
       </div>
     </footer>
   );
