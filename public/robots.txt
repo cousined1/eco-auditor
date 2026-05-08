@@ -1,4 +1,11 @@
 User-agent: *
 Allow: /
 
+# Sitemap reference
 Sitemap: https://ecoauditor.io/sitemap.xml
+
+# Disallow auth-only app paths
+Disallow: /app
+
+# Crawl delay for rate limiting
+Crawl-delay: 1
