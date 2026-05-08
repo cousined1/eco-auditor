@@ -376,8 +376,12 @@ function getBotResponse(message, state = {}) {
         preferredTime: message,
         source: 'chatbot'
       });
+      
+      // Generate PrismDeck presentation link
+      const prismDeckUrl = `https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor&company=${encodeURIComponent(state.company)}&email=${encodeURIComponent(state.email)}`;
+      
       return {
-        response: `🎉 Demo booked!\n\nOur team will reach out to ${state.email} within 24 hours to confirm your demo for ${state.date} (${message}).\n\nIn the meantime, check out our [Pricing](/pricing) or ask me anything else!`,
+        response: `🎉 Demo booked!\n\nOur team will reach out to ${state.email} within 24 hours to confirm your demo for ${state.date} (${message}).\n\n📊 Meanwhile, I've prepared a personalized presentation for ${state.company}:\n🔗 [View Your EcoAuditor Deck](${prismDeckUrl})\n\nIn the meantime, check out our [Pricing](/pricing) or ask me anything else!`,
         state: {}
       };
     }

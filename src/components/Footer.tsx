@@ -57,6 +57,16 @@ export default function Footer() {
           <p className="text-2xs text-surface-400">© {year} Developer312. All rights reserved.</p>
           <p className="text-2xs text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
         </div>
+
+        {/* Developer312 Suite Interlinking */}
+        <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-surface-500">
+            <span className="font-medium text-surface-600 dark:text-surface-400">Developer312 suite:</span>
+            <a href="https://provenance-os.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">ProvenanceOS</a>
+            <span className="text-surface-300">·</span>
+            <a href="https://sim2real.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a>
+          </div>
+        </div>
       </div>
     </footer>
   );
