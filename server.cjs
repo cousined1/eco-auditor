@@ -648,6 +648,7 @@ app.use(express.static(path.join(__dirname, 'static'), {
 
 // ─── SPA fallback ───
 app.get('*', function (_req, res) {
+  res.setHeader('Cache-Control', 'no-transform');
   res.sendFile(path.join(__dirname, 'static', 'index.html'));
 });
 
