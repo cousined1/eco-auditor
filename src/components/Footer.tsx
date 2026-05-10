@@ -57,10 +57,15 @@ export default function Footer() {
           <p className="text-2xs text-surface-400">© {year} Developer312. All rights reserved.</p>
           <p className="text-2xs text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
         </div>
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '1rem 0', marginTop: '2rem', fontSize: '0.85rem', color: '#94a3b8', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>Developer312 suite:</span>
-          <a href="https://sim2real.com" style={{ color: '#60a5fa', textDecoration: 'none' }}>Sim2Real</a>
-          <a href="https://provenance-os.com" style={{ color: '#60a5fa', textDecoration: 'none' }}>ProvenanceOS</a>
+
+        {/* Developer312 Suite Interlinking */}
+        <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-surface-500">
+            <span className="font-medium text-surface-600 dark:text-surface-400">Developer312 suite:</span>
+            <a href="https://provenance-os.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">ProvenanceOS</a>
+            <span className="text-surface-300">·</span>
+            <a href="https://sim2real.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a>
+          </div>
         </div>
       </div>
     </footer>

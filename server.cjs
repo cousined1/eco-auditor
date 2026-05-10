@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// ─── Version 2.0.0 - Salesbot with quick replies ───
+// ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
 // ─── Stripe SDK (lazy init) ───
 let stripe = null;
@@ -376,8 +376,12 @@ function getBotResponse(message, state = {}) {
         preferredTime: message,
         source: 'chatbot'
       });
+      
+      // Generate PrismDeck presentation link
+      const prismDeckUrl = `https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor&company=${encodeURIComponent(state.company)}&email=${encodeURIComponent(state.email)}`;
+      
       return {
-        response: `🎉 Demo booked!\n\nOur team will reach out to ${state.email} within 24 hours to confirm your demo for ${state.date} (${message}).\n\nIn the meantime, check out our [Pricing](/pricing) or ask me anything else!`,
+        response: `🎉 Demo booked!\n\nOur team will reach out to ${state.email} within 24 hours to confirm your demo for ${state.date} (${message}).\n\n📊 Meanwhile, I've prepared a personalized presentation for ${state.company}:\n🔗 [View Your EcoAuditor Deck](${prismDeckUrl})\n\nIn the meantime, check out our [Pricing](/pricing) or ask me anything else!`,
         state: {}
       };
     }
@@ -637,13 +641,14 @@ app.use(express.static(path.join(__dirname, 'static'), {
     if (filePath.includes('/assets/') && (filePath.endsWith('.js') || filePath.endsWith('.css'))) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     } else if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
     }
   },
 }));
 
 // ─── SPA fallback ───
 app.get('*', function (_req, res) {
+  res.setHeader('Cache-Control', 'no-transform');
   res.sendFile(path.join(__dirname, 'static', 'index.html'));
 });
 
