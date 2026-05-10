@@ -641,7 +641,7 @@ app.use(express.static(path.join(__dirname, 'static'), {
     if (filePath.includes('/assets/') && (filePath.endsWith('.js') || filePath.endsWith('.css'))) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     } else if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
     }
   },
 }));
