@@ -57,7 +57,6 @@ export default function Footer() {
           <p className="text-2xs text-surface-400">© {year} Developer312. All rights reserved.</p>
           <p className="text-2xs text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
         </div>
-<<<<<<< HEAD
 
         {/* Developer312 Suite Interlinking */}
         <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800">
