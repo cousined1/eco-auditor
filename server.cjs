@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// ─── Version 2.0.0 - Salesbot with quick replies ───
+// ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
 // ─── Stripe SDK (lazy init) ───
 let stripe = null;
