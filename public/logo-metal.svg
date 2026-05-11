@@ -1,49 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
-  <!-- Background -->
-  <circle cx="400" cy="400" r="380" fill="#0d2818"/>
-  <circle cx="400" cy="400" r="350" fill="#143d23"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Modern flat eco logo — abstract leaf + cycle, no text -->
+  <rect width="512" height="512" fill="#0d2818" rx="96"/>
   
-  <!-- Outer Ring -->
-  <circle cx="400" cy="400" r="340" fill="none" stroke="#2d6a4f" stroke-width="6"/>
-  <circle cx="400" cy="400" r="325" fill="none" stroke="#52b788" stroke-width="2"/>
+  <!-- Abstract leaf shape — organic but geometric -->
+  <path fill="#52b788" d="M256 96C256 96 176 176 176 280C176 352 208 400 256 432C304 400 336 352 336 280C336 176 256 96 256 96Z"/>
+  <path fill="#0d2818" d="M256 140C256 140 208 200 208 280C208 330 228 370 256 392C284 370 304 330 304 280C304 200 256 140 256 140Z"/>
   
-  <!-- Central Leaf/Eco Symbol -->
-  <path fill="#52b788" d="M400 180C400 180 280 280 280 420C280 520 340 580 400 620C460 580 520 520 520 420C520 280 400 180 400 180Z"/>
-  <path fill="#0d2818" d="M400 220C400 220 320 300 320 410C320 490 360 540 400 570C440 540 480 490 480 410C480 300 400 220 400 220Z"/>
+  <!-- Central vein — minimal line -->
+  <line x1="256" y1="160" x2="256" y2="380" stroke="#95d5b2" stroke-width="5" stroke-linecap="round"/>
   
-  <!-- Leaf Vein -->
-  <path fill="none" stroke="#95d5b2" stroke-width="6" d="M400 250L400 550"/>
-  <path fill="none" stroke="#95d5b2" stroke-width="4" d="M400 350L340 320"/>
-  <path fill="none" stroke="#95d5b2" stroke-width="4" d="M400 400L460 370"/>
-  <path fill="none" stroke="#95d5b2" stroke-width="4" d="M400 450L340 420"/>
-  <path fill="none" stroke="#95d5b2" stroke-width="4" d="M400 500L460 470"/>
+  <!-- Abstract cycle/recycle arcs — not the trademarked recycling symbol -->
+  <path fill="none" stroke="#2d6a4f" stroke-width="8" stroke-linecap="round" d="M120 360A200 200 0 0 1 392 360"/>
+  <path fill="none" stroke="#2d6a4f" stroke-width="8" stroke-linecap="round" d="M392 360A200 200 0 0 1 120 360"/>
   
-  <!-- Circular Eco Arrows -->
-  <path fill="none" stroke="#2d6a4f" stroke-width="8" d="M200 400A200 200 0 0 1 600 400" stroke-linecap="round"/>
-  <path fill="none" stroke="#2d6a4f" stroke-width="8" d="M600 400A200 200 0 0 1 200 400" stroke-linecap="round"/>
+  <!-- Abstract arrow heads — geometric triangles -->
+  <polygon points="100,350 120,330 120,370" fill="#52b788"/>
+  <polygon points="412,350 392,330 392,370" fill="#52b788"/>
   
-  <!-- Arrow Heads -->
-  <path fill="#52b788" d="M580 340L620 400L560 400Z"/>
-  <path fill="#52b788" d="M220 460L180 400L240 400Z"/>
-  
-  <!-- Circuit/Connection Dots -->
-  <circle cx="400" cy="130" r="12" fill="#52b788"/>
-  <circle cx="670" cy="400" r="12" fill="#52b788"/>
-  <circle cx="400" cy="670" r="12" fill="#52b788"/>
-  <circle cx="130" cy="400" r="12" fill="#52b788"/>
-  
-  <!-- Connection Lines -->
-  <path fill="none" stroke="#2d6a4f" stroke-width="4" d="M400 142L400 200"/>
-  <path fill="none" stroke="#2d6a4f" stroke-width="4" d="M658 400L600 400"/>
-  <path fill="none" stroke="#2d6a4f" stroke-width="4" d="M400 658L400 600"/>
-  <path fill="none" stroke="#2d6a4f" stroke-width="4" d="M142 400L200 400"/>
-  
-  <!-- Audit Checkmark Badge -->
-  <circle cx="580" cy="220" r="50" fill="#52b788"/>
-  <circle cx="580" cy="220" r="40" fill="#0d2818"/>
-  <path fill="none" stroke="#52b788" stroke-width="8" d="M555 220L570 235L605 205"/>
-  
-  <!-- EcoAuditor Text -->
-  <text x="400" y="700" fill="#95d5b2" font-family="monospace" font-size="36" font-weight="bold" text-anchor="middle" letter-spacing="6">ECOAUDITOR</text>
-  <text x="400" y="730" fill="#52b788" font-family="sans-serif" font-size="18" text-anchor="middle" opacity="0.7">SUSTAINABILITY COMPLIANCE</text>
+  <!-- Audit dot — minimal check node -->
+  <circle cx="256" cy="460" r="12" fill="#95d5b2"/>
 </svg>
