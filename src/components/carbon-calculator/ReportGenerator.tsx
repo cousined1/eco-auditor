@@ -16,26 +16,32 @@ export default function ReportGenerator({ company, entries }: Props) {
     setStatus(null);
 
     try {
+      const safeAmount = (e: EmissionEntry) => {
+        const v = parseFloat(e.amount);
+        return isNaN(v) ? 0 : v;
+      };
+
       const totalScope1 = entries
         .filter((e) => e.scope === 'Scope 1')
-        .reduce((s, e) => s + parseFloat(e.amount), 0);
+        .reduce((s, e) => s + safeAmount(e), 0);
       const totalScope2 = entries
         .filter((e) => e.scope === 'Scope 2')
-        .reduce((s, e) => s + parseFloat(e.amount), 0);
+        .reduce((s, e) => s + safeAmount(e), 0);
       const totalScope3 = entries
         .filter((e) => e.scope === 'Scope 3')
-        .reduce((s, e) => s + parseFloat(e.amount), 0);
+        .reduce((s, e) => s + safeAmount(e), 0);
 
       const { data: report, error } = await insforge
         .from('reports')
-        .insert({
+        .insert([{
+          company_id: company.id,
           title: `Carbon Report ${new Date().toISOString().split('T')[0]}`,
           type: 'carbon',
           status: 'final',
           last_updated: new Date().toISOString(),
           completeness: 100,
           signoff: 'pending',
-        })
+        }])
         .select()
         .single();
 
