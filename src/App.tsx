@@ -17,6 +17,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import ContactUs from './pages/ContactUs';
 import DataProcessingAddendum from './pages/DataProcessingAddendum';
+import CarbonCalculator from './components/carbon-calculator';
 import Footer from './components/Footer';
 
 const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
@@ -24,6 +25,7 @@ const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
 const NAV_ITEMS = [
   { to: '/app', label: 'Dashboard', icon: DashboardIcon, end: true },
   { to: '/app/intake', label: 'Data Intake', icon: DataIcon },
+  { to: '/app/calculator', label: 'Calculator', icon: CalculatorIcon },
   { to: '/app/assistant', label: 'AI Assistant', icon: AssistantIcon },
   { to: '/app/ledger', label: 'Ledger', icon: LedgerIcon },
   { to: '/app/reports', label: 'Reports', icon: ReportsIcon },
@@ -166,6 +168,7 @@ function AppContent() {
             <Routes>
               <Route path="/app" element={<Dashboard />} />
               <Route path="/app/intake" element={<DataIntake />} />
+              <Route path="/app/calculator" element={<CarbonCalculator />} />
               <Route path="/app/assistant" element={<AIAssistant />} />
               <Route path="/app/ledger" element={<Ledger />} />
               <Route path="/app/reports" element={<Reports />} />
@@ -223,6 +226,9 @@ function MethodologyIcon({ className }: { className?: string }) {
 }
 function PricingIcon({ className }: { className?: string }) {
   return <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6"/><path d="M6.5 6.5a1.5 1.5 0 011.5-1.5h0a1.5 1.5 0 011.5 1.5c0 .83-.67 1-1.5 1.5s-1.5.67-1.5 1.5M8 11v.5"/></svg>;
+}
+function CalculatorIcon({ className }: { className?: string }) {
+  return <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="1" width="12" height="14" rx="1"/><path d="M5 4h6M5 7h2M9 7h2M5 10h2M9 10h2M5 13h6"/></svg>;
 }
 function SettingsIcon({ className }: { className?: string }) {
   return <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/></svg>;
