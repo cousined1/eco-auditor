@@ -204,16 +204,15 @@ app.post('/api/portal', express.json(), stripeGuard, async function (req, res) {
 // Webhook uses raw body for signature verification
 app.post('/api/webhook', express.raw({ type: 'application/json' }), function (req, res) {
   if (!stripe) return res.status(503).json({ error: 'Billing not configured' });
+  if (!STRIPE_WEBHOOK_SECRET) {
+    log('error', 'Webhook rejected: STRIPE_WEBHOOK_SECRET is not configured');
+    return res.status(503).json({ error: 'Webhook signature secret not configured' });
+  }
 
   let event;
   try {
-    if (STRIPE_WEBHOOK_SECRET) {
-      const sig = req.headers['stripe-signature'];
-      event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
-    } else {
-      event = JSON.parse(req.body.toString());
-      log('warn', 'Processing webhook without signature verification');
-    }
+    const sig = req.headers['stripe-signature'];
+    event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     log('error', 'Webhook signature verification failed', { error: String(err) });
     return res.status(400).json({ error: 'Webhook signature verification failed' });
