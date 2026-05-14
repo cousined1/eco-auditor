@@ -31,9 +31,12 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
   const facilityMap: Record<number, Record<string, number>> = {};
   entries.forEach((e) => {
     if (e.facility_id == null) return;
-    if (!facilityMap[e.facility_id]) facilityMap[e.facility_id] = {};
-    facilityMap[e.facility_id][e.scope] =
-      (facilityMap[e.facility_id][e.scope] || 0) + (parseFloat(e.amount) || 0);
+    const existing = facilityMap[e.facility_id];
+    if (!existing) {
+      facilityMap[e.facility_id] = { [e.scope]: parseFloat(e.amount) || 0 };
+    } else {
+      existing[e.scope] = (existing[e.scope] ?? 0) + (parseFloat(e.amount) || 0);
+    }
   });
 
   const barData = facilities
@@ -79,7 +82,7 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
                 cy="50%"
                 outerRadius={80}
                 innerRadius={40}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 labelLine={false}
               >
                 {pieData.map((entry) => (
@@ -87,7 +90,7 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number) => formatCO2e(value)}
+                formatter={(value) => formatCO2e(Number(value))}
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e8ece9' }}
               />
             </PieChart>
@@ -111,7 +114,7 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#9ca8a0" />
                 <YAxis tick={{ fontSize: 11 }} stroke="#9ca8a0" />
                 <Tooltip
-                  formatter={(value: number) => formatCO2e(value)}
+                  formatter={(value) => formatCO2e(Number(value))}
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e8ece9' }}
                 />
                 <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />

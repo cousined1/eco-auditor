@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { insforge } from '@/lib/insforge';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { insforge as _insforge } from '@/lib/insforge';
+const insforge = _insforge as any;
 import type { Company, EmissionEntry } from './utils';
 
 interface Props {
