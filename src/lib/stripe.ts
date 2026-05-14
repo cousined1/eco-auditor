@@ -3,16 +3,15 @@
 // The VITE_STRIPE_PK must be set at build time for client-side checkout to work.
 // The server-side /api/stripe/checkout route uses STRIPE_SECRET_KEY at runtime.
 
-import { insforge } from './insforge';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { insforge as _insforge } from './insforge';
+const insforge = _insforge as any;
 
 // Resolves the InsForge access token for the current session. Returns null if
 // the user is not signed in — callers should treat that as an auth error.
 async function getAuthToken(): Promise<string | null> {
   try {
-    const result = (await insforge.auth.getSession()) as
-      | { data?: { session?: { access_token?: string } | null } | null }
-      | null
-      | undefined;
+    const result = await insforge.auth.getSession();
     return result?.data?.session?.access_token ?? null;
   } catch {
     return null;
