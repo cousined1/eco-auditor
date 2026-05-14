@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   pgEnum,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 // --- Enums ---
@@ -198,4 +199,13 @@ export const trendData = pgTable('trend_data', {
   scope2: integer('scope2').notNull(),
   scope3: integer('scope3').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Maps InsForge user identity to Stripe customer ID for server-side billing.
+// Server derives stripe_customer_id from the authenticated user — never trusts client input.
+export const users = pgTable('users', {
+  insforgeUserId: uuid('insforge_user_id').primaryKey(),
+  stripeCustomerId: text('stripe_customer_id'),
+  email: text('email').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });

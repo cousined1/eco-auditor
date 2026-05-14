@@ -18,6 +18,21 @@ if (STRIPE_SECRET_KEY) {
   }
 }
 
+// ─── InsForge auth backend (used by authGuard) ───
+const INSFORGE_BASE_URL =
+  process.env.INSFORGE_BASE_URL || process.env.VITE_INSFORGE_BASE_URL;
+
+// ─── Postgres pool (lazy init; used by billing user lookup) ───
+let pgPool = null;
+if (process.env.DATABASE_URL) {
+  try {
+    const { Pool } = require('pg');
+    pgPool = new Pool({ connectionString: process.env.DATABASE_URL });
+  } catch (err) {
+    // pg package not installed — billing routes that need user lookup will return 503
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT;
 
@@ -109,13 +124,80 @@ function stripeGuard(_req, res, next) {
   next();
 }
 
+// Verifies an InsForge bearer token by calling the InsForge auth backend.
+// On success, attaches the user payload (with `id`, `email`) to req.user.
+async function authGuard(req, res, next) {
+  try {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (!INSFORGE_BASE_URL) {
+      log('error', 'authGuard: INSFORGE_BASE_URL not configured');
+      return res.status(503).json({ error: 'Authentication backend not configured' });
+    }
+    const token = header.slice('Bearer '.length);
+    const userRes = await fetch(
+      INSFORGE_BASE_URL.replace(/\/$/, '') + '/auth/v1/user',
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (!userRes.ok) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    const user = await userRes.json();
+    if (!user || !user.id) {
+      return res.status(401).json({ error: 'Invalid user payload' });
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    log('error', 'authGuard error', { error: String(err) });
+    return res.status(500).json({ error: 'Authentication check failed' });
+  }
+}
+
+// Looks up the Stripe customer ID for an InsForge user, creating one if needed.
+// Idempotent: subsequent calls return the same customer ID.
+async function ensureStripeCustomer(insforgeUserId, email) {
+  if (!pgPool) throw new Error('Database not configured');
+  if (!stripe) throw new Error('Stripe not configured');
+
+  const { rows } = await pgPool.query(
+    'SELECT stripe_customer_id FROM users WHERE insforge_user_id = $1',
+    [insforgeUserId]
+  );
+
+  if (rows.length && rows[0].stripe_customer_id) {
+    return rows[0].stripe_customer_id;
+  }
+
+  const customer = await stripe.customers.create({
+    email: email,
+    metadata: { insforge_user_id: insforgeUserId },
+  });
+
+  if (rows.length) {
+    await pgPool.query(
+      'UPDATE users SET stripe_customer_id = $1 WHERE insforge_user_id = $2',
+      [customer.id, insforgeUserId]
+    );
+  } else {
+    await pgPool.query(
+      'INSERT INTO users (insforge_user_id, stripe_customer_id, email) VALUES ($1, $2, $3)',
+      [insforgeUserId, customer.id, email]
+    );
+  }
+
+  return customer.id;
+}
+
 // JSON body parser for Stripe API routes (NOT webhook)
 
 // Subscription routes need method-specific handling
-app.patch('/api/subscription', express.json(), stripeGuard, async function (req, res) {
+app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
     const { planId, billing } = req.body;
-    log('info', 'Subscription change requested', { planId, billing });
+    log('info', 'Subscription change requested', { planId, billing, userId: req.user.id });
     return res.json({ success: true, message: 'Subscription update queued' });
   } catch (err) {
     log('error', 'Subscription change failed', { error: String(err) });
@@ -123,9 +205,9 @@ app.patch('/api/subscription', express.json(), stripeGuard, async function (req,
   }
 });
 
-app.delete('/api/subscription', express.json(), stripeGuard, async function (_req, res) {
+app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
-    log('info', 'Subscription cancellation requested');
+    log('info', 'Subscription cancellation requested', { userId: req.user.id });
     return res.json({ success: true, message: 'Subscription cancelled' });
   } catch (err) {
     log('error', 'Subscription cancel failed', { error: String(err) });
@@ -157,14 +239,16 @@ app.get('/api/config/prices', function (_req, res) {
   });
 });
 
-app.post('/api/checkout', express.json(), stripeGuard, async function (req, res) {
+app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
     const { priceId, trial } = req.body;
-    console.log('[checkout] Received request:', { priceId, trial, stripeInitialized: !!stripe });
     if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
+
+    const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
 
     const sessionParams = {
       mode: 'subscription',
+      customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: (process.env.APP_URL || 'http://localhost:3000') + '/app?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: (process.env.APP_URL || 'http://localhost:3000') + '/pricing',
@@ -174,21 +258,18 @@ app.post('/api/checkout', express.json(), stripeGuard, async function (req, res)
       sessionParams.subscription_data = { trial_period_days: 14 };
     }
 
-    console.log('[checkout] Creating session with params:', JSON.stringify(sessionParams));
     const session = await stripe.checkout.sessions.create(sessionParams);
-    console.log('[checkout] Session created:', session.id);
+    log('info', 'Checkout session created', { sessionId: session.id, userId: req.user.id });
     return res.json({ url: session.url });
   } catch (err) {
-    console.error('[checkout] Error:', err.message);
     log('error', 'Checkout session failed', { error: String(err) });
-    return res.status(500).json({ error: 'Checkout session creation failed', details: err.message });
+    return res.status(500).json({ error: 'Checkout session creation failed' });
   }
 });
 
-app.post('/api/portal', express.json(), stripeGuard, async function (req, res) {
+app.post('/api/portal', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
-    const customerId = req.body.customerId;
-    if (!customerId) return res.status(400).json({ error: 'Missing customerId' });
+    const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,

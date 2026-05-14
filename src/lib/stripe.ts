@@ -3,6 +3,22 @@
 // The VITE_STRIPE_PK must be set at build time for client-side checkout to work.
 // The server-side /api/stripe/checkout route uses STRIPE_SECRET_KEY at runtime.
 
+import { insforge } from './insforge';
+
+// Resolves the InsForge access token for the current session. Returns null if
+// the user is not signed in — callers should treat that as an auth error.
+async function getAuthToken(): Promise<string | null> {
+  try {
+    const result = (await insforge.auth.getSession()) as
+      | { data?: { session?: { access_token?: string } | null } | null }
+      | null
+      | undefined;
+    return result?.data?.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 interface CheckoutParams {
   priceId: string;
   planId: string;
@@ -71,10 +87,16 @@ export async function createCheckoutSession({ planId, billing, trial }: Checkout
     return { ok: false, error: 'Stripe is not configured' };
   }
 
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: 'You must be signed in to start checkout' };
+
   try {
     const resp = await fetch('/api/checkout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ priceId, planId, billing, trial }),
     });
 
@@ -95,8 +117,14 @@ export async function createBillingPortalSession(): Promise<StripeResult<{ url: 
     return { ok: false, error: 'Stripe is not configured' };
   }
 
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: 'You must be signed in to manage billing' };
+
   try {
-    const resp = await fetch('/api/portal', { method: 'POST' });
+    const resp = await fetch('/api/portal', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
@@ -115,10 +143,16 @@ export async function changeSubscription(planId: string, billing: 'monthly' | 'a
     return { ok: false, error: 'Stripe is not configured' };
   }
 
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: 'You must be signed in to change your subscription' };
+
   try {
     const resp = await fetch('/api/subscription', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ planId, billing }),
     });
 
@@ -138,8 +172,14 @@ export async function cancelSubscription(): Promise<StripeResult<{ success: bool
     return { ok: false, error: 'Stripe is not configured' };
   }
 
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: 'You must be signed in to cancel your subscription' };
+
   try {
-    const resp = await fetch('/api/subscription', { method: 'DELETE' });
+    const resp = await fetch('/api/subscription', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
