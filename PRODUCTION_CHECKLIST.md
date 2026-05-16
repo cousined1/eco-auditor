@@ -73,8 +73,8 @@
 - [x] Client-side `cancelSubscription` calls real API endpoint
 - [x] All Stripe functions return typed result (`StripeResult<T>`)
 - [x] Error states displayed in UI (Pricing, Settings)
-- [ ] **Backend Stripe API routes need implementation** (`/api/stripe/checkout`, `/api/stripe/portal`, `/api/stripe/subscription`, `/api/stripe/webhook`)
-- [ ] **Stripe webhook signature verification** (needs backend route)
+- [x] **Backend Stripe API routes implemented** (`/api/stripe/checkout`, `/api/stripe/portal`, `/api/subscription`, `/api/webhook`)
+- [x] **Stripe webhook signature verification** (rejects unsigned webhooks when `STRIPE_WEBHOOK_SECRET` is set)
 - [ ] **Stripe webhook URL registered** in Stripe Dashboard
 
 ## Code Quality

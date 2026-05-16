@@ -9,8 +9,6 @@ static
 .vscode
 .idea
 .claude
-*.md
-LICENSE
 tests
 coverage
 *.map
@@ -19,3 +17,25 @@ semgrep-audit.json
 security-opencode-skill-v1.1.0.zip
 godmythos-v10.2
 openensemble
+# Keep *.md files needed for build context, only ignore dev docs
+DEPLOY.md
+AUDIT_REPORT.md
+PRODUCTION_CHECKLIST.md
+CONTEXT.md
+ADR.md
+MASTER_INDEX.md
+INDEX.md
+QUICK-REFERENCE.md
+IMPLEMENTATION_STATUS.md
+IMPLEMENTATION-SUMMARY.md
+DELIVERY-REPORT.md
+EXECUTIVE-SUMMARY.md
+GODMYTHOS_DELIVERY_COMPLETE.md
+COPILOT-BUILD-GUIDE.md
+DASHBOARD_WIRING_GUIDE.md
+CALCULATOR_SPEC.md
+SLICES-3-6-PLAN.md
+ecoauditor_AUDIT_PROMPT_corrected.md
+augment-code-mvp-audit.txt
+social-login.txt
+validate-slices-1-2.js
