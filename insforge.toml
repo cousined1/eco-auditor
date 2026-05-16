@@ -1,0 +1,5 @@
+[auth]
+allowedRedirectUrls = [
+  "https://ecoauditor.io/auth/callback",
+  "http://localhost:5173/auth/callback"
+]

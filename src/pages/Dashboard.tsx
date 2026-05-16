@@ -1,8 +1,162 @@
-import { EMISSIONS_SUMMARY, READINESS_SCORE, MISSING_DATA_ALERTS, COMPLIANCE_TASKS, TREND_DATA, CFO_METRICS, ONBOARDING_CHECKLIST, COMPANY } from '../data/mockData';
+import { useState, useEffect } from 'react';
+import { READINESS_SCORE, MISSING_DATA_ALERTS, COMPLIANCE_TASKS, CFO_METRICS, ONBOARDING_CHECKLIST, COMPANY } from '../data/mockData';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { buildApiRequestInit } from '../lib/api';
+import { insforge } from '../lib/insforge';
+
+interface EmissionsSummaryData {
+  total_co2e_tonnes: number;
+  scope1_co2e_tonnes: number;
+  scope2_co2e_tonnes: number;
+  scope3_co2e_tonnes: number;
+  scope1_pct: number;
+  scope2_pct: number;
+  scope3_pct: number;
+  trend_vs_prior_period: {
+    scope1: number;
+    scope2: number;
+    scope3: number;
+  };
+}
+
+interface TrendDataPoint {
+  month?: string;
+  quarter?: string;
+  year?: string;
+  scope1: number;
+  scope2: number;
+  scope3: number;
+}
 
 export default function Dashboard() {
-  const { total, scope1, scope2, scope3 } = EMISSIONS_SUMMARY;
+  const [emissions, setEmissions] = useState<EmissionsSummaryData | null>(null);
+  const [trend, setTrend] = useState<TrendDataPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch real API data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const requestInit = buildApiRequestInit(insforge);
+
+        // Fetch emissions summary and trend in parallel
+        const [summaryRes, trendRes] = await Promise.all([
+          fetch('/api/emissions/summary', requestInit),
+          fetch('/api/emissions/trend?period=monthly', requestInit),
+        ]);
+
+        if (!summaryRes.ok) {
+          throw new Error(`Failed to fetch emissions summary: ${summaryRes.statusText}`);
+        }
+        if (!trendRes.ok) {
+          throw new Error(`Failed to fetch trend data: ${trendRes.statusText}`);
+        }
+
+        const summaryData = await summaryRes.json();
+        const trendData = await trendRes.json();
+
+        if (!summaryData.success) {
+          throw new Error(summaryData.error || 'Failed to fetch emissions summary');
+        }
+        if (!trendData.success) {
+          throw new Error(trendData.error || 'Failed to fetch trend data');
+        }
+
+        setEmissions(summaryData.data);
+        setTrend(trendData.data || []);
+      } catch (err) {
+        console.error('Dashboard fetch error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load emissions data');
+        // Fall back to mock data for demo
+        // In production, show error UI instead
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-surface-600 dark:text-surface-400">Loading your emissions data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error && !emissions) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-700 dark:text-red-300 font-medium">Error loading emissions data</p>
+          <p className="text-red-600 dark:text-red-400 text-sm mt-1">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-3 px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state if no emissions data
+  if (!emissions) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="text-center py-12 bg-surface-50 dark:bg-surface-900 rounded-lg border border-surface-200 dark:border-surface-800">
+          <div className="text-4xl mb-2">📊</div>
+          <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">No Emissions Data Yet</h2>
+          <p className="text-surface-600 dark:text-surface-400 mb-6">Add your first emission entry to get started tracking your carbon footprint.</p>
+          <a
+            href="/app/calculator"
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Add Entry Now
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Transform real data to component format
+  const total = Math.round(emissions.total_co2e_tonnes);
+  const scope1 = {
+    value: Math.round(emissions.scope1_co2e_tonnes),
+    label: 'Scope 1 — Direct',
+    pct: Math.round(emissions.scope1_pct * 10) / 10,
+    trend: Math.round(emissions.trend_vs_prior_period.scope1 * 10) / 10,
+  };
+  const scope2 = {
+    value: Math.round(emissions.scope2_co2e_tonnes),
+    label: 'Scope 2 — Electricity',
+    pct: Math.round(emissions.scope2_pct * 10) / 10,
+    trend: Math.round(emissions.trend_vs_prior_period.scope2 * 10) / 10,
+  };
+  const scope3 = {
+    value: Math.round(emissions.scope3_co2e_tonnes),
+    label: 'Scope 3 — Value Chain',
+    pct: Math.round(emissions.scope3_pct * 10) / 10,
+    trend: Math.round(emissions.trend_vs_prior_period.scope3 * 10) / 10,
+  };
+
+  // Determine which date key the trend data uses (month/quarter/year)
+  const trendDateKey = trend.length > 0 
+    ? (trend[0]?.month ? 'month' : trend[0]?.quarter ? 'quarter' : 'year')
+    : 'month';
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -40,13 +194,13 @@ export default function Dashboard() {
           </div>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={TREND_DATA} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+              <AreaChart data={trend} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
                 <defs>
                   <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#16a34a" stopOpacity={0.15}/><stop offset="100%" stopColor="#16a34a" stopOpacity={0}/></linearGradient>
                   <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0d9488" stopOpacity={0.15}/><stop offset="100%" stopColor="#0d9488" stopOpacity={0}/></linearGradient>
                   <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#d97706" stopOpacity={0.15}/><stop offset="100%" stopColor="#d97706" stopOpacity={0}/></linearGradient>
                 </defs>
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca8a0" />
+                <XAxis dataKey={trendDateKey} tick={{ fontSize: 11 }} stroke="#9ca8a0" />
                 <YAxis tick={{ fontSize: 11 }} stroke="#9ca8a0" />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e8ece9' }} />
                 <Area type="monotone" dataKey="scope1" stroke="#16a34a" fill="url(#g1)" strokeWidth={2} name="Scope 1" />

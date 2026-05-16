@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 export type ConsentCategories = {
   strictlyNecessary: boolean;
@@ -55,11 +56,7 @@ function readConsentFromStorage(): ConsentState {
 }
 
 export function ConsentProvider({ children }: { children: React.ReactNode }) {
-  const [consentState, setConsentState] = useState<ConsentState>(defaultConsentState);
-
-  useEffect(() => {
-    setConsentState(readConsentFromStorage());
-  }, []);
+  const [consentState, setConsentState] = useState<ConsentState>(() => readConsentFromStorage());
 
   const updateConsent = useCallback(async (categories: Partial<ConsentCategories>) => {
     const updated: ConsentCategories = {

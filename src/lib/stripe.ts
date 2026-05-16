@@ -3,8 +3,8 @@
 // The VITE_STRIPE_PK must be set at build time for client-side checkout to work.
 // The server-side /api/stripe/checkout route uses STRIPE_SECRET_KEY at runtime.
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { insforge as _insforge } from './insforge';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const insforge = _insforge as any;
 
 // Resolves the InsForge access token for the current session. Returns null if
@@ -75,6 +75,21 @@ if (!STRIPE_PK || STRIPE_PK === 'pk_test_placeholder' || STRIPE_PK === 'pk_live_
 }
 
 type StripeResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+export const PRICE_IDS = {
+  starter: {
+    monthly: import.meta.env.VITE_STRIPE_PRICE_STARTER_MONTHLY || 'price_starter_monthly_unconfigured',
+    annual: import.meta.env.VITE_STRIPE_PRICE_STARTER_ANNUAL || 'price_starter_annual_unconfigured',
+  },
+  growth: {
+    monthly: import.meta.env.VITE_STRIPE_PRICE_GROWTH_MONTHLY || 'price_growth_monthly_unconfigured',
+    annual: import.meta.env.VITE_STRIPE_PRICE_GROWTH_ANNUAL || 'price_growth_annual_unconfigured',
+  },
+  pro: {
+    monthly: import.meta.env.VITE_STRIPE_PRICE_PRO_MONTHLY || 'price_pro_monthly_unconfigured',
+    annual: import.meta.env.VITE_STRIPE_PRICE_PRO_ANNUAL || 'price_pro_annual_unconfigured',
+  },
+} as const;
 
 export async function createCheckoutSession({ planId, billing, trial }: CheckoutParams): Promise<StripeResult<{ url: string }>> {
   const config = await fetchPriceConfig();

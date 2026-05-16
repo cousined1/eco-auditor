@@ -14,7 +14,7 @@ export default function Pricing() {
     setCheckoutError(null);
     const result = await createCheckoutSession({ priceId: `${planId}_${billingCycle}`, planId, billing: billingCycle, trial });
     if (result.ok) {
-      window.location.href = result.data.url;
+      window.location.assign(result.data.url);
     } else {
       setCheckoutError(result.error);
     }

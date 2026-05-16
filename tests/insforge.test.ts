@@ -2,7 +2,7 @@
  * InsForge configuration tests
  * Verifies that the InsForge client handles missing configuration gracefully
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 describe('InsForge configuration', () => {
   it('exports isInsForgeConfigured as false when env vars are missing', () => {

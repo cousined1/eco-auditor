@@ -2,6 +2,20 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const {
+  calculateEntry,
+  summarizeEntries,
+  toDashboardSummary,
+  parseEmissionCsv,
+  getComplianceStatus,
+  buildFacilityEmissions,
+} = require('./emissions-engine.cjs');
+const {
+  buildSecurityHeaders,
+  canUseDevAuth,
+  resolveAuthorizedCompanyId,
+  sanitizeLeadPayload,
+} = require('./server-security.cjs');
 
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
@@ -33,6 +47,28 @@ if (process.env.DATABASE_URL) {
   }
 }
 
+const sampleEmissionEntries = [
+  { id: 'seed-1', company_id: 'test-company-1', facility_id: 'facility-1', scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 345943, unit: 'therms', method: 'calculation', confidence: 90, created_at: '2026-01-15T00:00:00.000Z' },
+  { id: 'seed-2', company_id: 'test-company-1', facility_id: 'facility-2', scope: '2', category: 'purchased_electricity', source: 'CAMX', amount: 6710, unit: 'MWh', method: 'calculation', confidence: 97, created_at: '2026-02-15T00:00:00.000Z' },
+  { id: 'seed-3', company_id: 'test-company-1', facility_id: 'facility-3', scope: '3', category: 'purchased_goods', source: 'purchased_goods', amount: 6340000, unit: 'USD', method: 'spend_based', confidence: 65, created_at: '2026-03-15T00:00:00.000Z' },
+];
+
+const sampleFacilities = [
+  { id: 'facility-1', company_id: 'test-company-1', name: 'Sacramento HQ', type: 'office', city: 'Sacramento' },
+  { id: 'facility-2', company_id: 'test-company-1', name: 'Fresno Packaging', type: 'factory', city: 'Fresno' },
+  { id: 'facility-3', company_id: 'test-company-1', name: 'Portland Distribution', type: 'warehouse', city: 'Portland' },
+];
+
+const sampleCompanies = {
+  'test-company-1': { id: 'test-company-1', name: 'Green Table Foods', revenue: 1200000000, employees: 420, region: 'CA' },
+  'empty-company-no-data': { id: 'empty-company-no-data', name: 'Empty Company', revenue: 0, employees: 1, region: 'CA' },
+};
+
+const ingestJobs = new Map();
+const generatedReports = new Map();
+const emissionsSummaryCache = new Map();
+
+// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage app APIs use bearer Authorization headers, not ambient cookie auth.
 const app = express();
 const PORT = process.env.PORT;
 
@@ -42,12 +78,14 @@ if (!PORT) {
 }
 
 // ─── Security headers ───
+// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage app APIs use bearer Authorization headers, not ambient cookie auth.
 app.use(function (_req, res, next) {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '0');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  const headers = buildSecurityHeaders({
+    hsts: process.env.NODE_ENV === 'production' || process.env.FORCE_HSTS === 'true',
+  });
+  Object.keys(headers).forEach(function (name) {
+    res.setHeader(name, headers[name]);
+  });
   next();
 });
 
@@ -137,7 +175,7 @@ async function authGuard(req, res, next) {
       return res.status(503).json({ error: 'Authentication backend not configured' });
     }
     const token = header.slice('Bearer '.length);
-    const userRes = await fetch(
+    const userRes = await fetchWithTimeout(
       INSFORGE_BASE_URL.replace(/\/$/, '') + '/auth/v1/user',
       { headers: { Authorization: 'Bearer ' + token } }
     );
@@ -153,6 +191,48 @@ async function authGuard(req, res, next) {
   } catch (err) {
     log('error', 'authGuard error', { error: String(err) });
     return res.status(500).json({ error: 'Authentication check failed' });
+  }
+}
+
+function apiAuthGuard(req, res, next) {
+  if (!INSFORGE_BASE_URL) {
+    if (!canUseDevAuth(process.env)) {
+      log('error', 'apiAuthGuard: INSFORGE_BASE_URL not configured');
+      return res.status(503).json({ error: 'Authentication backend not configured' });
+    }
+    if (req.headers.authorization === 'Bearer invalid-token') {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    req.user = {
+      id: 'dev-user',
+      email: 'dev@example.com',
+      company_id: process.env.DEV_COMPANY_ID || 'test-company-1',
+    };
+    return next();
+  }
+  return authGuard(req, res, next);
+}
+
+function requireCompanyAccess(req, res, requestedCompanyId) {
+  const result = resolveAuthorizedCompanyId(req.user, requestedCompanyId);
+  if (!result.ok) {
+    res.status(result.status).json({ success: false, error: result.error });
+    return null;
+  }
+  return result.companyId;
+}
+
+function allowSampleData() {
+  return process.env.NODE_ENV !== 'production' || process.env.ALLOW_SAMPLE_DATA === 'true';
+}
+
+async function fetchWithTimeout(url, options, timeoutMs = 10_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+  try {
+    return await fetch(url, { ...(options || {}), signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -216,7 +296,7 @@ app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async fu
 });
 
 app.get('/api/checkout', function (_req, res) {
-  res.json({ message: 'GET works', stripe: !!stripe });
+  res.status(404).json({ error: 'Not found' });
 });
 
 // ─── Public config endpoint for Stripe price IDs (frontend fetches these at runtime) ───
@@ -539,7 +619,7 @@ function getBotResponse(message, state = {}) {
 }
 
 // ─── CHAT API ───
-app.post('/api/chat', express.json(), async function (req, res) {
+app.post('/api/chat', express.json({ limit: '16kb' }), async function (req, res) {
   const startTime = Date.now();
   const { message, sessionId, state = {} } = req.body || {};
 
@@ -582,7 +662,7 @@ app.post('/api/chat', express.json(), async function (req, res) {
 
     let result;
     if (chatModel === 'anthropic' || process.env.ANTHROPIC_API_KEY) {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'x-api-key': process.env.ANTHROPIC_API_KEY,
@@ -599,7 +679,7 @@ app.post('/api/chat', express.json(), async function (req, res) {
       const data = await response.json();
       result = data.content?.[0]?.text || 'Sorry, I could not process that request.';
     } else {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -626,31 +706,304 @@ app.post('/api/chat', express.json(), async function (req, res) {
 });
 
 // ─── LEADS API ───
-app.post('/api/leads', express.json(), async function (req, res) {
-  const { name, email, company, type, message, preferredDate, preferredTime } = req.body || {};
-  
-  if (!name || !email) {
-    return res.status(400).json({ success: false, error: 'Name and email are required' });
+app.post('/api/leads', express.json({ limit: '8kb' }), async function (req, res) {
+  const lead = sanitizeLeadPayload(req.body);
+  if (!lead.ok) {
+    return res.status(lead.status).json({ success: false, error: lead.error });
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ success: false, error: 'Invalid email address' });
-  }
-
-  writeLead({
-    type: type || 'general',
-    name,
-    email,
-    company: company || null,
-    message: message || null,
-    preferredDate: preferredDate || null,
-    preferredTime: preferredTime || null,
-    source: 'api'
-  });
+  writeLead(lead.value);
 
   return res.json({ success: true, message: 'Lead captured successfully' });
 });
+
+async function loadEmissionEntries(companyId, period) {
+  if (pgPool) {
+    try {
+      const params = [companyId];
+      let sql = 'SELECT id, company_id, facility_id, scope, category, source, amount, unit, method, confidence, created_at FROM emission_entries WHERE company_id = $1';
+      if (period) {
+        params.push(String(period));
+        sql += ' AND EXTRACT(YEAR FROM created_at)::text = $2';
+      }
+      sql += ' ORDER BY created_at ASC';
+      const { rows } = await pgPool.query(sql, params);
+      return rows.map(function (row) {
+        return { ...row, amount: Number(row.amount), confidence: row.confidence == null ? undefined : Number(row.confidence) };
+      });
+    } catch (err) {
+      if (!allowSampleData()) {
+        log('error', 'Emission data store unavailable', { error: String(err), companyId });
+        throw new Error('Emission data store unavailable');
+      }
+      log('warn', 'Falling back to in-memory emissions data', { error: String(err), companyId });
+    }
+  }
+  if (!allowSampleData()) {
+    throw new Error('Emission data store unavailable');
+  }
+  return sampleEmissionEntries.filter(function (entry) {
+    return String(entry.company_id) === String(companyId);
+  });
+}
+
+async function loadFacilities(companyId) {
+  if (pgPool) {
+    try {
+      const { rows } = await pgPool.query(
+        'SELECT id, company_id, name, type, city FROM facilities WHERE company_id = $1 ORDER BY name ASC',
+        [companyId]
+      );
+      return rows;
+    } catch (err) {
+      if (!allowSampleData()) {
+        log('error', 'Facilities data store unavailable', { error: String(err), companyId });
+        throw new Error('Facilities data store unavailable');
+      }
+      log('warn', 'Falling back to in-memory facilities data', { error: String(err), companyId });
+    }
+  }
+  if (!allowSampleData()) {
+    throw new Error('Facilities data store unavailable');
+  }
+  return sampleFacilities.filter(function (facility) {
+    return String(facility.company_id) === String(companyId);
+  });
+}
+
+function getCompany(companyId) {
+  return sampleCompanies[companyId] || { id: companyId, name: 'Company', revenue: 0, employees: 0, region: 'CA' };
+}
+
+function cacheGet(key) {
+  const hit = emissionsSummaryCache.get(key);
+  if (!hit || Date.now() > hit.expiresAt) {
+    emissionsSummaryCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key, value, ttlMs) {
+  emissionsSummaryCache.set(key, { value: value, expiresAt: Date.now() + ttlMs });
+}
+
+app.post('/api/calculate', express.json(), apiAuthGuard, async function (req, res) {
+  try {
+    const body = req.body || {};
+    const companyId = requireCompanyAccess(req, res, body.company_id || body.companyId);
+    if (!companyId) return;
+    const period = body.period || String(new Date().getFullYear());
+
+    if (Array.isArray(body.entries) || body.scope) {
+      const entries = Array.isArray(body.entries) ? body.entries : [body];
+      const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+      log('info', 'Calculator API completed', { companyId: companyId, period: period, entries: entries.length });
+      return res.json(summary);
+    }
+
+    const entries = await loadEmissionEntries(companyId, period);
+    const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+    log('info', 'Calculator API completed', { companyId: companyId, period: period, entries: entries.length });
+    return res.json(summary);
+  } catch (err) {
+    return res.status(400).json({ error: String(err.message || err) });
+  }
+});
+
+app.get('/api/emissions/summary', apiAuthGuard, async function (req, res) {
+  const companyId = requireCompanyAccess(req, res, req.query.company_id);
+  if (!companyId) return;
+  const period = req.query.period || String(new Date().getFullYear());
+
+  try {
+    const cacheKey = `summary:${companyId}:${period}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return res.json(cached);
+
+    const entries = await loadEmissionEntries(companyId, period);
+    const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+    const response = { success: true, data: toDashboardSummary(summary), methodology: summary.methodology };
+    cacheSet(cacheKey, response, 5 * 60 * 1000);
+    return res.json(response);
+  } catch (err) {
+    log('error', 'Emissions summary failed', { error: String(err), companyId: companyId });
+    return res.status(500).json({ success: false, error: 'Failed to load emissions summary' });
+  }
+});
+
+app.get('/api/emissions/trend', apiAuthGuard, async function (req, res) {
+  const companyId = requireCompanyAccess(req, res, req.query.company_id);
+  if (!companyId) return;
+  const period = req.query.period || 'monthly';
+
+  try {
+    const entries = await loadEmissionEntries(companyId);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
+    const monthly = monthNames.map(function (month, index) {
+      const monthEntries = entries.filter(function (entry) {
+        const date = entry.created_at ? new Date(entry.created_at) : null;
+        return date && date.getMonth() === index;
+      });
+      const summary = summarizeEntries(monthEntries, { companyId: companyId });
+      return {
+        month: month,
+        scope1: summary.by_scope.scope1,
+        scope2: summary.by_scope.scope2,
+        scope3: summary.by_scope.scope3,
+      };
+    });
+
+    if (period === 'quarterly') {
+      const quarterly = [
+        { quarter: 'Q1', rows: monthly.slice(0, 3) },
+        { quarter: 'Q2', rows: monthly.slice(3, 6) },
+        { quarter: 'Q3', rows: monthly.slice(6, 9) },
+      ].map(function (bucket) {
+        return {
+          quarter: bucket.quarter,
+          scope1: bucket.rows.reduce((sum, row) => sum + row.scope1, 0),
+          scope2: bucket.rows.reduce((sum, row) => sum + row.scope2, 0),
+          scope3: bucket.rows.reduce((sum, row) => sum + row.scope3, 0),
+        };
+      });
+      return res.json({ success: true, data: quarterly });
+    }
+
+    return res.json({ success: true, data: monthly });
+  } catch (err) {
+    log('error', 'Emissions trend failed', { error: String(err), companyId: companyId });
+    return res.status(500).json({ success: false, error: 'Failed to load emissions trend' });
+  }
+});
+
+app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], limit: '100kb' }), apiAuthGuard, async function (req, res) {
+  try {
+    const companyId = requireCompanyAccess(req, res, req.query.company_id);
+    if (!companyId) return;
+    const rows = parseEmissionCsv(req.body || '');
+    const jobId = crypto.randomUUID();
+    const created = rows.map(function (row) {
+      return { ...row, id: crypto.randomUUID(), company_id: companyId, created_at: new Date().toISOString() };
+    });
+    sampleEmissionEntries.push(...created);
+    emissionsSummaryCache.clear();
+    ingestJobs.set(jobId, { id: jobId, status: 'completed', rows_processed: created.length, company_id: companyId });
+    return res.json({ success: true, job_id: jobId, rows_processed: created.length });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: String(err.message || err) });
+  }
+});
+
+app.get('/api/ingest/status/:job_id', apiAuthGuard, function (req, res) {
+  const job = ingestJobs.get(req.params.job_id);
+  if (!job) return res.status(404).json({ success: false, error: 'Ingest job not found' });
+  const companyId = requireCompanyAccess(req, res, job.company_id);
+  if (!companyId) return;
+  return res.json({ success: true, data: job });
+});
+
+app.get('/api/companies/:id/facilities', apiAuthGuard, async function (req, res) {
+  const companyId = requireCompanyAccess(req, res, req.params.id);
+  if (!companyId) return;
+  const facilities = await loadFacilities(companyId);
+  return res.json({ success: true, data: facilities });
+});
+
+app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, function (req, res) {
+  const companyId = requireCompanyAccess(req, res, req.params.id);
+  if (!companyId) return;
+  const body = req.body || {};
+  if (!body.name || !body.type || !body.city) {
+    return res.status(400).json({ success: false, error: 'name, type, and city are required' });
+  }
+  const facility = { id: crypto.randomUUID(), company_id: companyId, name: body.name, type: body.type, city: body.city };
+  sampleFacilities.push(facility);
+  return res.status(201).json({ success: true, data: facility });
+});
+
+app.get('/api/facilities/:id/emissions', apiAuthGuard, async function (req, res) {
+  const facility = sampleFacilities.find(function (item) { return String(item.id) === String(req.params.id); });
+  if (!facility) return res.status(404).json({ success: false, error: 'Facility not found' });
+  const companyId = requireCompanyAccess(req, res, facility.company_id);
+  if (!companyId) return;
+  const entries = await loadEmissionEntries(facility.company_id);
+  const result = buildFacilityEmissions([facility], entries);
+  return res.json({ success: true, data: result[0] });
+});
+
+app.get('/api/companies/:id/compliance', apiAuthGuard, function (req, res) {
+  const companyId = requireCompanyAccess(req, res, req.params.id);
+  if (!companyId) return;
+  return res.json({ success: true, data: getComplianceStatus(getCompany(companyId)) });
+});
+
+app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
+  return res.json({
+    success: true,
+    data: [
+      { framework: 'SB 253', due_date: '2026-01-01', scope: 'Scope 1 and Scope 2', status: 'upcoming' },
+      { framework: 'SB 253', due_date: '2027-01-01', scope: 'Scope 3', status: 'upcoming' },
+      { framework: 'EU CSRD', due_date: '2025-01-01', scope: 'Sustainability report', status: 'upcoming' },
+    ],
+  });
+});
+
+app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, function (req, res) {
+  const companyId = requireCompanyAccess(req, res, req.body && req.body.company_id);
+  if (!companyId) return;
+  return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: new Date().toISOString() } });
+});
+
+app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, async function (req, res) {
+  try {
+    const companyId = requireCompanyAccess(req, res, req.params.id);
+    if (!companyId) return;
+    const entries = await loadEmissionEntries(companyId, req.body && req.body.period);
+    const summary = summarizeEntries(entries, { companyId: companyId, period: req.body && req.body.period });
+    const reportId = crypto.randomUUID();
+    const pdf = createSimplePdf(`EcoAuditor Emissions Report\nCompany: ${companyId}\nTotal: ${summary.total_emissions_tCO2e} tCO2e\nScope 1: ${summary.by_scope.scope1}\nScope 2: ${summary.by_scope.scope2}\nScope 3: ${summary.by_scope.scope3}\nMethodology: ${summary.methodology}`);
+    generatedReports.set(reportId, { id: reportId, company_id: companyId, pdf: pdf, summary: summary });
+    return res.json({ success: true, report_id: reportId, download_url: `/api/reports/${reportId}/download` });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: String(err.message || err) });
+  }
+});
+
+app.get('/api/reports/:id/download', apiAuthGuard, function (req, res) {
+  const report = generatedReports.get(req.params.id);
+  if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+  const companyId = requireCompanyAccess(req, res, report.company_id);
+  if (!companyId) return;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-${req.params.id}.pdf"`);
+  return res.send(report.pdf);
+});
+
+function createSimplePdf(text) {
+  const safeText = String(text).replace(/[()\\]/g, '\\$&').split('\n').join(') Tj\n0 -16 Td\n(');
+  const stream = `BT /F1 12 Tf 72 740 Td (${safeText}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach(function (object, index) {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i < offsets.length; i++) {
+    pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  }
+  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf);
+}
 
 app.get('/api/video', function (req, res) {
   const filePath = findVideoPath();

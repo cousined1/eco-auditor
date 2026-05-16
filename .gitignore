@@ -21,6 +21,11 @@ static
 # Large media (served locally / CDN in production)
 assets/*.mp4
 
+# Local security/audit tooling artifacts
+semgrep-audit.json
+security-opencode-skill-v1.1.0.zip
+godmythos-v10.2/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

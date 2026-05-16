@@ -26,7 +26,7 @@ export default function ChatWidget({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chatState, setChatState] = useState<Record<string, any>>({});
+  const [chatState, setChatState] = useState<Record<string, unknown>>({});
   const [sessionId] = useState<string>(() => {
     const stored = localStorage.getItem('ecochat_session_id');
     if (stored) return stored;
@@ -55,7 +55,7 @@ export default function ChatWidget({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async (text: string, newState?: Record<string, any>) => {
+  const sendMessage = async (text: string, newState?: Record<string, unknown>) => {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
 

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+static/
+openensemble/
+godmythos-v10.2/
+.security-audit/
+semgrep-audit.json
+validate-slices-1-2.js

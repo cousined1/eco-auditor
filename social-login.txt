@@ -1,0 +1,32 @@
+# GODMYTHOSV10 EXTENSION: SOCIAL LOGIN IMPLEMENTATION
+## For GovernLedger (Insforge Backend + Railway + PostgreSQL)
+
+---
+
+## SL.1 SCOPE & PREREQUISITES
+
+**Module Purpose:** Integrate "Sign in with Google" and "Sign in with Apple" social authentication into the GovernLedger platform, respecting the existing multi-jurisdictional compliance architecture while enabling streamlined user onboarding for government contractors and agency personnel.
+
+**Integration Stack:**
+| Component | Technology |
+|-----------|------------|
+| Backend Framework | Insforge (Node.js/Express-based) |
+| Deployment Platform | Railway |
+| Database | PostgreSQL (Host: < Railway-provided HOST >) |
+| Authentication Protocols | OAuth 2.0 / OpenID Connect |
+| Session Management | JWT with refresh tokens or server-side sessions |
+
+**Compatibility Notes:**
+- This module integrates into the existing [User/Auth Service](#architecture) identified in the core GovernLedger architecture
+- Must support existing RBAC/ABAC permission system from Section 8
+- Must comply with FedRAMP/NIST 800-53 controls where required (see Section 3.1)
+- All social login flows must support MFA enforcement for government accounts
+
+---
+
+## SL.2 REQUIRED CREDENTIALS FROM DEVELOPER PORTALS
+
+### SL.2.1 Google Cloud Console Setup
+
+**Step-by-Step Credential Generation:**
+

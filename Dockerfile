@@ -1,5 +1,5 @@
 # ─── Stage 1: Build ───
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920 AS builder
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ ENV VITE_STRIPE_PK=$VITE_STRIPE_PK
 RUN npm run build
 
 # ─── Stage 2: Production ───
-FROM node:22-alpine
+FROM node:22-alpine@sha256:968df39aedcea65eeb078fb336ed7191baf48f972b4479711397108be0966920
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY server.cjs ./
+COPY server.cjs emissions-engine.cjs server-security.cjs ./
 COPY --from=builder /app/static ./static
 
 # Volume mount point for video assets

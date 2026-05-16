@@ -1,0 +1,209 @@
+You are a senior full-stack engineer performing a comprehensive MVP audit of EcoAuditor.io — a GHG carbon accounting SaaS for SMBs built on InsForge SDK (PostgREST/auto-CRUD). Your job is threefold:
+
+1. Audit the last git commit for code quality and regressions
+2. Verify database connectivity, schema integrity, and data operations via InsForge SDK
+3. Confirm the application is fully MVP-ready and behaves as engineered
+
+---
+
+## PHASE 1 — LAST COMMIT AUDIT
+
+Run the following and report findings:
+
+```bash
+git log -1 --stat
+git diff HEAD~1 HEAD
+```
+
+For every file changed in the last commit:
+- Identify the purpose of the change
+- Check for syntax errors, missing imports, or broken references
+- Flag any hardcoded credentials, API keys, or .env values committed directly
+- Check for missing error handling on async SDK operations
+- Verify TypeScript types are correct (no `any` overuse, no type assertion hacks)
+- Confirm all new InsForge SDK calls include proper `.error` checks
+- Check if any schema changes have a corresponding migration in InsForge
+
+Report a structured diff summary:
+[FILE] → [CHANGE TYPE] → [RISK LEVEL: LOW/MEDIUM/HIGH] → [NOTES]
+
+---
+
+## PHASE 2 — DATABASE HEALTH CHECK (InsForge SDK)
+
+Using NEXT_PUBLIC_INSFORGE_URL and NEXT_PUBLIC_INSFORGE_ANON_KEY from .env:
+
+1. **Verify env vars are present:**
+   ```bash
+   grep -E "NEXT_PUBLIC_INSFORGE_URL|NEXT_PUBLIC_INSFORGE_ANON_KEY" .env.local .env .env.production 2>/dev/null
+   ```
+
+2. **Check schema and migration status:**
+   ```bash
+   npx @insforge/cli db tables
+   npx @insforge/cli db migrations list
+   ```
+   - Report all tables present
+   - Report any pending or unrun migrations
+   - Flag any drift between expected schema and actual DB
+
+3. **Test CRUD operations on core models via InsForge SDK:**
+
+   **Users / Auth:**
+   ```ts
+   // Sign up test user
+   const { data, error } = await insforge.auth.signUp({
+     email: 'audit-test@ecoauditor.io',
+     password: 'AuditTest123!'
+   })
+   // Sign in
+   const { data: session, error: signInError } = await insforge.auth.signIn({
+     email: 'audit-test@ecoauditor.io',
+     password: 'AuditTest123!'
+   })
+   ```
+
+   **Organization:**
+   ```ts
+   const { data, error } = await insforge
+     .from('organizations')
+     .insert({ name: 'Audit Test Co', industry: 'Manufacturing', size: 'SMB' })
+     .select()
+   ```
+
+   **Emission Entries (core MVP model):**
+   ```ts
+   // Create a Scope 1 entry
+   const { data, error } = await insforge
+     .from('emission_entries')
+     .insert({
+       scope: 1,
+       category: 'Stationary Combustion',
+       activity_data: 100,
+       unit: 'kWh',
+       emission_factor: 0.233,
+       co2e: 23.3,
+       reporting_year: 2025
+     })
+     .select()
+
+   // Read it back and verify co2e is computed correctly
+   const { data: fetched } = await insforge
+     .from('emission_entries')
+     .select('*')
+     .eq('id', data.id)
+   ```
+
+   **Reports (if applicable):**
+   ```ts
+   const { data, error } = await insforge
+     .from('reports')
+     .insert({ org_id: '[test_org_id]', status: 'draft', year: 2025 })
+     .select()
+   ```
+
+   **Cleanup test records after each test.**
+
+4. **Report format:**
+   [TABLE] → [CRUD STATUS: PASS/FAIL] → [ERROR if any] → [DATA INTEGRITY NOTES]
+
+---
+
+## PHASE 3 — MVP FEATURE VERIFICATION
+
+EcoAuditor is engineered to do the following. Verify each feature works end-to-end:
+
+### 1. User Authentication (InsForge Auth SDK)
+- `insforge.auth.signUp()` — creates a new user, returns session
+- `insforge.auth.signIn()` — returns valid session token
+- Protected routes/components check `insforge.auth.getUser()` — confirm redirect to login if no session
+- `insforge.auth.signOut()` — invalidates session
+
+### 2. Organization Onboarding
+- Create a new company profile with industry type, company size, reporting year
+- Confirm record persists via `.from('organizations').select()`
+- Confirm the org is linked to the authenticated user (RLS policy enforced)
+
+### 3. GHG Carbon Calculator — Core Feature
+- Add a **Scope 1** entry (direct combustion / stationary combustion / mobile combustion)
+- Add a **Scope 2** entry (purchased electricity / market-based or location-based)
+- Add at least one **Scope 3** entry (supply chain / business travel / waste)
+- For each: confirm CO2e = activity_data × emission_factor is calculated correctly
+- Confirm entries are associated with the correct org and reporting period
+- Confirm all three scopes appear in the dashboard summary
+
+### 4. Dashboard / Summary View
+- Fetch aggregated totals by scope from InsForge:
+  ```ts
+  const { data } = await insforge
+    .from('emission_entries')
+    .select('scope, co2e')
+    .eq('org_id', testOrgId)
+  ```
+- Verify totals are correct (sum Scope 1, 2, 3 separately)
+- Confirm the UI renders values without NaN, undefined, or blank cards
+- Confirm the chart/visualization reflects actual DB data
+
+### 5. Report Generation
+- Trigger report generation for the test org
+- Confirm report includes: org name, reporting year, total CO2e by scope, itemized data table
+- If PDF export / edge function exists, confirm it executes without error and returns a valid response
+- Note: Stripe billing is NOT in scope for this MVP audit — skip any payment gate checks
+
+### 6. Row-Level Security (RLS) Verification
+- Confirm a user can ONLY read/write their own organization's data
+- Attempt to fetch another org's emission entries with a different user token — confirm it returns empty or 403
+- This is critical for a multi-tenant SaaS
+
+---
+
+## PHASE 4 — MVP READINESS CHECKLIST
+
+Report each item as PASS / FAIL / NEEDS ATTENTION:
+
+**Environment & Config**
+- [ ] `.env.local` or `.env` contains NEXT_PUBLIC_INSFORGE_URL
+- [ ] `.env.local` or `.env` contains NEXT_PUBLIC_INSFORGE_ANON_KEY
+- [ ] No credentials committed to git (check git log --all -S "insforge" for leaks)
+- [ ] `.env.example` is present with all required keys documented
+
+**InsForge SDK Integration**
+- [ ] InsForge client is initialized once and exported from a single module (no multiple instances)
+- [ ] All `.from()` calls include `.error` handling
+- [ ] Auth state is managed via InsForge auth listener (`onAuthStateChange`)
+- [ ] RLS policies are enabled on all tables containing user data
+
+**Code Quality**
+- [ ] No `console.log` or debug statements in production paths
+- [ ] TypeScript compiles without errors: `npx tsc --noEmit`
+- [ ] No hardcoded org IDs, user IDs, or emission factor values in component logic
+- [ ] Emission factor data is stored in the DB or a seed file — not hardcoded in the calculator
+
+**UI/UX**
+- [ ] Empty state handled when no emission entries exist (no blank dashboard)
+- [ ] Form validation on the calculator provides clear error messages
+- [ ] All three scopes (1, 2, 3) are accessible from the UI
+- [ ] Dashboard loads without console errors in browser devtools
+
+**Data Integrity**
+- [ ] Emission entries have NOT NULL constraints on scope, co2e, org_id
+- [ ] CO2e calculation is consistent (same formula across entry creation and reporting)
+- [ ] No orphaned emission entries possible (org deletion cascades or is blocked)
+
+**Security**
+- [ ] NEXT_PUBLIC_ keys are anon keys only — service role key is never exposed to the client
+- [ ] RLS is ON for organizations, emission_entries, and reports tables
+- [ ] Auth is required before any data read/write operation
+
+---
+
+## OUTPUT FORMAT
+
+Produce a structured audit report with four sections:
+
+1. **Commit Audit Summary** — table of changed files with risk assessment
+2. **Database Health Report** — InsForge connection status, migration status, CRUD test results per table
+3. **MVP Feature Verification Report** — feature-by-feature PASS/FAIL with notes
+4. **Readiness Verdict** — overall MVP status: READY / NEEDS FIXES / BLOCKED, with a prioritized fix list if not fully ready (P1 = blocking launch, P2 = important but not blocking, P3 = polish)
+
+Be precise. If something fails, show the exact error message and the SDK call that produced it. If something passes, confirm with the response data shape. Do not assume — verify against the actual running database.

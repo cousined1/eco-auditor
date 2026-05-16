@@ -95,7 +95,7 @@ describe('handleWebhookEvent', () => {
     expect(() => {
       handleWebhookEvent({
         id: 'evt_unknown',
-        type: 'unknown.event.type' as any,
+        type: 'unknown.event.type' as never,
         created: Date.now(),
         data: { object: {} },
       });
