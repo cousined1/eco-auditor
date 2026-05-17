@@ -278,7 +278,7 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
   try {
     const { planId, billing } = req.body;
     log('info', 'Subscription change requested', { planId, billing, userId: req.user.id });
-    return res.json({ success: true, message: 'Subscription update queued' });
+    return res.status(501).json({ error: 'Subscription update not yet implemented. Use the billing portal at /api/portal to manage subscriptions.' });
   } catch (err) {
     log('error', 'Subscription change failed', { error: String(err) });
     return res.status(500).json({ error: 'Subscription change failed' });
@@ -288,7 +288,7 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
 app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
     log('info', 'Subscription cancellation requested', { userId: req.user.id });
-    return res.json({ success: true, message: 'Subscription cancelled' });
+    return res.status(501).json({ error: 'Subscription cancellation not yet implemented. Use the billing portal at /api/portal to cancel subscriptions.' });
   } catch (err) {
     log('error', 'Subscription cancel failed', { error: String(err) });
     return res.status(500).json({ error: 'Cancellation failed' });
@@ -319,10 +319,32 @@ app.get('/api/config/prices', function (_req, res) {
   });
 });
 
+// Allowed Stripe price IDs (prevents client-controlled price injection)
+const ALLOWED_PRICE_IDS = new Set([
+  process.env.STRIPE_PRICE_STARTER_MONTHLY,
+  process.env.STRIPE_PRICE_STARTER_ANNUAL,
+  process.env.STRIPE_PRICE_GROWTH_MONTHLY,
+  process.env.STRIPE_PRICE_GROWTH_ANNUAL,
+  process.env.STRIPE_PRICE_PRO_MONTHLY,
+  process.env.STRIPE_PRICE_PRO_ANNUAL,
+].filter(Boolean));
+
+// Plans eligible for trial (prevent trial abuse on higher tiers)
+const TRIAL_ELIGIBLE_PLANS = new Set([
+  process.env.STRIPE_PRICE_STARTER_MONTHLY,
+  process.env.STRIPE_PRICE_GROWTH_MONTHLY,
+].filter(Boolean));
+
 app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
     const { priceId, trial } = req.body;
     if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
+
+    // Validate priceId against server-side allowlist
+    if (!ALLOWED_PRICE_IDS.has(priceId)) {
+      log('warn', 'Rejected checkout with disallowed priceId', { priceId, userId: req.user.id });
+      return res.status(400).json({ error: 'Invalid price selection' });
+    }
 
     const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
 
@@ -334,7 +356,8 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
       cancel_url: (process.env.APP_URL || 'http://localhost:3000') + '/pricing',
     };
 
-    if (trial) {
+    // Only allow trial on eligible plans
+    if (trial && TRIAL_ELIGIBLE_PLANS.has(priceId)) {
       sessionParams.subscription_data = { trial_period_days: 14 };
     }
 

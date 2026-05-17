@@ -1,51 +1,49 @@
 /**
  * InsForge configuration tests
  * Verifies that the InsForge client handles missing configuration gracefully
+ *
+ * NOTE: Because Vitest resolves imports at module load time, env stubs
+ * applied via vi.stubEnv() before a dynamic import() are respected.
+ * We use vi.unstubAllEnvs() (not vi.restoreAllMocks) to properly reset
+ * environment variables set by vi.stubEnv().
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 describe('InsForge configuration', () => {
-  it('exports isInsForgeConfigured as false when env vars are missing', () => {
-    // When VITE_INSFORGE_BASE_URL and VITE_INSFORGE_ANON_KEY are not set,
-    // isInsForgeConfigured should be false
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('isInsForgeConfigured is false when env vars are missing', async () => {
     vi.stubEnv('VITE_INSFORGE_BASE_URL', '');
     vi.stubEnv('VITE_INSFORGE_ANON_KEY', '');
 
-    const isConfigured = Boolean(
-      import.meta.env.VITE_INSFORGE_BASE_URL && import.meta.env.VITE_INSFORGE_ANON_KEY
-    );
-    expect(isConfigured).toBe(false);
-
-    vi.restoreAllMocks();
+    const { isInsForgeConfigured } = await import('../src/lib/insforge.ts');
+    expect(isInsForgeConfigured).toBe(false);
   });
 
-  it('exports isInsForgeConfigured as true when env vars are set', () => {
+  it('isInsForgeConfigured is true when env vars are set', async () => {
     vi.stubEnv('VITE_INSFORGE_BASE_URL', 'https://example.insforge.co');
     vi.stubEnv('VITE_INSFORGE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test');
 
-    const isConfigured = Boolean(
-      import.meta.env.VITE_INSFORGE_BASE_URL && import.meta.env.VITE_INSFORGE_ANON_KEY
-    );
-    expect(isConfigured).toBe(true);
-
-    vi.restoreAllMocks();
+    // Clear any cached module so the dynamic import re-evaluates
+    vi.resetModules();
+    const { isInsForgeConfigured } = await import('../src/lib/insforge.ts');
+    expect(isInsForgeConfigured).toBe(true);
   });
 
-  it('does not throw at module evaluation time when env vars are missing', () => {
-    // This tests the fix for C-06: InsForge module-level throw
-    // The module should NOT throw, only warn
+  it('module does not throw at evaluation time when env vars are missing', async () => {
     vi.stubEnv('VITE_INSFORGE_BASE_URL', '');
     vi.stubEnv('VITE_INSFORGE_ANON_KEY', '');
 
-    // Should not throw when importing the module
-    expect(() => {
-      // Simulate module-level evaluation with missing env vars
-      const baseUrl = '';
-      const anonKey = '';
-      const isConfigured = Boolean(baseUrl && anonKey);
-      expect(isConfigured).toBe(false);
-    }).not.toThrow();
+    vi.resetModules();
+    // Dynamic import should succeed without throwing
+    let module;
+    await expect(async () => {
+      module = await import('../src/lib/insforge.ts');
+    }).resolves.not.toThrow();
 
-    vi.restoreAllMocks();
+    // Should export the flag as false
+    expect(module.isInsForgeConfigured).toBe(false);
   });
 });
