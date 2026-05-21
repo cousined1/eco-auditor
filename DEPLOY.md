@@ -5,7 +5,7 @@
 - **Frontend**: React SPA built with Vite, served as static files
 - **Backend**: Express.js minimal server (`server.cjs`) serving static files + video streaming
 - **Database**: InsForge (Backend-as-a-Service) — no managed database in this service
-- **Payments**: Stripe Checkout, Billing Portal, and Webhooks (requires backend API routes to be added)
+- **Payments**: Stripe Checkout, Billing Portal, and Webhooks (backend API routes implemented in `server.cjs`)
 
 ## Deployment Steps
 
@@ -94,5 +94,5 @@ railway domain add eco-auditor.developer312.com
 | Build fails with `CustomEvent is not defined` | Ensure `NIXPACKS_NODE_VERSION=22` is set and Dockerfile uses `node:22-alpine` |
 | App crashes on startup | Check `PORT` env var is set; server binds to `0.0.0.0:$PORT` |
 | Video returns 404 | Upload video to `/app/videos/` volume mount or place in `static/` |
-| Stripe not working | Ensure backend API routes for `/api/stripe/*` are implemented |
+| Stripe not working | Check `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` env vars; verify webhook endpoint URL in Stripe dashboard |
 | Static assets not cached | Server sets `Cache-Control: immutable` for `/assets/*` and `no-cache` for HTML |

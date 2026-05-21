@@ -181,12 +181,12 @@
 | Billing portal returns fake URL | CRITICAL | Fixed — now calls `/api/stripe/portal` |
 | Subscription change returns fake success | CRITICAL | Fixed — now calls `/api/stripe/subscription` |
 | Cancellation returns fake success | CRITICAL | Fixed — now calls `/api/stripe/subscription` |
-| Webhook handlers are no-ops | HIGH | Acknowledged — backend routes need implementation |
+| Webhook handlers are no-ops | HIGH | Fixed — now uses `stripe.webhooks.constructEvent()` with signature verification, rejects if `STRIPE_WEBHOOK_SECRET` is missing |
 | `STRIPE_PK` logged to console | CRITICAL | Fixed |
 | Missing `STRIPE_SECRET_KEY` env var | HIGH | Documented in `railway.env.example` |
 | Missing `STRIPE_WEBHOOK_SECRET` env var | HIGH | Documented in `railway.env.example` |
 
-**Note**: Stripe backend API routes (`/api/stripe/*`) need to be implemented on the server side. The client-side SDK is ready; the Express server needs corresponding route handlers.
+**Note**: Stripe backend API routes (`/api/stripe/*`) are now implemented in `server.cjs`. Checkout, portal, and webhook handlers are active. Subscription update/cancel endpoints return `501 Not Implemented` with a redirect to the billing portal.
 
 ---
 
