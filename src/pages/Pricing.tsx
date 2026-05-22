@@ -1,7 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PLANS, ADD_ONS, FEATURE_COMPARISON } from '../data/mockData';
 import { createCheckoutSession } from '../lib/stripe';
+
+const PRICING_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Eco-Auditor Pricing Plans",
+  "description": "Carbon accounting plans for small and mid-size businesses. From free tier to enterprise-grade compliance reporting.",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "item": { "@type": "Product", "name": "Starter", "description": "Basic carbon tracking for small teams", "offers": { "@type": "Offer", "price": "49", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
+    { "@type": "ListItem", "position": 2, "item": { "@type": "Product", "name": "Growth", "description": "Full Scope 1/2/3 reporting with AI extraction", "offers": { "@type": "Offer", "price": "149", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
+    { "@type": "ListItem", "position": 3, "item": { "@type": "Product", "name": "Pro", "description": "Enterprise-grade compliance with custom integrations", "offers": { "@type": "Offer", "price": "499", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
+  ]
+};
 
 type BillingCycle = 'monthly' | 'annual';
 
@@ -9,6 +21,24 @@ export default function Pricing() {
   const [billing, setBilling] = useState<BillingCycle>('annual');
   const [showComparison, setShowComparison] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.title = 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs';
+
+    let meta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    if (meta) meta.content = 'Eco-Auditor pricing: Free tier, Starter $49/mo, Growth $149/mo, Pro $499/mo. Audit-ready Scope 1-3 emissions tracking. 14-day free trial, no credit card required.';
+
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.textContent = JSON.stringify(PRICING_SCHEMA);
+    document.head.appendChild(script);
+
+    return () => {
+      document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
+      if (meta) meta.content = 'Eco-Auditor gives small and mid-size businesses audit-ready GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      document.head.removeChild(script);
+    };
+  }, []);
 
   const handleCheckout = async (planId: string, billingCycle: BillingCycle, trial: boolean | undefined) => {
     setCheckoutError(null);

@@ -27,10 +27,10 @@
     <meta property="og:url" content="https://ecoauditor.io/" />
     <meta property="og:title" content="Eco-Auditor — GHG Carbon Accounting for SMBs" />
     <meta property="og:description" content="Audit-ready Scope 1-3 emissions data without enterprise software. Upload bills, connect integrations, AI-guided classification." />
-    <meta property="og:image" content="https://ecoauditor.io/favicon-192x192.png" />
+    <meta property="og:image" content="https://ecoauditor.io/og-image.svg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Eco-Auditor carbon accounting dashboard screenshot" />
+    <meta property="og:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping. Audit-ready Scope 1-3 emissions data for SMBs." />
     <meta property="og:site_name" content="Eco-Auditor" />
     <meta property="og:locale" content="en_US" />
 
@@ -39,8 +39,8 @@
     <meta name="twitter:url" content="https://ecoauditor.io/" />
     <meta name="twitter:title" content="Eco-Auditor — GHG Carbon Accounting for SMBs" />
     <meta name="twitter:description" content="Audit-ready Scope 1-3 emissions data without enterprise software. GHG Protocol aligned." />
-    <meta name="twitter:image" content="https://ecoauditor.io/favicon-192x192.png" />
-    <meta name="twitter:image:alt" content="Eco-Auditor carbon accounting dashboard screenshot" />
+    <meta name="twitter:image" content="https://ecoauditor.io/og-image.svg" />
+    <meta name="twitter:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping" />
     <meta name="twitter:site" content="@developer312" />
 
     <!-- PWA & theme -->
@@ -60,6 +60,94 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://ecoauditor.io/#organization",
+          "name": "Eco-Auditor",
+          "url": "https://ecoauditor.io",
+          "logo": "https://ecoauditor.io/favicon-512x512.jpg",
+          "description": "Carbon accounting and sustainability reporting platform for small and mid-size businesses",
+          "parentOrganization": {
+            "@type": "Organization",
+            "name": "NIGHT LITE USA LLC"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+1-510-401-1225",
+            "contactType": "sales",
+            "email": "hello@developer312.com",
+            "availableLanguage": "English"
+          },
+          "sameAs": []
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://ecoauditor.io/#website",
+          "url": "https://ecoauditor.io",
+          "name": "Eco-Auditor",
+          "description": "GHG carbon accounting and sustainability reporting for SMBs",
+          "publisher": {
+            "@id": "https://ecoauditor.io/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://ecoauditor.io/?s={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://ecoauditor.io/#software",
+          "name": "Eco-Auditor",
+          "url": "https://ecoauditor.io",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "description": "Audit-ready GHG emissions tracking for Scope 1, 2, and 3. Built for SMBs facing SB 253, CSRD, and supply chain carbon disclosure requirements.",
+          "offers": {
+            "@type": "AggregateOffer",
+            "lowPrice": "0",
+            "highPrice": "499",
+            "priceCurrency": "USD",
+            "offerCount": "3"
+          },
+          "featureList": [
+            "Scope 1, 2, 3 emissions tracking",
+            "AI-powered document extraction",
+            "Audit-ready emissions ledger",
+            "Compliance report generation",
+            "Supplier Scope 3 data collection",
+            "GHG Protocol aligned methodology"
+          ],
+          "screenshot": "https://ecoauditor.io/favicon-192x192.png",
+          "author": {
+            "@id": "https://ecoauditor.io/#organization"
+          }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://ecoauditor.io/#webpage",
+          "url": "https://ecoauditor.io",
+          "name": "Eco-Auditor — GHG Carbon Accounting for SMBs",
+          "isPartOf": {
+            "@id": "https://ecoauditor.io/#website"
+          },
+          "about": {
+            "@id": "https://ecoauditor.io/#software"
+          },
+          "primaryImageOfPage": {
+            "@type": "ImageObject",
+            "url": "https://ecoauditor.io/og-image.svg"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body class="bg-white dark:bg-surface-950 text-surface-800 dark:text-surface-100">
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PS2XR44V" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>

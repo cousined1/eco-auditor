@@ -5,7 +5,9 @@ Allow: /
 Sitemap: https://ecoauditor.io/sitemap.xml
 
 # Disallow auth-only app paths
-Disallow: /app
+Disallow: /app/
+Disallow: /login
+Disallow: /auth/
 
-# Crawl delay for rate limiting
-Crawl-delay: 1
+# Allow AI crawlers to access llms.txt
+Allow: /llms.txt

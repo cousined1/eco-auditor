@@ -1,0 +1,21 @@
+/* TEAM */
+Developer: Edward Brooks
+Contact: hello@developer312.com
+Phone: (510) 401-1225
+Location: United States
+
+/* COMPANY */
+Developer312 (subsidiary of NIGHT LITE USA LLC)
+Website: https://developer312.com
+
+/* SITE */
+Last update: 2026-05-21
+Language: English
+Framework: React 19 + Vite + TypeScript
+Styling: Tailwind CSS 3.4
+Backend: Express.js + PostgreSQL
+Hosting: Railway
+
+/* SUITE */
+ProvenanceOS: https://provenance-os.com
+Sim2Real: https://sim2real.com

@@ -1,10 +1,41 @@
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import Footer from '../components/Footer';
 import ChatbotWidget from '../components/ChatbotWidget';
 
+const FAQ_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "What is Scope 1, 2, and 3 emissions?", "acceptedAnswer": { "@type": "Answer", "text": "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." } },
+    { "@type": "Question", "name": "What is SB 253 and who does it affect?", "acceptedAnswer": { "@type": "Answer", "text": "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." } },
+    { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides audit-ready emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically $49–$499/month versus six-figure annual licenses." } },
+    { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running in under 10 minutes. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." } },
+    { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." } },
+    { "@type": "Question", "name": "Do I need a sustainability consultant to use Eco-Auditor?", "acceptedAnswer": { "@type": "Answer", "text": "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." } },
+  ]
+};
+
+const FAQS = [
+  { q: "What is Scope 1, 2, and 3 emissions?", a: "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." },
+  { q: "What is SB 253 and who does it affect?", a: "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." },
+  { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides audit-ready emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically $49–$499/month versus six-figure annual licenses." },
+  { q: "How long does it take to get started?", a: "Most teams are up and running in under 10 minutes. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." },
+  { q: "What compliance frameworks does Eco-Auditor support?", a: "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." },
+  { q: "Do I need a sustainability consultant to use Eco-Auditor?", a: "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." },
+];
+
 export default function LandingPage() {
   const { theme, toggle } = useTheme();
+
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.textContent = JSON.stringify(FAQ_SCHEMA);
+    document.head.appendChild(script);
+    return () => { document.head.removeChild(script); };
+  }, []);
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
@@ -224,6 +255,27 @@ export default function LandingPage() {
               name="James Park"
               role="Sustainability Lead, Northstar Foods"
             />
+          </div>
+        </div>
+      </section>
+
+      {/* ─── FAQ Section ─── */}
+      <section id="faq" className="bg-white dark:bg-surface-900 border-y border-surface-200 dark:border-surface-800">
+        <div className="max-w-4xl mx-auto px-6 py-20">
+          <div className="text-center mb-14">
+            <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">Frequently asked questions</h2>
+            <p className="mt-3 text-surface-500 max-w-xl mx-auto">Common questions about carbon accounting, compliance, and Eco-Auditor.</p>
+          </div>
+          <div className="space-y-6">
+            {FAQS.map((faq) => (
+              <details key={faq.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
+                <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">
+                  {faq.q}
+                  <svg className="w-4 h-4 text-surface-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </summary>
+                <div className="px-5 pb-4 text-sm text-surface-600 dark:text-surface-400 leading-relaxed">{faq.a}</div>
+              </details>
+            ))}
           </div>
         </div>
       </section>
