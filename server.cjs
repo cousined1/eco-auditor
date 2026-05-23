@@ -129,19 +129,36 @@ app.get('/api/version', function (_req, res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.json({
-    version: process.env.npm_package_version || process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
+    version: process.env.APP_VERSION || process.env.npm_package_version || process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
     build: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || null,
     timestamp: new Date().toISOString(),
   });
 });
 
-// ─── Health check ───
+// ─── Health check with DB status ───
 app.get('/health', function (_req, res) {
+  // Check InsForge/DB connectivity if configured
+  let dbStatus = 'not configured';
+  const insforgeUrl = process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL;
+  if (insforgeUrl) {
+    dbStatus = 'configured';
+  }
+
   res.json({
     status: 'ok',
     uptime: process.uptime(),
-    version: process.env.npm_package_version || '0.0.0',
+    version: process.env.APP_VERSION || process.env.npm_package_version || '0.0.0',
+    db: dbStatus,
     timestamp: new Date().toISOString(),
+  });
+});
+
+// ─── InsForge config endpoint (for auth) ───
+app.get('/api/insforge-config', function (_req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.json({
+    url: process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL || null,
+    anonKey: process.env.INSFORGE_ANON_KEY || process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || null,
   });
 });
 
