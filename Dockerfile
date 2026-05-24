@@ -9,9 +9,13 @@ RUN npm ci
 # Vite bakes env vars at build time — pass as build args
 # ARG must come AFTER COPY to invalidate cache when values change
 ARG VITE_STRIPE_PK
+ARG VITE_INSFORGE_BASE_URL
+ARG VITE_INSFORGE_ANON_KEY
 
 COPY . .
 ENV VITE_STRIPE_PK=$VITE_STRIPE_PK
+ENV VITE_INSFORGE_BASE_URL=$VITE_INSFORGE_BASE_URL
+ENV VITE_INSFORGE_ANON_KEY=$VITE_INSFORGE_ANON_KEY
 RUN npm run build
 
 # ─── Stage 2: Production ───
