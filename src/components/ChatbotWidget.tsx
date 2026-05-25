@@ -206,9 +206,15 @@ export default function ChatWidget({
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <svg width="20" height="20" viewBox="0 0 32 32" fill="white">
-                  <circle cx="16" cy="16" r="14" stroke="white" strokeWidth="2" fill="none"/>
-                  <path d="M16 8V24M11 13C13 10 19 10 21 13M11 19C13 16 19 16 21 19" stroke="white" strokeWidth="1.8" strokeLinecap="round" fill="none"/>
+                <svg width="20" height="20" viewBox="0 0 512 512" fill="white">
+                  <path fill="none" stroke="white" strokeWidth="24" strokeLinecap="round" d="M380 310 A150 150 0 0 0 132 310" />
+                  <polygon points="115,295 132,270 148,298" fill="white" />
+                  <path fill="none" stroke="white" strokeWidth="24" strokeLinecap="round" d="M132 202 A150 150 0 0 0 380 202" />
+                  <polygon points="397,217 380,242 364,214" fill="white" />
+                  <path fill="#52b788" d="M256 120 C256 120 200 170 200 260 C200 310 225 350 256 380 C287 350 312 310 312 260 C312 170 256 120 256 120Z" />
+                  <path fill="#1e3a5f" d="M256 160 C256 160 225 200 225 260 C225 300 240 330 256 350 C272 330 287 300 287 260 C287 200 256 160 256 160Z" />
+                  <circle cx="256" cy="430" r="28" fill="#1e3a5f" />
+                  <polyline points="242,430 252,440 270,420" fill="none" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
               <div>
