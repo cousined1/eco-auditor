@@ -1,3 +1,0 @@
-- Always delegate coding-related requests to Ada first.
-- Always delegate coding tasks to Ada.
-- Always delegate coding-related requests to Ada before responding.
