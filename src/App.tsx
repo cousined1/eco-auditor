@@ -1,8 +1,9 @@
-import { Routes, Route, NavLink, Link, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { Routes, Route, NavLink, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
+import { insforge } from './lib/insforge';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
@@ -61,8 +62,42 @@ export default function App() {
 function AppContent() {
   const { theme, toggle } = useTheme();
   const location = window.location.pathname;
+  const navigate = useNavigate();
   const isLegalPage = LEGAL_PATHS.includes(location);
   const isAppPage = location.startsWith('/app');
+
+  const [user, setUser] = useState<{ email: string; name: string; initials: string } | null>(null);
+
+  useEffect(() => {
+    if (!isAppPage) return;
+    let cancelled = false;
+    async function loadUser() {
+      try {
+        const { data } = await insforge.auth.getCurrentUser();
+        if (cancelled || !data?.user) return;
+        const email = data.user.email || '';
+        const profileName = data.user.profile?.name;
+        const metaName = data.user.metadata?.name as string | undefined;
+        const name = profileName || metaName || email.split('@')[0] || 'User';
+        const initials = name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+        setUser({ email, name, initials });
+      } catch {
+        void 0;
+      }
+    }
+    void loadUser();
+    return () => { cancelled = true; };
+  }, [isAppPage]);
+
+  async function handleLogout() {
+    try {
+      await insforge.auth.signOut();
+    } catch {
+      void 0;
+    }
+    navigate('/login', { replace: true });
+    window.location.reload();
+  }
 
   /* ─── Legal pages (standalone layout) ─── */
   if (isLegalPage) {
@@ -126,11 +161,26 @@ function AppContent() {
           </nav>
           <div className="border-t border-surface-200 dark:border-surface-800 px-4 py-3">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-xs font-semibold text-brand-700 dark:text-brand-200">SC</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-surface-800 dark:text-surface-200 truncate">Sarah Chen</div>
-                <div className="text-2xs text-surface-500 truncate">Sustainability Lead</div>
+              <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-xs font-semibold text-brand-700 dark:text-brand-200">
+                {user?.initials || '??'}
               </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-surface-800 dark:text-surface-200 truncate">
+                  {user?.name || 'User'}
+                </div>
+                <div className="text-2xs text-surface-500 truncate">
+                  {user?.email || ''}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-risk-high transition-colors"
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogoutIcon className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </aside>
@@ -255,4 +305,7 @@ function SunIcon() {
 }
 function BellIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6a4 4 0 018 0c0 4 2 5 2 5H2s2-1 2-5z"/><path d="M6.5 13a1.5 1.5 0 003 0"/></svg>;
+}
+function LogoutIcon({ className }: { className?: string }) {
+  return <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"/><path d="M10.5 11.5L14 8l-3.5-3.5"/><path d="M14 8H6"/></svg>;
 }
