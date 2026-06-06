@@ -38,10 +38,7 @@ describe('InsForge configuration', () => {
 
     vi.resetModules();
     // Dynamic import should succeed without throwing
-    let module;
-    await expect(async () => {
-      module = await import('../src/lib/insforge.ts');
-    }).resolves.not.toThrow();
+    const module = await import('../src/lib/insforge.ts');
 
     // Should export the flag as false
     expect(module.isInsForgeConfigured).toBe(false);

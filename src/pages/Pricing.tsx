@@ -25,7 +25,7 @@ export default function Pricing() {
   useEffect(() => {
     document.title = 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs';
 
-    let meta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    const meta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
     if (meta) meta.content = 'Eco-Auditor pricing: Free tier, Starter $49/mo, Growth $149/mo, Pro $499/mo. Audit-ready Scope 1-3 emissions tracking. 14-day free trial, no credit card required.';
 
     const script = document.createElement('script');

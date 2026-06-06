@@ -5,7 +5,7 @@
  * These tests import the actual server modules where possible instead of
  * reimplementing server logic in the test file (CodeRabbit audit finding).
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { buildSecurityHeaders } from '../server-security.cjs';
 
 // ─── Security Headers (tests actual server module) ───
