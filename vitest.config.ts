@@ -9,7 +9,7 @@ export default defineConfig({
     include: ['tests/**/*.test.{ts,tsx,js}'],
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}', 'server.cjs', 'server-security.cjs'],
     },
   },
 });

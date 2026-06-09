@@ -77,6 +77,11 @@ if (!PORT) {
   process.exit(1);
 }
 
+// ─── Trust proxy for correct client IP behind Railway/Cloudflare ───
+// Railway terminates TLS and forwards X-Forwarded-For; without this,
+// req.ip resolves to the proxy IP and rate limiting collapses all users.
+app.set('trust proxy', 1);
+
 // ─── Security headers ───
 // nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage app APIs use bearer Authorization headers, not ambient cookie auth.
 app.use(function (_req, res, next) {
@@ -95,7 +100,9 @@ const rateLimitMax = 120;
 const rateLimitStore = new Map();
 
 app.use(function (req, res, next) {
-  const key = req.ip || 'unknown';
+  // Prefer X-Forwarded-For when behind a proxy (Railway/Cloudflare)
+  // to avoid collapsing all users behind the same proxy IP.
+  const key = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'unknown';
   const now = Date.now();
   const entry = rateLimitStore.get(key);
 
