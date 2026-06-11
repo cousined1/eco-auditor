@@ -61,12 +61,13 @@ export default function App() {
 
 function AppContent() {
   const { theme, toggle } = useTheme();
-  const location = window.location.pathname;
+  const location = useLocation().pathname;
   const navigate = useNavigate();
   const isLegalPage = LEGAL_PATHS.includes(location);
   const isAppPage = location.startsWith('/app');
 
   const [user, setUser] = useState<{ email: string; name: string; initials: string } | null>(null);
+  const [authStatus, setAuthStatus] = useState<'loading' | 'authed' | 'anon'>('loading');
 
   useEffect(() => {
     if (!isAppPage) return;
@@ -74,15 +75,20 @@ function AppContent() {
     async function loadUser() {
       try {
         const { data } = await insforge.auth.getCurrentUser();
-        if (cancelled || !data?.user) return;
+        if (cancelled) return;
+        if (!data?.user) {
+          setAuthStatus('anon');
+          return;
+        }
         const email = data.user.email || '';
         const profileName = data.user.profile?.name;
         const metaName = data.user.metadata?.name as string | undefined;
         const name = profileName || metaName || email.split('@')[0] || 'User';
         const initials = name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
         setUser({ email, name, initials });
+        setAuthStatus('authed');
       } catch {
-        void 0;
+        if (!cancelled) setAuthStatus('anon');
       }
     }
     void loadUser();
@@ -127,6 +133,16 @@ function AppContent() {
 
   /* ─── App shell (sidebar + dashboard pages) ─── */
   if (isAppPage) {
+    if (authStatus === 'loading') {
+      return (
+        <div className="flex h-screen items-center justify-center bg-surface-50 dark:bg-surface-950">
+          <div className="text-sm text-surface-500" role="status">Loading…</div>
+        </div>
+      );
+    }
+    if (authStatus === 'anon') {
+      return <Navigate to="/login" replace />;
+    }
     return (
       <div className="flex h-screen overflow-hidden bg-surface-50 dark:bg-surface-950">
         <aside className="hidden md:flex flex-col w-60 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">

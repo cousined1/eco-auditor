@@ -100,9 +100,10 @@ const rateLimitMax = 120;
 const rateLimitStore = new Map();
 
 app.use(function (req, res, next) {
-  // Prefer X-Forwarded-For when behind a proxy (Railway/Cloudflare)
-  // to avoid collapsing all users behind the same proxy IP.
-  const key = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'unknown';
+  // Key on req.ip, which honors `trust proxy` above. Parsing the leftmost
+  // X-Forwarded-For entry directly is client-spoofable (rate-limit bypass
+  // and unbounded store growth from forged keys).
+  const key = req.ip || 'unknown';
   const now = Date.now();
   const entry = rateLimitStore.get(key);
 
