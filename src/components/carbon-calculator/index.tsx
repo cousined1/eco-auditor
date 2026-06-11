@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { insforge as _insforge } from '@/lib/insforge';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const insforge = _insforge as any;
+import { insforge } from '@/lib/insforge';
 import EmissionForm from './EmissionForm';
 import EmissionList from './EmissionList';
 import EmissionsDashboard from './EmissionsDashboard';
 import ReportGenerator from './ReportGenerator';
+import Onboarding from './Onboarding';
 import type { Company, Facility, EmissionEntry } from './utils';
 
 export default function CarbonCalculator() {
+  const [userId, setUserId] = useState<string | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [entries, setEntries] = useState<EmissionEntry[]>([]);
@@ -16,7 +16,7 @@ export default function CarbonCalculator() {
   const [error, setError] = useState<string | null>(null);
 
   const loadEntries = useCallback(async (companyId: number) => {
-    const { data, error: fetchError } = await insforge
+    const { data, error: fetchError } = await insforge.database
       .from('emission_entries')
       .select('*')
       .eq('company_id', companyId)
@@ -29,28 +29,32 @@ export default function CarbonCalculator() {
   useEffect(() => {
     async function loadData() {
       try {
-        const { data: { user } } = await insforge.auth.getUser();
+        const { data } = await insforge.auth.getCurrentUser();
+        const user = data?.user;
         if (!user) {
           setError('Not authenticated.');
           setLoading(false);
           return;
         }
+        setUserId(user.id);
 
-        const { data: companyData, error: companyError } = await insforge
+        const { data: companyData, error: companyError } = await insforge.database
           .from('companies')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (companyError || !companyData) {
-          setError('No company found. Please complete onboarding first.');
+        if (companyError) throw companyError;
+
+        if (!companyData) {
+          // No company yet — onboarding form is rendered below.
           setLoading(false);
           return;
         }
 
         setCompany(companyData as Company);
 
-        const { data: facilityData } = await insforge
+        const { data: facilityData } = await insforge.database
           .from('facilities')
           .select('*')
           .eq('company_id', (companyData as Company).id);
@@ -67,6 +71,12 @@ export default function CarbonCalculator() {
     loadData();
   }, [loadEntries]);
 
+  function handleOnboarded(newCompany: Company, newFacilities: Facility[]) {
+    setCompany(newCompany);
+    setFacilities(newFacilities);
+    setEntries([]);
+  }
+
   async function handleSubmit(data: {
     scope: string;
     category: string;
@@ -78,9 +88,9 @@ export default function CarbonCalculator() {
   }) {
     if (!company) return;
 
-    const { error: insertError } = await insforge
+    const { error: insertError } = await insforge.database
       .from('emission_entries')
-      .insert({
+      .insert([{
         scope: data.scope,
         category: data.category,
         source: data.source,
@@ -91,14 +101,14 @@ export default function CarbonCalculator() {
         confidence: 85,
         facility_id: data.facilityId,
         company_id: company.id,
-      });
+      }]);
 
     if (insertError) throw insertError;
     await loadEntries(company.id);
   }
 
   async function handleDelete(id: number) {
-    const { error: deleteError } = await insforge
+    const { error: deleteError } = await insforge.database
       .from('emission_entries')
       .delete()
       .eq('id', id);
@@ -129,7 +139,12 @@ export default function CarbonCalculator() {
     );
   }
 
-  if (!company) return null;
+  if (!company) {
+    if (userId) {
+      return <Onboarding userId={userId} onComplete={handleOnboarded} />;
+    }
+    return null;
+  }
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">

@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { insforge as _insforge } from '@/lib/insforge';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const insforge = _insforge as any;
+import { insforge } from '@/lib/insforge';
 import type { Company, EmissionEntry } from './utils';
 
 interface Props {
@@ -33,7 +31,7 @@ export default function ReportGenerator({ company, entries }: Props) {
         .filter((e) => e.scope === 'Scope 3')
         .reduce((s, e) => s + safeAmount(e), 0);
 
-      const { data: report, error } = await insforge
+      const { data: report, error } = await insforge.database
         .from('reports')
         .insert([{
           company_id: company.id,
@@ -49,17 +47,17 @@ export default function ReportGenerator({ company, entries }: Props) {
 
       if (error) throw error;
 
-      try {
-        await insforge.functions.invoke('generate-pdf', {
-          body: {
-            reportId: report.id,
-            companyId: company.id,
-            totals: { scope1: totalScope1, scope2: totalScope2, scope3: totalScope3 },
-          },
-        });
-        setStatus('Report generated and saved.');
-      } catch {
+      const { error: invokeError } = await insforge.functions.invoke('generate-pdf', {
+        body: {
+          reportId: report.id,
+          companyId: company.id,
+          totals: { scope1: totalScope1, scope2: totalScope2, scope3: totalScope3 },
+        },
+      });
+      if (invokeError) {
         setStatus('Report record saved. PDF generation function not yet deployed.');
+      } else {
+        setStatus('Report generated and saved.');
       }
     } catch (err) {
       setStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
