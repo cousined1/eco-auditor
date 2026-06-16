@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { insforge, isInsForgeConfigured } from '../lib/insforge';
 import {
   SOCIAL_AUTH_PROVIDERS,
@@ -9,8 +9,32 @@ import {
 import { useState } from 'react';
 
 export default function Login() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function handleEmailLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+
+    const { error: authError } = await insforge.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setSubmitting(false);
+
+    if (authError) {
+      setError(authError.message || 'Invalid email or password.');
+      return;
+    }
+
+    navigate('/app', { replace: true });
+  }
 
   async function handleSocialLogin(provider: SocialAuthProvider) {
     setPendingProvider(provider);
@@ -54,15 +78,69 @@ export default function Login() {
           <div className="card space-y-3">
             {!isInsForgeConfigured && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                InsForge is not configured. Set VITE_INSFORGE_BASE_URL and VITE_INSFORGE_ANON_KEY before OAuth sign-in can start.
+                InsForge is not configured. Set VITE_INSFORGE_BASE_URL and VITE_INSFORGE_ANON_KEY before sign-in can start.
               </div>
             )}
 
+            {/* Email / Password form */}
+            <form onSubmit={(e) => void handleEmailLogin(e)} className="space-y-3">
+              <div>
+                <label htmlFor="login-email" className="sr-only">Email address</label>
+                <input
+                  id="login-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent"
+                />
+              </div>
+              <div>
+                <label htmlFor="login-password" className="sr-only">Password</label>
+                <input
+                  id="login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={submitting || !email.trim() || !password}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <span className="inline-block h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Signing in…
+                  </>
+                ) : (
+                  'Sign in'
+                )}
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 py-1" role="separator" aria-orientation="horizontal">
+              <span className="flex-1 border-t border-surface-200 dark:border-surface-700" />
+              <span className="text-xs text-surface-400">or continue with</span>
+              <span className="flex-1 border-t border-surface-200 dark:border-surface-700" />
+            </div>
+
+            {/* OAuth buttons */}
             {SOCIAL_AUTH_PROVIDERS.map((provider) => (
               <button
                 key={provider.id}
                 type="button"
-                disabled={!isInsForgeConfigured || pendingProvider !== null}
+                disabled={!isInsForgeConfigured || pendingProvider !== null || submitting}
                 onClick={() => void handleSocialLogin(provider.id)}
                 className="w-full flex items-center justify-center gap-3 rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm font-semibold text-surface-800 transition-colors hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:hover:bg-surface-800"
               >

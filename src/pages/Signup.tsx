@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { insforge, isInsForgeConfigured } from '../lib/insforge';
 import {
   SOCIAL_AUTH_PROVIDERS,
@@ -9,8 +9,42 @@ import {
 import { useState } from 'react';
 
 export default function Signup() {
+  const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
+
+  async function handleEmailSignup(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+
+    const { data, error: authError } = await insforge.auth.signUp({
+      email: email.trim(),
+      password,
+      ...(name.trim() ? { name: name.trim() } : {}),
+      redirectTo: buildOAuthRedirectTo(window.location.origin, '/login'),
+    });
+
+    setSubmitting(false);
+
+    if (authError) {
+      setError(authError.message || 'Unable to create account.');
+      return;
+    }
+
+    // signUp returns an accessToken when auto-confirm is on; navigate straight to app.
+    // Without a token, the user must verify their email first.
+    if (data?.accessToken) {
+      navigate('/app', { replace: true });
+    } else {
+      setNeedsVerification(true);
+    }
+  }
 
   async function handleSocialSignup(provider: SocialAuthProvider) {
     setPendingProvider(provider);
@@ -26,6 +60,47 @@ export default function Signup() {
       setError(result.error);
       setPendingProvider(null);
     }
+  }
+
+  if (needsVerification) {
+    return (
+      <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex flex-col">
+        <header className="border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-surface-900 dark:text-white">
+              <EcoMark />
+              Eco-Auditor
+            </Link>
+            <Link to="/pricing" className="text-sm text-surface-500 hover:text-surface-900 dark:hover:text-white">
+              Pricing
+            </Link>
+          </div>
+        </header>
+        <main className="flex-1 flex items-center justify-center px-6 py-12">
+          <section className="w-full max-w-md text-center">
+            <div className="card">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
+                <svg className="h-6 w-6 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                </svg>
+              </div>
+              <h1 className="text-lg font-semibold text-surface-900 dark:text-white">Check your email</h1>
+              <p className="mt-2 text-sm text-surface-500">
+                We sent a verification email to{' '}
+                <span className="font-medium text-surface-700 dark:text-surface-300">{email}</span>.
+                Click the link in the email to verify your account, then sign in.
+              </p>
+              <Link
+                to="/login"
+                className="btn-primary mt-6 inline-flex"
+              >
+                Go to sign in
+              </Link>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -54,15 +129,80 @@ export default function Signup() {
           <div className="card space-y-3">
             {!isInsForgeConfigured && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                InsForge is not configured. Set VITE_INSFORGE_BASE_URL and VITE_INSFORGE_ANON_KEY before OAuth sign-in can start.
+                InsForge is not configured. Set VITE_INSFORGE_BASE_URL and VITE_INSFORGE_ANON_KEY before sign-up can start.
               </div>
             )}
+
+            <form onSubmit={(e) => void handleEmailSignup(e)} className="space-y-3">
+              <div>
+                <label htmlFor="signup-name" className="sr-only">Full name</label>
+                <input
+                  id="signup-name"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Full name (optional)"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent"
+                />
+              </div>
+              <div>
+                <label htmlFor="signup-email" className="sr-only">Email address</label>
+                <input
+                  id="signup-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent"
+                />
+              </div>
+              <div>
+                <label htmlFor="signup-password" className="sr-only">Password</label>
+                <input
+                  id="signup-password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={6}
+                  placeholder="Password (at least 6 characters)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={submitting || !email.trim() || password.length < 6}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <span className="inline-block h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Creating account…
+                  </>
+                ) : (
+                  'Create account'
+                )}
+              </button>
+            </form>
+
+            <div className="flex items-center gap-3 py-1" role="separator" aria-orientation="horizontal">
+              <span className="flex-1 border-t border-surface-200 dark:border-surface-700" />
+              <span className="text-xs text-surface-400">or continue with</span>
+              <span className="flex-1 border-t border-surface-200 dark:border-surface-700" />
+            </div>
 
             {SOCIAL_AUTH_PROVIDERS.map((provider) => (
               <button
                 key={provider.id}
                 type="button"
-                disabled={!isInsForgeConfigured || pendingProvider !== null}
+                disabled={!isInsForgeConfigured || pendingProvider !== null || submitting}
                 onClick={() => void handleSocialSignup(provider.id)}
                 className="w-full flex items-center justify-center gap-3 rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm font-semibold text-surface-800 transition-colors hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:hover:bg-surface-800"
               >
