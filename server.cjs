@@ -1002,15 +1002,95 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
   try {
     const companyId = await requireCompanyAccess(req, res, req.query.company_id);
     if (!companyId) return;
-    const rows = parseEmissionCsv(req.body || '');
+    const csvText = req.body || '';
+    const rawRows = parseEmissionCsv(csvText);
+    if (rawRows.length === 0) {
+      return res.status(400).json({ success: false, error: 'CSV file is empty or has no data rows after the header.' });
+    }
+
     const jobId = crypto.randomUUID();
-    const created = rows.map(function (row) {
-      return { ...row, id: crypto.randomUUID(), company_id: companyId, created_at: new Date().toISOString() };
+    const companyFacilities = sampleFacilities.filter(function (f) { return String(f.company_id) === String(companyId); });
+    const entries = [];
+    var importErrors = [];   // fatal per-row errors
+    var importWarnings = []; // non-fatal per-row notes
+
+    for (var i = 0; i < rawRows.length; i++) {
+      var row = rawRows[i];
+      var rowNum = i + 2; // 1-indexed + header row
+      var rowErrors = [];
+      var rowWarnings = [];
+      var facilityId = null;
+
+      // Resolve optional facility_name → facility_id
+      if (row.facility_name) {
+        var nameQuery = String(row.facility_name).trim().toLowerCase();
+        var facility = companyFacilities.find(function (f) { return String(f.name).trim().toLowerCase() === nameQuery; });
+        if (facility) {
+          facilityId = facility.id;
+        } else {
+          rowWarnings.push('Row ' + rowNum + ': Facility "' + row.facility_name + '" not found — row stored without facility association');
+        }
+      }
+
+      // Try to calculate CO2e via emissions engine
+      var calculated;
+      try {
+        calculated = calculateEntry(row);
+      } catch (calcErr) {
+        rowErrors.push('Row ' + rowNum + ': ' + calcErr.message);
+      }
+
+      if (rowErrors.length === 0 && calculated) {
+        var entry = {
+          id: crypto.randomUUID(),
+          company_id: companyId,
+          facility_id: facilityId,
+          scope: String(calculated.scope || ''),
+          category: String(row.category || ''),
+          source: String(row.source || ''),
+          amount: Number(row.amount),
+          unit: String(row.unit || ''),
+          method: String(row.method || 'calculation'),
+          co2e_tonnes: calculated.co2e_tonnes,
+          factor: calculated.factor,
+          confidence: Number(calculated.confidence),
+          date: row.date || null,
+          notes: row.notes || null,
+          created_at: new Date().toISOString(),
+        };
+        entries.push(entry);
+      }
+
+      // Collect errors and warnings for this row
+      rowErrors.forEach(function (e) { importErrors.push(e); });
+      rowWarnings.forEach(function (w) { importWarnings.push(w); });
+    }
+
+    // Persist valid entries
+    if (entries.length > 0) {
+      sampleEmissionEntries.push.apply(sampleEmissionEntries, entries);
+      emissionsSummaryCache.clear();
+    }
+
+    var ingestResult = {
+      id: jobId,
+      status: entries.length > 0 ? 'completed' : 'failed',
+      imported: entries.length,
+      total_rows: rawRows.length,
+      errors: importErrors,
+      warnings: importWarnings,
+      company_id: companyId,
+    };
+    ingestJobs.set(jobId, ingestResult);
+
+    return res.json({
+      success: true,
+      job_id: jobId,
+      imported: entries.length,
+      total_rows: rawRows.length,
+      errors: importErrors,
+      warnings: importWarnings,
     });
-    sampleEmissionEntries.push(...created);
-    emissionsSummaryCache.clear();
-    ingestJobs.set(jobId, { id: jobId, status: 'completed', rows_processed: created.length, company_id: companyId });
-    return res.json({ success: true, job_id: jobId, rows_processed: created.length });
   } catch (err) {
     return res.status(400).json({ success: false, error: String(err.message || err) });
   }

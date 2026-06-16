@@ -199,6 +199,9 @@ function parseEmissionCsv(csv) {
       unit: row.unit,
       method: row.method || 'calculation',
       confidence: row.confidence ? Number(row.confidence) : undefined,
+      facility_name: row.facility_name || undefined,
+      date: row.date || undefined,
+      notes: row.notes || undefined,
     };
   });
 }

@@ -10,11 +10,19 @@ const INTEGRATIONS = [
 
 type ActionStatus = { type: 'success' | 'error'; message: string } | null;
 
+type CsvUploadResult = {
+  imported: number;
+  total_rows: number;
+  errors: string[];
+  warnings: string[];
+};
+
 export default function DataIntake() {
   const [selectedFile, setSelectedFile] = useState<number | null>(1);
   const [activeTab, setActiveTab] = useState<'files' | 'integrations' | 'review'>('files');
   const [actionStatus, setActionStatus] = useState<ActionStatus>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [csvResult, setCsvResult] = useState<CsvUploadResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,10 +73,39 @@ export default function DataIntake() {
     showStatus('success', 'Edit mode coming soon — fields will be editable inline.');
   };
 
-  const handleUpload = (files: FileList | null) => {
+  const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    // TODO: Replace with insforge.storage.upload() for each file.
-    showStatus('success', `${files.length} file(s) queued for processing.`);
+    setCsvResult(null);
+
+    // Upload each CSV and display results
+    for (let i = 0; i < files.length; i++) {
+      const file: File | undefined = files.item(i) ?? undefined;
+      if (!file) continue;
+      if (!file.name.endsWith('.csv')) {
+        showStatus('error', `${file.name} is not a CSV file — skipped`);
+        continue;
+      }
+
+      try {
+        const text = await file.text();
+        const res = await fetch('/api/ingest/csv', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/csv' },
+          body: text,
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          setCsvResult({ imported: data.imported, total_rows: data.total_rows, errors: data.errors || [], warnings: data.warnings || [] });
+          showStatus('success', `Imported ${data.imported} of ${data.total_rows} rows from ${file.name}`);
+        } else {
+          showStatus('error', data.error || `Failed to import ${file.name}`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : `Failed to upload ${file.name}`;
+        showStatus('error', msg);
+      }
+    }
   };
 
   return (
@@ -107,6 +144,52 @@ export default function DataIntake() {
           }`}
         >
           {actionStatus.message}
+        </div>
+      )}
+
+      {/* CSV upload result summary */}
+      {csvResult && (
+        <div className="card border-brand-200 dark:border-brand-800">
+          <div className="flex items-start justify-between mb-3">
+            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+              CSV Import Results — {csvResult.imported} of {csvResult.total_rows} rows imported
+            </h3>
+            <button
+              type="button"
+              onClick={() => setCsvResult(null)}
+              className="text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 text-lg leading-none"
+              aria-label="Dismiss results"
+            >
+              &times;
+            </button>
+          </div>
+          {csvResult.imported > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="badge-green">{csvResult.imported} imported</span>
+              {csvResult.errors.length > 0 && <span className="badge-amber">{csvResult.errors.length} error(s)</span>}
+              {csvResult.warnings.length > 0 && <span className="badge-amber">{csvResult.warnings.length} warning(s)</span>}
+            </div>
+          )}
+          {csvResult.errors.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">Errors</p>
+              <ul className="space-y-0.5">
+                {csvResult.errors.map((err, i) => (
+                  <li key={i} className="text-xs text-red-600 dark:text-red-400 pl-3 border-l-2 border-red-400">{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {csvResult.warnings.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">Warnings</p>
+              <ul className="space-y-0.5">
+                {csvResult.warnings.map((w, i) => (
+                  <li key={i} className="text-xs text-amber-600 dark:text-amber-400 pl-3 border-l-2 border-amber-400">{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
