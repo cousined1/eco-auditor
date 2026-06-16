@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
+import Header from '../components/Header';
 
 const SCHEMA = {
   "@context": "https://schema.org",
@@ -29,6 +30,7 @@ export default function Security() {
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
+      <Header variant="marketing" />
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-brand-50/60 via-surface-50 to-surface-50 dark:from-brand-950/30 dark:via-surface-950 dark:to-surface-950">
         <div className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">

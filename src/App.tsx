@@ -26,6 +26,7 @@ import Signup from './pages/Signup';
 import AuthCallback from './pages/AuthCallback';
 import CarbonCalculator from './components/carbon-calculator';
 import Footer from './components/Footer';
+import Header from './components/Header';
 
 const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
 
@@ -113,17 +114,14 @@ function AppContent() {
   if (isLegalPage) {
     return (
       <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
-        <header className="border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
-          <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-2">
-              <EcoLogo />
-              <span className="font-semibold text-sm text-surface-900 dark:text-white">Eco-Auditor</span>
-            </Link>
+        <Header
+          variant="legal"
+          extra={
             <button type="button" onClick={toggle} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors" aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
               {theme === 'light' ? <MoonIcon /> : <SunIcon />}
             </button>
-          </div>
-        </header>
+          }
+        />
         <Routes>
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />

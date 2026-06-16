@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
+import Header from '../components/Header';
 import { useTheme } from '../hooks/useTheme';
 import Footer from '../components/Footer';
 import ChatbotWidget from '../components/ChatbotWidget';
@@ -40,38 +41,20 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       <ChatbotWidget />
-      {/* ─── Header / Navbar ─── */}
-      <header className="sticky top-0 z-50 border-b border-surface-200/80 dark:border-surface-800/80 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <EcoLogo />
-            <span className="font-semibold text-sm text-surface-900 dark:text-white tracking-tight">Eco-Auditor</span>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-6 text-sm" aria-label="Main navigation">
-            <a href="#features" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Features</a>
-            <a href="#how-it-works" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">How It Works</a>
-            <Link to="/pricing" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Pricing</Link>
-            <Link to="/methodology" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Methodology</Link>
-            <Link to="/security" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Security</Link>
-            <Link to="/login" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Login</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={toggle}
-              className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
-              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            >
-              {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-            </button>
-            <Link to="/signup" className="btn-primary text-sm !py-2 !px-5">
-              Start Free Trial
-            </Link>
-          </div>
-        </div>
-      </header>
+      {/* ─── Header / Navbar (CTA-slot pattern) ─── */}
+      <Header
+        variant="landing"
+        extra={
+          <button
+            type="button"
+            onClick={toggle}
+            className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+          </button>
+        }
+      />
 
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden">
@@ -395,26 +378,6 @@ function TestimonialCard({ quote, name, role }: { quote: string; name: string; r
 }
 
 /* ─── Icons ─── */
-
-function EcoLogo() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Bottom cycle arrow — teal */}
-      <path fill="none" stroke="#06b6d4" strokeWidth="24" strokeLinecap="round" d="M380 310 A150 150 0 0 0 132 310" />
-      <polygon points="115,295 132,270 148,298" fill="#06b6d4" />
-      {/* Top cycle arrow — navy */}
-      <path fill="none" stroke="#1e3a5f" strokeWidth="24" strokeLinecap="round" d="M132 202 A150 150 0 0 0 380 202" />
-      <polygon points="397,217 380,242 364,214" fill="#1e3a5f" />
-      {/* Abstract leaf */}
-      <path fill="#52b788" d="M256 120 C256 120 200 170 200 260 C200 310 225 350 256 380 C287 350 312 310 312 260 C312 170 256 120 256 120Z" />
-      <path fill="#ffffff" d="M256 160 C256 160 225 200 225 260 C225 300 240 330 256 350 C272 330 287 300 287 260 C287 200 256 160 256 160Z" />
-      <line x1="256" y1="155" x2="256" y2="365" stroke="#2d6a4f" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-      {/* Checkmark badge */}
-      <circle cx="256" cy="430" r="28" fill="#1e3a5f" />
-      <polyline points="242,430 252,440 270,420" fill="none" stroke="#ffffff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function DollarIcon() {
   return <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="8" /><path d="M10 5v10M7.5 7.5a2 2 0 012-1.5h1a2 2 0 010 4H9a2 2 0 000 4h1.5a2 2 0 002-1.5" /></svg>;
