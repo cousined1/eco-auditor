@@ -1,5 +1,12 @@
 [auth]
 allowedRedirectUrls = [
   "https://ecoauditor.io/auth/callback",
+  "https://provenance-os.com/auth/callback",
   "http://localhost:5173/auth/callback"
 ]
+
+[auth.providers.apple]
+clientId = "io.ecoauditor.web"
+teamId = "NL5DY394T8"
+keyId = "DYL3BPARM6"
+privateKey = "REDACTED_STORE_SECURELY_OUTSIDE_REPO"

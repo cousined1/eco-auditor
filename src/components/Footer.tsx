@@ -70,7 +70,7 @@ export default function Footer() {
             <span className="font-medium text-surface-600 dark:text-surface-400">Developer312 suite:</span>
             <a href="https://provenance-os.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">ProvenanceOS</a>
             <span className="text-surface-300">·</span>
-            <a href="https://sim2real.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a>
+            <a href="https://sim-2-real.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a>
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-export type SocialAuthProvider = 'google' | 'apple';
+export type SocialAuthProvider = 'google' | 'apple' | 'azure';
 
 export type SocialAuthProviderConfig = {
   id: SocialAuthProvider;
@@ -8,6 +8,7 @@ export type SocialAuthProviderConfig = {
 
 export const SOCIAL_AUTH_PROVIDERS: SocialAuthProviderConfig[] = [
   { id: 'google', label: 'Continue with Google', shortLabel: 'Google' },
+  { id: 'azure', label: 'Continue with Microsoft', shortLabel: 'Microsoft' },
   { id: 'apple', label: 'Continue with Apple', shortLabel: 'Apple' },
 ];
 

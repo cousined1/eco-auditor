@@ -64,7 +64,7 @@ export default function LandingPage() {
             >
               {theme === 'light' ? <MoonIcon /> : <SunIcon />}
             </button>
-            <Link to="/login" className="btn-primary text-sm !py-2 !px-5">
+            <Link to="/signup" className="btn-primary text-sm !py-2 !px-5">
               Start Free Trial
             </Link>
           </div>
@@ -100,7 +100,7 @@ export default function LandingPage() {
             Large-company disclosure rules are cascading through supply chains. Your buyers, lenders, and regulators increasingly want audit-ready emissions data. Eco-Auditor gets you there — without enterprise complexity or consultant fees.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/login" className="btn-primary !px-8 !py-3 text-base font-semibold shadow-lg shadow-brand-600/20">
+            <Link to="/signup" className="btn-primary !px-8 !py-3 text-base font-semibold shadow-lg shadow-brand-600/20">
               Start Free Trial
             </Link>
             <a href="mailto:hello@developer312.com?subject=Eco-Auditor%20Demo%20Request" className="btn-secondary !px-8 !py-3 text-base">
@@ -290,7 +290,7 @@ export default function LandingPage() {
             <p className="text-brand-100 max-w-lg mx-auto mb-8">
               Join hundreds of SMBs turning messy data into defensible emissions records. Start free — no credit card, no consultant required.
             </p>
-            <Link to="/login" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-base rounded-lg transition-colors shadow-lg">
+            <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-base rounded-lg transition-colors shadow-lg">
               Start Your Free Trial
             </Link>
           </div>

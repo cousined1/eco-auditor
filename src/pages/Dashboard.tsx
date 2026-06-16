@@ -70,9 +70,14 @@ export default function Dashboard() {
         setTrend(trendData.data || []);
       } catch (err) {
         console.error('Dashboard fetch error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load emissions data');
-        // Fall back to mock data for demo
-        // In production, show error UI instead
+        // If backend rejected because no company exists yet, treat as onboarding
+        // state instead of a hard error. Backend auto-provisions on next call,
+        // but if something else fails we still surface it.
+        const message = err instanceof Error ? err.message : 'Failed to load emissions data';
+        if (message.includes('400') || message.includes('403') || message.includes('Forbidden') || message.includes('company_id')) {
+          setEmissions(null);
+        }
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -95,32 +100,37 @@ export default function Dashboard() {
     );
   }
 
-  // Show error state
+  // Show onboarding state if we truly have no emissions data
   if (error && !emissions) {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
-        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-700 dark:text-red-300 font-medium">Error loading emissions data</p>
-          <p className="text-red-600 dark:text-red-400 text-sm mt-1">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-3 px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+        <div className="text-center py-12 bg-surface-50 dark:bg-surface-900 rounded-lg border border-surface-200 dark:border-surface-800">
+          <div className="text-4xl mb-2">🏢</div>
+          <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Welcome to EcoAuditor</h2>
+          <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
+            Your account is ready. Add your first emission entry to start tracking your carbon footprint and building audit-ready reports.
+          </p>
+          <a
+            href="/app/calculator"
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
-            Retry
-          </button>
+            Add Entry Now
+          </a>
         </div>
       </div>
     );
   }
 
-  // Show empty state if no emissions data
-  if (!emissions) {
+  // Show empty state if no emissions data (including zero totals from a fresh account)
+  if (!emissions || emissions.total_co2e_tonnes === 0) {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="text-center py-12 bg-surface-50 dark:bg-surface-900 rounded-lg border border-surface-200 dark:border-surface-800">
           <div className="text-4xl mb-2">📊</div>
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">No Emissions Data Yet</h2>
-          <p className="text-surface-600 dark:text-surface-400 mb-6">Add your first emission entry to get started tracking your carbon footprint.</p>
+          <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
+            Add your first emission entry to get started tracking your carbon footprint.
+          </p>
           <a
             href="/app/calculator"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"

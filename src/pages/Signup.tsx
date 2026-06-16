@@ -8,11 +8,11 @@ import {
 } from '../lib/socialAuth';
 import { useState } from 'react';
 
-export default function Login() {
+export default function Signup() {
   const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSocialLogin(provider: SocialAuthProvider) {
+  async function handleSocialSignup(provider: SocialAuthProvider) {
     setPendingProvider(provider);
     setError(null);
 
@@ -45,9 +45,9 @@ export default function Login() {
       <main className="flex-1 flex items-center justify-center px-6 py-12">
         <section className="w-full max-w-md">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Sign in to Eco-Auditor</h1>
+            <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Start your free trial</h1>
             <p className="mt-2 text-sm text-surface-500">
-              Welcome back. Continue to your emissions ledger, reports, and compliance dashboard.
+              No credit card required. 14-day free trial. Set up in under 10 minutes.
             </p>
           </div>
 
@@ -63,7 +63,7 @@ export default function Login() {
                 key={provider.id}
                 type="button"
                 disabled={!isInsForgeConfigured || pendingProvider !== null}
-                onClick={() => void handleSocialLogin(provider.id)}
+                onClick={() => void handleSocialSignup(provider.id)}
                 className="w-full flex items-center justify-center gap-3 rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm font-semibold text-surface-800 transition-colors hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:hover:bg-surface-800"
               >
                 <ProviderIcon provider={provider.id} />
@@ -83,9 +83,9 @@ export default function Login() {
           </div>
 
           <p className="mt-6 text-center text-sm text-surface-500">
-            Don't have an account?{' '}
-            <Link to="/signup" className="font-medium text-accent hover:underline">
-              Start your free trial
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-accent hover:underline">
+              Sign in
             </Link>
           </p>
         </section>

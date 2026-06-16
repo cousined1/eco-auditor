@@ -179,6 +179,29 @@ app.get('/ready', function (_req, res) {
   });
 });
 
+// ─── Trial status endpoint (used by frontend after OAuth) ───
+app.get('/api/trial-status', authGuard, async function (req, res) {
+  if (!pgPool) {
+    return res.json({ trial: true, trialEndsAt: null, source: 'no-db' });
+  }
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT trial_ends_at FROM public.companies WHERE user_id = $1 LIMIT 1',
+      [req.user.id]
+    );
+    if (rows.length === 0) {
+      // No company yet — will be auto-provisioned on next API call
+      return res.json({ trial: true, trialEndsAt: null, source: 'pending' });
+    }
+    const trialEndsAt = rows[0].trial_ends_at;
+    const isActive = trialEndsAt ? new Date(trialEndsAt) > new Date() : false;
+    return res.json({ trial: isActive, trialEndsAt, source: 'db' });
+  } catch (err) {
+    log('error', 'Trial status check failed', { error: String(err), userId: req.user.id });
+    return res.json({ trial: true, trialEndsAt: null, source: 'error-fallback' });
+  }
+});
+
 // ─── Stripe API routes ───
 function stripeGuard(_req, res, next) {
   if (!stripe) {
@@ -238,8 +261,20 @@ function apiAuthGuard(req, res, next) {
   return authGuard(req, res, next);
 }
 
-function requireCompanyAccess(req, res, requestedCompanyId) {
-  const result = resolveAuthorizedCompanyId(req.user, requestedCompanyId);
+async function requireCompanyAccess(req, res, requestedCompanyId) {
+  const user = req.user;
+  if (!user || !user.id) {
+    res.status(401).json({ success: false, error: 'Unauthorized' });
+    return null;
+  }
+
+  // Auto-provision a company for first-time users so onboarding never errors.
+  const companyId = await ensureCompanyForUser(user);
+  if (companyId) {
+    user.company_id = String(companyId);
+  }
+
+  const result = resolveAuthorizedCompanyId(user, requestedCompanyId);
   if (!result.ok) {
     res.status(result.status).json({ success: false, error: result.error });
     return null;
@@ -249,6 +284,44 @@ function requireCompanyAccess(req, res, requestedCompanyId) {
 
 function allowSampleData() {
   return process.env.NODE_ENV !== 'production' || process.env.ALLOW_SAMPLE_DATA === 'true';
+}
+
+// Ensures every authenticated user has a company row. Idempotent.
+// Uses pgPool with RLS bypass (row_security = off) inside a transaction so
+// the initial insert succeeds even before the user owns any company.
+async function ensureCompanyForUser(user) {
+  if (!pgPool) return null;
+  const userId = user.id;
+  const email = user.email || '';
+  const defaultName = email ? email.split('@')[0] + ' Organization' : 'My Organization';
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL row_security = off');
+    const { rows } = await client.query(
+      'SELECT id FROM public.companies WHERE user_id = $1 LIMIT 1',
+      [userId]
+    );
+    if (rows.length > 0) {
+      await client.query('COMMIT');
+      return rows[0].id;
+    }
+    const insert = await client.query(
+      `INSERT INTO public.companies (user_id, name, industry, updated_at, trial_ends_at)
+       VALUES ($1, $2, 'other', now(), now() + INTERVAL '14 days')
+       RETURNING id, trial_ends_at`,
+      [userId, defaultName]
+    );
+    await client.query('COMMIT');
+    log('info', 'Auto-provisioned company with 14-day trial', { userId, companyId: insert.rows[0].id, trialEndsAt: insert.rows[0].trial_ends_at });
+    return insert.rows[0].id;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    log('error', 'ensureCompanyForUser failed', { error: String(err), userId });
+    return null;
+  } finally {
+    client.release();
+  }
 }
 
 async function fetchWithTimeout(url, options, timeoutMs = 10_000) {
@@ -839,7 +912,7 @@ function cacheSet(key, value, ttlMs) {
 app.post('/api/calculate', express.json(), apiAuthGuard, async function (req, res) {
   try {
     const body = req.body || {};
-    const companyId = requireCompanyAccess(req, res, body.company_id || body.companyId);
+    const companyId = await requireCompanyAccess(req, res, body.company_id || body.companyId);
     if (!companyId) return;
     const period = body.period || String(new Date().getFullYear());
 
@@ -860,7 +933,7 @@ app.post('/api/calculate', express.json(), apiAuthGuard, async function (req, re
 });
 
 app.get('/api/emissions/summary', apiAuthGuard, async function (req, res) {
-  const companyId = requireCompanyAccess(req, res, req.query.company_id);
+  const companyId = await requireCompanyAccess(req, res, req.query.company_id);
   if (!companyId) return;
   const period = req.query.period || String(new Date().getFullYear());
 
@@ -881,7 +954,7 @@ app.get('/api/emissions/summary', apiAuthGuard, async function (req, res) {
 });
 
 app.get('/api/emissions/trend', apiAuthGuard, async function (req, res) {
-  const companyId = requireCompanyAccess(req, res, req.query.company_id);
+  const companyId = await requireCompanyAccess(req, res, req.query.company_id);
   if (!companyId) return;
   const period = req.query.period || 'monthly';
 
@@ -927,7 +1000,7 @@ app.get('/api/emissions/trend', apiAuthGuard, async function (req, res) {
 
 app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], limit: '100kb' }), apiAuthGuard, async function (req, res) {
   try {
-    const companyId = requireCompanyAccess(req, res, req.query.company_id);
+    const companyId = await requireCompanyAccess(req, res, req.query.company_id);
     if (!companyId) return;
     const rows = parseEmissionCsv(req.body || '');
     const jobId = crypto.randomUUID();
@@ -943,23 +1016,23 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
   }
 });
 
-app.get('/api/ingest/status/:job_id', apiAuthGuard, function (req, res) {
+app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
   const job = ingestJobs.get(req.params.job_id);
   if (!job) return res.status(404).json({ success: false, error: 'Ingest job not found' });
-  const companyId = requireCompanyAccess(req, res, job.company_id);
+  const companyId = await requireCompanyAccess(req, res, job.company_id);
   if (!companyId) return;
   return res.json({ success: true, data: job });
 });
 
 app.get('/api/companies/:id/facilities', apiAuthGuard, async function (req, res) {
-  const companyId = requireCompanyAccess(req, res, req.params.id);
+  const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   const facilities = await loadFacilities(companyId);
   return res.json({ success: true, data: facilities });
 });
 
-app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, function (req, res) {
-  const companyId = requireCompanyAccess(req, res, req.params.id);
+app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, async function (req, res) {
+  const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   const body = req.body || {};
   if (!body.name || !body.type || !body.city) {
@@ -973,15 +1046,15 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, function
 app.get('/api/facilities/:id/emissions', apiAuthGuard, async function (req, res) {
   const facility = sampleFacilities.find(function (item) { return String(item.id) === String(req.params.id); });
   if (!facility) return res.status(404).json({ success: false, error: 'Facility not found' });
-  const companyId = requireCompanyAccess(req, res, facility.company_id);
+  const companyId = await requireCompanyAccess(req, res, facility.company_id);
   if (!companyId) return;
   const entries = await loadEmissionEntries(facility.company_id);
   const result = buildFacilityEmissions([facility], entries);
   return res.json({ success: true, data: result[0] });
 });
 
-app.get('/api/companies/:id/compliance', apiAuthGuard, function (req, res) {
-  const companyId = requireCompanyAccess(req, res, req.params.id);
+app.get('/api/companies/:id/compliance', apiAuthGuard, async function (req, res) {
+  const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   return res.json({ success: true, data: getComplianceStatus(getCompany(companyId)) });
 });
@@ -997,15 +1070,15 @@ app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
   });
 });
 
-app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, function (req, res) {
-  const companyId = requireCompanyAccess(req, res, req.body && req.body.company_id);
+app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, async function (req, res) {
+  const companyId = await requireCompanyAccess(req, res, req.body && req.body.company_id);
   if (!companyId) return;
   return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: new Date().toISOString() } });
 });
 
 app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, async function (req, res) {
   try {
-    const companyId = requireCompanyAccess(req, res, req.params.id);
+    const companyId = await requireCompanyAccess(req, res, req.params.id);
     if (!companyId) return;
     const entries = await loadEmissionEntries(companyId, req.body && req.body.period);
     const summary = summarizeEntries(entries, { companyId: companyId, period: req.body && req.body.period });
@@ -1018,10 +1091,10 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, as
   }
 });
 
-app.get('/api/reports/:id/download', apiAuthGuard, function (req, res) {
+app.get('/api/reports/:id/download', apiAuthGuard, async function (req, res) {
   const report = generatedReports.get(req.params.id);
   if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
-  const companyId = requireCompanyAccess(req, res, report.company_id);
+  const companyId = await requireCompanyAccess(req, res, report.company_id);
   if (!companyId) return;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-${req.params.id}.pdf"`);

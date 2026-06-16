@@ -19,6 +19,7 @@ import TermsOfService from './pages/TermsOfService';
 import ContactUs from './pages/ContactUs';
 import DataProcessingAddendum from './pages/DataProcessingAddendum';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import AuthCallback from './pages/AuthCallback';
 import CarbonCalculator from './components/carbon-calculator';
 import Footer from './components/Footer';
@@ -256,6 +257,7 @@ function AppContent() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/pricing" element={<Pricing />} />
+      <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="*" element={<Navigate to="/" replace />} />
