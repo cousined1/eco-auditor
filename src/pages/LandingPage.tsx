@@ -52,6 +52,8 @@ export default function LandingPage() {
             <a href="#features" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">How It Works</a>
             <Link to="/pricing" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Pricing</Link>
+            <Link to="/methodology" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Methodology</Link>
+            <Link to="/security" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Security</Link>
             <Link to="/login" className="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors">Login</Link>
           </nav>
 
@@ -111,8 +113,50 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ─── 3-Step Quick-Start Workflow (P0-3, P0-6) ─── */}
+      <section className="max-w-5xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            {
+              step: '1',
+              title: 'Upload your documents',
+              desc: 'Drop utility bills, fuel invoices, freight docs, or connect QuickBooks/Xero. No spreadsheets to build — drag, drop, done.',
+              icon: <UploadIcon />,
+            },
+            {
+              step: '2',
+              title: 'AI extracts & calculates',
+              desc: 'Our engine parses every document, applies EPA/eGRID/GLEC emission factors, and assigns a confidence score to each data point. Low-confidence entries flagged for review.',
+              icon: <AIIcon />,
+            },
+            {
+              step: '3',
+              title: 'Get audit-ready reports',
+              desc: 'Generate compliance packages for SB 253, CBAM, or customer procurement. Every number traces to source — your auditor sees a ledger, not a spreadsheet.',
+              icon: <ReportIcon />,
+            },
+          ].map((item) => (
+            <div key={item.step} className="card text-center relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center shadow-md">
+                {item.step}
+              </div>
+              <div className="w-10 h-10 rounded-lg bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-brand-600 dark:text-brand-400 mx-auto mb-4 mt-2">
+                {item.icon}
+              </div>
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-2">{item.title}</h3>
+              <p className="text-xs text-surface-500 leading-relaxed">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 text-center">
+          <Link to="/methodology" className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline">
+            See how we calculate emissions →
+          </Link>
+        </div>
+      </section>
+
       {/* ─── Video Showcase ─── */}
-      <section className="max-w-5xl mx-auto px-6 -mt-8 mb-12 relative z-10">
+      <section className="max-w-5xl mx-auto px-6 mb-12 relative z-10">
         <div className="rounded-2xl overflow-hidden shadow-2xl shadow-surface-900/10 dark:shadow-black/30 border border-surface-200 dark:border-surface-700 bg-black">
           <video
             autoPlay
@@ -406,6 +450,18 @@ function ReportsIcon() {
 
 function SuppliersIcon() {
   return <svg className="w-4.5 h-4.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13c0-2.5 2-4 4-4s4 1.5 4 4"/><path d="M7 13c0-2.5 2-4 4-4s4 1.5 4 4"/></svg>;
+}
+
+function UploadIcon() {
+  return <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3v10M6 7l4-4 4 4"/><path d="M3 15v1a2 2 0 002 2h10a2 2 0 002-2v-1"/></svg>;
+}
+
+function AIIcon() {
+  return <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2l1.5 3.5L15 7l-3.5 1.5L10 12l-1.5-3.5L5 7l3.5-1.5L10 2z"/><circle cx="14" cy="15" r="3"/><path d="M12 15h4"/></svg>;
+}
+
+function ReportIcon() {
+  return <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 3h8l4 4v10H4z"/><path d="M12 3v4h4"/><path d="M7 10h5M7 13h5M7 16h3"/></svg>;
 }
 
 function MoonIcon() {

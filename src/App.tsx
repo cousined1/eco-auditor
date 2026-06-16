@@ -12,6 +12,9 @@ import Ledger from './pages/Ledger';
 import Reports from './pages/Reports';
 import Suppliers from './pages/Suppliers';
 import Methodology from './pages/Methodology';
+import MethodologyPublic from './pages/MethodologyPublic';
+import SampleReport from './pages/SampleReport';
+import Security from './pages/Security';
 import Pricing from './pages/Pricing';
 import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -252,11 +255,14 @@ function AppContent() {
     );
   }
 
-  /* ─── Public pages (landing, pricing standalone) ─── */
+  /* ─── Public pages (landing, marketing, auth) ─── */
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/pricing" element={<Pricing />} />
+      <Route path="/methodology" element={<MethodologyPublic />} />
+      <Route path="/sample-report" element={<SampleReport />} />
+      <Route path="/security" element={<Security />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />

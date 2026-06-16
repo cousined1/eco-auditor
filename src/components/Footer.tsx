@@ -30,21 +30,32 @@ export default function Footer() {
           <nav aria-label="Product links">
             <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Product</h4>
             <ul className="space-y-1.5">
-              <li><Link to="/app" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Dashboard</Link></li>
-              <li><Link to="/app/pricing" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Pricing</Link></li>
-              <li><Link to="/app/intake" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Data Intake</Link></li>
-              <li><Link to="/app/reports" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Reports</Link></li>
+              <li><Link to="/" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Home</Link></li>
+              <li><Link to="/pricing" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Pricing</Link></li>
+              <li><Link to="/methodology" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Methodology</Link></li>
+              <li><Link to="/sample-report" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Sample Report</Link></li>
             </ul>
           </nav>
 
-          {/* Legal nav */}
-          <nav aria-label="Legal links">
-            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Legal</h4>
+          {/* Trust & Legal nav */}
+          <nav aria-label="Trust and legal links">
+            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Trust</h4>
             <ul className="space-y-1.5">
+              <li><Link to="/security" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Security & Trust</Link></li>
               <li><Link to="/privacy" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Privacy Policy</Link></li>
               <li><Link to="/terms" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Terms of Service</Link></li>
               <li><Link to="/dpa" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Data Processing Addendum</Link></li>
-              <li><Link to="/privacy#privacy-request" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Privacy Requests</Link></li>
+              <li><Link to="/contact" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Contact Us</Link></li>
+            </ul>
+          </nav>
+
+          {/* Company nav */}
+          <nav aria-label="Company links">
+            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Company</h4>
+            <ul className="space-y-1.5">
+              <li><Link to="/contact" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Contact Us</Link></li>
+              <li><a href="mailto:hello@developer312.com" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">hello@developer312.com</a></li>
+              <li><a href="tel:+15104011225" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">(510) 401-1225</a></li>
             </ul>
           </nav>
 
