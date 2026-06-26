@@ -27,13 +27,21 @@ export default function ChatWidget({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatState, setChatState] = useState<Record<string, unknown>>({});
-  const [sessionId] = useState<string>(() => {
+  const [sessionId, setSessionId] = useState<string>('');
+  useEffect(() => {
+    // Browser-only: read/seed persisted chat session id after mount so SSR
+    // never touches localStorage. Keeps prerender output stable and avoids
+    // the "localStorage is not defined" failure under renderToStaticMarkup.
+    if (typeof window === 'undefined') return;
     const stored = localStorage.getItem('ecochat_session_id');
-    if (stored) return stored;
+    if (stored) {
+      setSessionId(stored);
+      return;
+    }
     const id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     localStorage.setItem('ecochat_session_id', id);
-    return id;
-  });
+    setSessionId(id);
+  }, []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 

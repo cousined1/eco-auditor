@@ -1280,6 +1280,32 @@ app.use(express.static(path.join(__dirname, 'static'), {
   },
 }));
 
+// ─── Prerendered marketing routes ───
+// scripts/prerender.mjs writes static/<route>/index.html for each
+// marketing path. express.static serves these on requests with a trailing
+// slash, but crawlers and most inbound links hit the bare path
+// (/pricing, /methodology, …). Map those to the prerendered file BEFORE
+// the SPA fallback so non-JS clients receive real content. Routes NOT
+// in this set (/app/*, /login, /signup, /auth/*) fall through to the
+// client-side shell as before.
+var PRERENDERED_ROUTES = [
+  '/pricing', '/methodology', '/sample-report', '/security',
+  '/contact', '/privacy', '/terms', '/dpa',
+];
+PRERENDERED_ROUTES.forEach(function (route) {
+  app.get(route, function (_req, res, next) {
+    var file = path.join(__dirname, 'static', route, 'index.html');
+    if (fs.existsSync(file)) {
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.sendFile(file);
+    } else {
+      // Prerender artifact missing (build regression) — fall back to SPA shell
+      // so the page still loads for humans. Loud fix is to repair the build.
+      next();
+    }
+  });
+});
+
 // ─── SPA fallback ───
 app.get('*', function (_req, res) {
   res.setHeader('Cache-Control', 'no-transform');
