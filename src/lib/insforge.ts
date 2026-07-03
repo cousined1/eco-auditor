@@ -9,9 +9,16 @@ if (!baseUrl || !anonKey) {
   );
 }
 
+// Fail closed in production: never silently fall back to localhost when the
+// backend is unconfigured. In dev we keep the localhost fallback so the app
+// can boot against a local InsForge instance without extra env wiring.
+const resolvedBaseUrl =
+  baseUrl || (import.meta.env.DEV ? 'http://localhost:54321' : '');
+const resolvedAnonKey = anonKey || '';
+
 export const insforge = createClient({
-  baseUrl: baseUrl || 'http://localhost:54321',
-  anonKey: anonKey || '',
+  baseUrl: resolvedBaseUrl,
+  anonKey: resolvedAnonKey,
 });
 
 export const isInsForgeConfigured = Boolean(baseUrl && anonKey);

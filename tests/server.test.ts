@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { buildSecurityHeaders } from '../server-security.cjs';
+import { resolvePlanPriceId } from '../server-billing.cjs';
 
 // ─── Security Headers (tests actual server module) ───
 
@@ -209,15 +210,14 @@ describe('Cache Headers Logic', () => {
 
 // ─── Subscription & Billing Endpoints (integration-style) ───
 // These verify that the server returns correct HTTP status codes
-// for unimplemented and disallowed operations.
+// for disallowed operations.
 
 describe('Billing endpoint guards', () => {
-  it('subscription PATCH returns 501 (not fake success)', async () => {
-    // This test documents the CodeRabbit fix: unimplemented mutations
-    // must return 501, not fake success: true.
-    // Full integration test would use supertest — this documents the contract.
-    const expectedStatus = 501;
-    expect(expectedStatus).toBe(501);
+  it('subscription PATCH rejects plans without a configured price', () => {
+    // PATCH /api/subscription resolves planId+billing through
+    // resolvePlanPriceId and returns 400 for unknown selections.
+    expect(resolvePlanPriceId({}, 'growth', 'monthly')).toBeNull();
+    expect(resolvePlanPriceId({}, 'not-a-plan', 'monthly')).toBeNull();
   });
 
   it('checkout rejects disallowed priceId', () => {

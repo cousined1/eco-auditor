@@ -159,11 +159,17 @@ export default function LandingPage() {
       {/* ─── Social Proof ─── */}
       <section className="border-y border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
-          <p className="text-center text-xs font-medium text-surface-400 uppercase tracking-wider mb-6">Trusted by operations and sustainability teams at</p>
-          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
-            {['Northstar Foods', 'Pacific Freight Co.', 'Greenleaf Packaging', 'Summit Manufacturing', 'Coastal Exports', 'Redwood Supply'].map((name) => (
-              <span key={name} className="text-sm font-semibold text-surface-300 dark:text-surface-600 tracking-wide">{name}</span>
-            ))}
+          <p className="text-center text-xs font-medium text-surface-400 uppercase tracking-wider mb-6">
+            Built for operations and sustainability teams preparing for SB 253, CBAM, and supply-chain disclosure
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-surface-500 dark:text-surface-400">
+            <span className="font-medium">GHG Protocol aligned</span>
+            <span className="text-surface-300 dark:text-surface-600">•</span>
+            <span className="font-medium">Scope 1, 2 &amp; 3 tracking</span>
+            <span className="text-surface-300 dark:text-surface-600">•</span>
+            <span className="font-medium">Audit-ready ledger</span>
+            <span className="text-surface-300 dark:text-surface-600">•</span>
+            <span className="font-medium">CSV &amp; document intake</span>
           </div>
         </div>
       </section>
@@ -179,22 +185,22 @@ export default function LandingPage() {
             icon={<DollarIcon />}
             title="Cost Avoidance"
             description="See how much you're saving versus hiring consultants. Track estimated spend avoided, identify exposure from incomplete disclosures, and eliminate manual spreadsheet risk."
-            metric="$84K"
-            metricLabel="avg. consultant spend avoided"
+            metric="Lower"
+            metricLabel="than a single consultant engagement"
           />
           <ValueCard
             icon={<ShieldIcon />}
             title="Contract Readiness"
             description="Know whether your data can satisfy buyer procurement packets, lender ESG requests, and importer compliance requirements — before the deadline."
-            metric="72%"
-            metricLabel="reporting package readiness"
+            metric="Ready"
+            metricLabel="for buyer & lender requests"
           />
           <ValueCard
             icon={<AuditIcon />}
             title="Audit Defensibility"
             description="Every number traces back to a source document, emission factor, reviewer, and timestamp. Your auditor sees a ledger, not a mystery spreadsheet."
-            metric="87%"
-            metricLabel="records defensible in audit"
+            metric="Traceable"
+            metricLabel="source → factor → reviewer → timestamp"
           />
         </div>
       </section>
@@ -265,22 +271,25 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── Testimonials ─── */}
+      {/* ─── Testimonials (illustrative) ─── */}
       <section className="bg-white dark:bg-surface-900 border-y border-surface-200 dark:border-surface-800">
         <div className="max-w-5xl mx-auto px-6 py-20">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">What teams are saying</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">What teams will be able to say</h2>
+            <p className="mt-3 text-xs text-surface-400 uppercase tracking-wider">
+              Illustrative — composite examples of the workflow we are building, not real customer quotes
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <TestimonialCard
               quote="We went from a 40-page spreadsheet nobody trusted to an audit trail our board actually reviews. Setup took two weeks."
-              name="Maria Gonzalez"
-              role="VP Operations, Pacific Freight Co."
+              name="Operations lead"
+              role="Composite example — mid-market distributor"
             />
             <TestimonialCard
-              quote="Our largest retail buyer asked for Scope 3 data with 30 days notice. Eco-Auditor had the report ready in 3. That contract was worth $2M."
-              name="James Park"
-              role="Sustainability Lead, Northstar Foods"
+              quote="Our largest retail buyer asked for Scope 3 data with 30 days notice. Eco-Auditor had the report ready in 3."
+              name="Sustainability lead"
+              role="Composite example — food &amp; beverage supplier"
             />
           </div>
         </div>

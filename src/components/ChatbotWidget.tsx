@@ -17,6 +17,33 @@ interface ChatWidgetProps {
 
 const QUICK_REPLIES = ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales'];
 
+// Browser-only: read/seed persisted chat session id lazily so SSR never
+// touches localStorage. Keeps prerender output stable and avoids the
+// "localStorage is not defined" failure under renderToStaticMarkup.
+function getOrCreateSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  const stored = localStorage.getItem('ecochat_session_id');
+  if (stored) return stored;
+  const id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  localStorage.setItem('ecochat_session_id', id);
+  return id;
+}
+
+function createMessage(
+  prefix: string,
+  role: 'user' | 'assistant',
+  content: string,
+  quickReplies?: string[],
+): Message {
+  const base: Message = {
+    id: `${prefix}_${Date.now()}`,
+    role,
+    content,
+    timestamp: Date.now(),
+  };
+  return quickReplies ? { ...base, quickReplies } : base;
+}
+
 export default function ChatWidget({
   primaryColor = '#059669',
   position = 'bottom-right',
@@ -27,36 +54,16 @@ export default function ChatWidget({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatState, setChatState] = useState<Record<string, unknown>>({});
-  const [sessionId, setSessionId] = useState<string>('');
-  useEffect(() => {
-    // Browser-only: read/seed persisted chat session id after mount so SSR
-    // never touches localStorage. Keeps prerender output stable and avoids
-    // the "localStorage is not defined" failure under renderToStaticMarkup.
-    if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('ecochat_session_id');
-    if (stored) {
-      setSessionId(stored);
-      return;
-    }
-    const id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-    localStorage.setItem('ecochat_session_id', id);
-    setSessionId(id);
-  }, []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Add welcome message on first open
-  useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      setMessages([{
-        id: `welcome_${Date.now()}`,
-        role: 'assistant',
-        content: welcomeMessage,
-        timestamp: Date.now(),
-        quickReplies: QUICK_REPLIES,
-      }]);
+  // Seed welcome message on first open
+  const handleOpen = () => {
+    setIsOpen(true);
+    if (messages.length === 0) {
+      setMessages([createMessage('welcome', 'assistant', welcomeMessage, QUICK_REPLIES)]);
     }
-  }, [isOpen, messages.length, welcomeMessage]);
+  };
 
   // Auto-scroll
   useEffect(() => {
@@ -67,12 +74,7 @@ export default function ChatWidget({
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
 
-    const userMessage: Message = {
-      id: `user_${Date.now()}`,
-      role: 'user',
-      content: trimmed,
-      timestamp: Date.now(),
-    };
+    const userMessage = createMessage('user', 'user', trimmed);
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
@@ -88,7 +90,7 @@ export default function ChatWidget({
         signal: controller.signal,
         body: JSON.stringify({
           message: trimmed,
-          sessionId,
+          sessionId: getOrCreateSessionId(),
           state: newState || chatState,
         }),
       });
@@ -96,35 +98,32 @@ export default function ChatWidget({
       const data = await response.json();
 
       if (data.success && data.response) {
-        const assistantMessage: Message = {
-          id: `assistant_${Date.now()}`,
-          role: 'assistant',
-          content: data.response,
-          timestamp: Date.now(),
-          quickReplies: data.quickReplies || QUICK_REPLIES,
-        };
+        const assistantMessage = createMessage(
+          'assistant',
+          'assistant',
+          data.response,
+          data.quickReplies || QUICK_REPLIES,
+        );
         setMessages(prev => [...prev, assistantMessage]);
         if (data.state) {
           setChatState(data.state);
         }
       } else {
-        const errorMsg: Message = {
-          id: `error_${Date.now()}`,
-          role: 'assistant',
-          content: data.error || 'Sorry, something went wrong. Please try again.',
-          timestamp: Date.now(),
-          quickReplies: QUICK_REPLIES,
-        };
+        const errorMsg = createMessage(
+          'error',
+          'assistant',
+          data.error || 'Sorry, something went wrong. Please try again.',
+          QUICK_REPLIES,
+        );
         setMessages(prev => [...prev, errorMsg]);
       }
     } catch {
-      const errorMsg: Message = {
-        id: `error_${Date.now()}`,
-        role: 'assistant',
-        content: 'Network error. Please check your connection and try again.',
-        timestamp: Date.now(),
-        quickReplies: QUICK_REPLIES,
-      };
+      const errorMsg = createMessage(
+        'error',
+        'assistant',
+        'Network error. Please check your connection and try again.',
+        QUICK_REPLIES,
+      );
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       clearTimeout(timeoutId);
@@ -151,7 +150,7 @@ export default function ChatWidget({
       {/* Floating button */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(true)}
+          onClick={handleOpen}
           aria-label="Open EcoAuditor chat"
           style={{
             width: '60px',

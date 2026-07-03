@@ -29,7 +29,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY server.cjs emissions-engine.cjs server-security.cjs ./
+COPY server.cjs emissions-engine.cjs server-security.cjs server-billing.cjs ./
 COPY --from=builder /app/static ./static
 
 # Volume mount point for video assets

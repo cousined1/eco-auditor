@@ -24,9 +24,11 @@ import DataProcessingAddendum from './pages/DataProcessingAddendum';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AuthCallback from './pages/AuthCallback';
+import NotFound from './pages/NotFound';
 import CarbonCalculator from './components/carbon-calculator';
 import Footer from './components/Footer';
 import Header from './components/Header';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
 
@@ -43,6 +45,14 @@ const NAV_ITEMS = [
   { to: '/app/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
+type AppUser = { email: string; name: string; initials: string; companyName?: string };
+
+type SidebarContentProps = {
+  user: AppUser | null;
+  onLogout: () => void;
+  onNavigate?: () => void;
+};
+
 function TrackPageViews() {
   const location = useLocation();
   const { trackPageView } = useGTM();
@@ -56,23 +66,33 @@ function TrackPageViews() {
 
 export default function App() {
   return (
-    <>
+    <ErrorBoundary>
       <AppContent />
       <CookieConsentBanner />
       <TrackPageViews />
-    </>
+    </ErrorBoundary>
   );
 }
 
 function AppContent() {
   const { theme, toggle } = useTheme();
-  const location = useLocation().pathname;
+  const locationInfo = useLocation();
+  const location = locationInfo.pathname;
   const navigate = useNavigate();
   const isLegalPage = LEGAL_PATHS.includes(location);
   const isAppPage = location.startsWith('/app');
 
-  const [user, setUser] = useState<{ email: string; name: string; initials: string } | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [authStatus, setAuthStatus] = useState<'loading' | 'authed' | 'anon'>('loading');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Close the mobile nav on navigation. Render-time state adjustment
+  // (https://react.dev/learn/you-might-not-need-an-effect) instead of an effect.
+  const [prevLocation, setPrevLocation] = useState(location);
+  if (prevLocation !== location) {
+    setPrevLocation(location);
+    setMobileNavOpen(false);
+  }
 
   useEffect(() => {
     if (!isAppPage) return;
@@ -86,11 +106,16 @@ function AppContent() {
           return;
         }
         const email = data.user.email || '';
-        const profileName = data.user.profile?.name;
-        const metaName = data.user.metadata?.name as string | undefined;
+        const profileName = readStringProperty(data.user.profile, 'name');
+        const metaName = readStringProperty(data.user.metadata, 'name');
         const name = profileName || metaName || email.split('@')[0] || 'User';
         const initials = name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-        setUser({ email, name, initials });
+        const companyName =
+          readStringProperty(data.user.profile, 'company_name') ||
+          readStringProperty(data.user.metadata, 'company_name') ||
+          readStringProperty(data.user.metadata, 'company') ||
+          readStringProperty(data.user, 'company_name');
+        setUser(companyName ? { email, name, initials, companyName } : { email, name, initials });
         setAuthStatus('authed');
       } catch {
         if (!cancelled) setAuthStatus('anon');
@@ -99,6 +124,27 @@ function AppContent() {
     void loadUser();
     return () => { cancelled = true; };
   }, [isAppPage]);
+
+  // H6: Re-validate session periodically so mid-session expiry is caught.
+  useEffect(() => {
+    if (!isAppPage || authStatus !== 'authed') return;
+    let cancelled = false;
+    const intervalId = window.setInterval(async () => {
+      try {
+        const { data } = await insforge.auth.getCurrentUser();
+        if (cancelled) return;
+        if (!data?.user) {
+          setAuthStatus('anon');
+        }
+      } catch {
+        if (!cancelled) setAuthStatus('anon');
+      }
+    }, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isAppPage, authStatus]);
 
   async function handleLogout() {
     try {
@@ -147,72 +193,44 @@ function AppContent() {
     }
     return (
       <div className="flex h-screen overflow-hidden bg-surface-50 dark:bg-surface-950">
+        {mobileNavOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 h-full w-full bg-surface-950/50"
+              aria-label="Close navigation menu"
+              onClick={() => setMobileNavOpen(false)}
+            />
+            <aside id="app-mobile-navigation" className="relative z-50 flex h-full w-72 max-w-[85vw] flex-col border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 shadow-xl">
+              <SidebarContent user={user} onLogout={handleLogout} onNavigate={() => setMobileNavOpen(false)} />
+            </aside>
+          </div>
+        )}
+
         <aside className="hidden md:flex flex-col w-60 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-surface-200 dark:border-surface-800">
-            <Link to="/">
-              <EcoLogo />
-            </Link>
-            <div>
-              <Link to="/" className="font-semibold text-sm text-surface-900 dark:text-white tracking-tight hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Eco-Auditor</Link>
-              <div className="text-2xs text-surface-500">Carbon Accounting</div>
-            </div>
-          </div>
-          <nav aria-label="Main navigation" className="flex-1 overflow-y-auto py-3 px-3 scrollbar-thin">
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end || false}
-                aria-label={item.label}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
-                    isActive
-                      ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
-                      : 'text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800'
-                  }`
-                }
-              >
-                <item.icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="border-t border-surface-200 dark:border-surface-800 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-xs font-semibold text-brand-700 dark:text-brand-200">
-                {user?.initials || '??'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-surface-800 dark:text-surface-200 truncate">
-                  {user?.name || 'User'}
-                </div>
-                <div className="text-2xs text-surface-500 truncate">
-                  {user?.email || ''}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-risk-high transition-colors"
-                aria-label="Sign out"
-                title="Sign out"
-              >
-                <LogoutIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+          <SidebarContent user={user} onLogout={handleLogout} />
         </aside>
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="flex items-center justify-between px-6 py-3 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
             <div className="flex items-center gap-3 md:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                className="p-1.5 -ml-1 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
+                aria-label="Open navigation menu"
+                aria-controls="app-mobile-navigation"
+                aria-expanded={mobileNavOpen}
+              >
+                <MenuIcon />
+              </button>
               <EcoLogo />
               <span className="font-semibold text-sm">Eco-Auditor</span>
             </div>
             <div className="hidden md:flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
-              <span className="text-surface-400">Northstar Foods</span>
+              <span className="truncate max-w-[200px]">{user?.companyName || 'Your organization'}</span>
               <span className="text-surface-300">/</span>
-              <span className="font-medium text-surface-800 dark:text-surface-200">FY 2026</span>
+              <span className="font-medium text-surface-800 dark:text-surface-200">FY {new Date().getFullYear()}</span>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -222,14 +240,6 @@ function AppContent() {
                 aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
               >
                 {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-              </button>
-              <button
-                type="button"
-                className="relative p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
-                aria-label="Notifications — 1 unread alert"
-              >
-                <BellIcon aria-hidden="true" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-risk-high rounded-full" aria-hidden="true" />
               </button>
             </div>
           </header>
@@ -246,6 +256,7 @@ function AppContent() {
               <Route path="/app/methodology" element={<Methodology />} />
               <Route path="/app/pricing" element={<Pricing />} />
               <Route path="/app/settings" element={<Settings />} />
+              <Route path="*" element={<NotFound title="Page not found" message="That section of the app does not exist." homeHref="/app" />} />
             </Routes>
           </main>
         </div>
@@ -264,8 +275,75 @@ function AppContent() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
+  );
+}
+
+function readStringProperty(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  return typeof record[key] === 'string' ? record[key] : undefined;
+}
+
+function SidebarContent({ user, onLogout, onNavigate }: SidebarContentProps) {
+  return (
+    <>
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-surface-200 dark:border-surface-800">
+        <Link to="/" onClick={onNavigate}>
+          <EcoLogo />
+        </Link>
+        <div>
+          <Link to="/" onClick={onNavigate} className="font-semibold text-sm text-surface-900 dark:text-white tracking-tight hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Eco-Auditor</Link>
+          <div className="text-2xs text-surface-500">Carbon Accounting</div>
+        </div>
+      </div>
+      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto py-3 px-3 scrollbar-thin">
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end || false}
+            aria-label={item.label}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
+                isActive
+                  ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300'
+                  : 'text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800'
+              }`
+            }
+          >
+            <item.icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="border-t border-surface-200 dark:border-surface-800 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-xs font-semibold text-brand-700 dark:text-brand-200">
+            {user?.initials || '??'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-surface-800 dark:text-surface-200 truncate">
+              {user?.name || 'User'}
+            </div>
+            <div className="text-2xs text-surface-500 truncate">
+              {user?.email || ''}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-risk-high transition-colors"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogoutIcon className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -325,8 +403,8 @@ function MoonIcon() {
 function SunIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>;
 }
-function BellIcon() {
-  return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6a4 4 0 018 0c0 4 2 5 2 5H2s2-1 2-5z"/><path d="M6.5 13a1.5 1.5 0 003 0"/></svg>;
+function MenuIcon() {
+  return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg>;
 }
 function LogoutIcon({ className }: { className?: string }) {
   return <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"/><path d="M10.5 11.5L14 8l-3.5-3.5"/><path d="M14 8H6"/></svg>;

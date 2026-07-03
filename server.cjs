@@ -16,6 +16,14 @@ const {
   resolveAuthorizedCompanyId,
   sanitizeLeadPayload,
 } = require('./server-security.cjs');
+const {
+  billingStateFromCompany,
+  hasPlanAccess,
+  planFromPriceId,
+  resolvePlanPriceId,
+  subscriptionRecordFromStripe,
+  trialEligiblePriceIds,
+} = require('./server-billing.cjs');
 
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
@@ -202,6 +210,24 @@ app.get('/api/trial-status', authGuard, async function (req, res) {
   }
 });
 
+// ─── Billing state endpoint (trial + subscription, synced from Stripe webhooks) ───
+app.get('/api/billing', authGuard, async function (req, res) {
+  if (!pgPool) {
+    return res.json({ active: true, plan: 'starter', status: 'trialing', trialActive: true, source: 'no-db' });
+  }
+  try {
+    const state = await loadBillingState(req.user.id);
+    if (!state) {
+      // Company not provisioned yet — trial starts on first data access.
+      return res.json({ active: true, plan: 'starter', status: 'trialing', trialActive: true, trialEndsAt: null, source: 'pending' });
+    }
+    return res.json({ ...state, source: 'db' });
+  } catch (err) {
+    log('error', 'Billing state check failed', { error: String(err), userId: req.user.id });
+    return res.status(500).json({ error: 'Failed to load billing state' });
+  }
+});
+
 // ─── Stripe API routes ───
 function stripeGuard(_req, res, next) {
   if (!stripe) {
@@ -369,14 +395,139 @@ async function ensureStripeCustomer(insforgeUserId, email) {
   return customer.id;
 }
 
+// Runs a statement with RLS bypassed, matching ensureCompanyForUser's pattern.
+async function queryWithRlsBypass(text, params) {
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL row_security = off');
+    const result = await client.query(text, params);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Persists a subscription snapshot (from a Stripe webhook or API mutation)
+// onto the owning user's company row. Returns true when a row was updated.
+async function syncSubscriptionRecord(record) {
+  if (!pgPool) {
+    log('warn', 'Subscription sync skipped: DATABASE_URL not configured');
+    return false;
+  }
+  if (!record.stripeCustomerId) return false;
+
+  const { rows } = await pgPool.query(
+    'SELECT insforge_user_id FROM users WHERE stripe_customer_id = $1',
+    [record.stripeCustomerId]
+  );
+  if (rows.length === 0) {
+    log('warn', 'Subscription sync skipped: no user for Stripe customer', { customerId: record.stripeCustomerId });
+    return false;
+  }
+  const userId = rows[0].insforge_user_id;
+
+  // Companies are normally provisioned on first data access; make sure the
+  // row exists so a checkout completed before app usage is not dropped.
+  await ensureCompanyForUser({ id: userId });
+
+  const result = await queryWithRlsBypass(
+    `UPDATE public.companies SET
+       stripe_customer_id = $2,
+       stripe_subscription_id = $3,
+       subscription_status = $4,
+       subscription_plan = $5,
+       subscription_billing_cycle = $6,
+       subscription_current_period_end = $7,
+       subscription_cancel_at_period_end = $8,
+       updated_at = now()
+     WHERE user_id = $1`,
+    [userId, record.stripeCustomerId, record.stripeSubscriptionId, record.status,
+     record.plan, record.billingCycle, record.currentPeriodEnd, record.cancelAtPeriodEnd]
+  );
+  if (result.rowCount === 0) {
+    log('warn', 'Subscription sync found no company row', { userId });
+    return false;
+  }
+  log('info', 'Subscription synced to DB', { userId, status: record.status, plan: record.plan });
+  return true;
+}
+
+// Loads the billing state for a user from their company row. Returns null
+// when no DB is configured or the company has not been provisioned yet.
+async function loadBillingState(userId) {
+  if (!pgPool) return null;
+  const { rows } = await pgPool.query(
+    `SELECT trial_ends_at, subscription_status, subscription_plan, subscription_billing_cycle,
+            subscription_current_period_end, subscription_cancel_at_period_end,
+            stripe_customer_id, stripe_subscription_id
+       FROM public.companies WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  return rows.length ? billingStateFromCompany(rows[0]) : null;
+}
+
+// Plan-tier enforcement: requires an active trial or subscription at or above
+// minPlanId. Skips enforcement when no DB is configured (dev mode) or the
+// company row does not exist yet (trial is provisioned on first data access).
+function requirePlan(minPlanId) {
+  return async function (req, res, next) {
+    if (!pgPool) return next();
+    try {
+      const state = await loadBillingState(req.user.id);
+      if (!state) return next();
+      if (!state.active || !hasPlanAccess(state.plan, minPlanId)) {
+        return res.status(402).json({
+          success: false,
+          error: 'An active subscription is required for this feature',
+          code: 'upgrade_required',
+          requiredPlan: minPlanId,
+        });
+      }
+      req.billing = state;
+      return next();
+    } catch (err) {
+      log('error', 'requirePlan check failed', { error: String(err) });
+      return next(); // fail-open: a billing check outage must not take down core APIs
+    }
+  };
+}
+
+// Finds the customer's current subscription (active first, then trialing).
+async function findActiveSubscription(customerId) {
+  const active = await stripe.subscriptions.list({ customer: customerId, status: 'active', limit: 1 });
+  if (active.data.length) return active.data[0];
+  const trialing = await stripe.subscriptions.list({ customer: customerId, status: 'trialing', limit: 1 });
+  return trialing.data.length ? trialing.data[0] : null;
+}
+
 // JSON body parser for Stripe API routes (NOT webhook)
 
 // Subscription routes need method-specific handling
 app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
-    const { planId, billing } = req.body;
-    log('info', 'Subscription change requested', { planId, billing, userId: req.user.id });
-    return res.status(501).json({ error: 'Subscription update not yet implemented. Use the billing portal at /api/portal to manage subscriptions.' });
+    const { planId, billing } = req.body || {};
+    const priceId = resolvePlanPriceId(process.env, planId, billing);
+    if (!priceId) {
+      return res.status(400).json({ error: 'Invalid plan selection' });
+    }
+    const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
+    const subscription = await findActiveSubscription(customerId);
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription to change. Start one from the pricing page.' });
+    }
+    const updated = await stripe.subscriptions.update(subscription.id, {
+      items: [{ id: subscription.items.data[0].id, price: priceId }],
+      proration_behavior: 'create_prorations',
+      cancel_at_period_end: false,
+    });
+    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env));
+    log('info', 'Subscription changed', { subId: updated.id, planId, billing, userId: req.user.id });
+    return res.json({ success: true, plan: planId, billing });
   } catch (err) {
     log('error', 'Subscription change failed', { error: String(err) });
     return res.status(500).json({ error: 'Subscription change failed' });
@@ -385,8 +536,15 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
 
 app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
-    log('info', 'Subscription cancellation requested', { userId: req.user.id });
-    return res.status(501).json({ error: 'Subscription cancellation not yet implemented. Use the billing portal at /api/portal to cancel subscriptions.' });
+    const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
+    const subscription = await findActiveSubscription(customerId);
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription to cancel' });
+    }
+    const updated = await stripe.subscriptions.update(subscription.id, { cancel_at_period_end: true });
+    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env));
+    log('info', 'Subscription set to cancel at period end', { subId: updated.id, userId: req.user.id });
+    return res.json({ success: true, cancelAtPeriodEnd: true });
   } catch (err) {
     log('error', 'Subscription cancel failed', { error: String(err) });
     return res.status(500).json({ error: 'Cancellation failed' });
@@ -484,7 +642,7 @@ app.post('/api/portal', express.json(), stripeGuard, authGuard, async function (
 });
 
 // Webhook uses raw body for signature verification
-app.post('/api/webhook', express.raw({ type: 'application/json' }), function (req, res) {
+app.post('/api/webhook', express.raw({ type: 'application/json' }), async function (req, res) {
   if (!stripe) return res.status(503).json({ error: 'Billing not configured' });
   if (!STRIPE_WEBHOOK_SECRET) {
     log('error', 'Webhook rejected: STRIPE_WEBHOOK_SECRET is not configured');
@@ -502,24 +660,40 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), function (re
 
   log('info', 'Stripe webhook received', { type: event.type, id: event.id });
 
-  switch (event.type) {
-    case 'checkout.session.completed':
-      log('info', 'Checkout completed', { sessionId: event.data.object.id });
-      break;
-    case 'customer.subscription.updated':
-      log('info', 'Subscription updated', { subId: event.data.object.id, status: event.data.object.status });
-      break;
-    case 'customer.subscription.deleted':
-      log('info', 'Subscription deleted', { subId: event.data.object.id });
-      break;
-    case 'invoice.paid':
-      log('info', 'Invoice paid', { invoiceId: event.data.object.id });
-      break;
-    case 'invoice.payment_failed':
-      log('warn', 'Invoice payment failed', { invoiceId: event.data.object.id });
-      break;
-    default:
-      log('info', 'Unhandled webhook event', { type: event.type });
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        log('info', 'Checkout completed', { sessionId: session.id });
+        if (session.subscription) {
+          const subscription = typeof session.subscription === 'string'
+            ? await stripe.subscriptions.retrieve(session.subscription)
+            : session.subscription;
+          await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+        }
+        break;
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        log('info', 'Subscription lifecycle event', { subId: subscription.id, status: subscription.status });
+        await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+        break;
+      }
+      case 'invoice.paid':
+        log('info', 'Invoice paid', { invoiceId: event.data.object.id });
+        break;
+      case 'invoice.payment_failed':
+        log('warn', 'Invoice payment failed', { invoiceId: event.data.object.id });
+        break;
+      default:
+        log('info', 'Unhandled webhook event', { type: event.type });
+    }
+  } catch (err) {
+    // Return 500 so Stripe retries the delivery — DB sync failures must not be dropped.
+    log('error', 'Webhook processing failed', { type: event.type, id: event.id, error: String(err) });
+    return res.status(500).json({ error: 'Webhook processing failed' });
   }
 
   return res.json({ received: true });
@@ -565,6 +739,64 @@ function writeLead(lead) {
   leads.push({ ...lead, id: crypto.randomUUID(), createdAt: new Date().toISOString() });
   fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
 }
+
+// ─── CONSENT AUDIT TRAIL ───
+// Server-side record of consent decisions (GDPR/CCPA record-keeping).
+// Public endpoint: consent happens before authentication. No raw IP is stored.
+const CONSENT_FILE = path.join(__dirname, '.data', 'consent-audit.json');
+const CONSENT_METHODS = new Set(['accept_all', 'reject_all', 'custom', 'privacy_signal', 'reset']);
+
+function appendConsentRecordToFile(record) {
+  ensureLeadsDir();
+  let records = [];
+  if (fs.existsSync(CONSENT_FILE)) {
+    try { records = JSON.parse(fs.readFileSync(CONSENT_FILE, 'utf8')); } catch { records = []; }
+  }
+  records.push(record);
+  fs.writeFileSync(CONSENT_FILE, JSON.stringify(records, null, 2));
+}
+
+app.post('/api/consent-audit', express.json({ limit: '4kb' }), async function (req, res) {
+  const body = req.body || {};
+  const consent = body.consent;
+  if (!consent || typeof consent !== 'object' ||
+      ['analytics', 'preferences', 'marketing'].some(function (key) { return typeof consent[key] !== 'boolean'; })) {
+    return res.status(400).json({ error: 'Invalid consent payload' });
+  }
+  const record = {
+    visitorId: typeof body.visitorId === 'string' ? body.visitorId.slice(0, 64) : null,
+    consent: {
+      strictlyNecessary: true,
+      analytics: consent.analytics,
+      preferences: consent.preferences,
+      marketing: consent.marketing,
+    },
+    policyVersion: typeof body.policyVersion === 'string' ? body.policyVersion.slice(0, 20) : 'unknown',
+    method: CONSENT_METHODS.has(body.method) ? body.method : 'custom',
+    gpc: Boolean(body.gpc),
+    dnt: Boolean(body.dnt),
+    userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
+    ipHash: crypto.createHash('sha256').update(String(req.ip || '')).digest('hex').slice(0, 32),
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    if (pgPool) {
+      await queryWithRlsBypass(
+        `INSERT INTO public.consent_records (visitor_id, consent, policy_version, method, gpc, dnt, user_agent, ip_hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [record.visitorId, JSON.stringify(record.consent), record.policyVersion, record.method,
+         record.gpc, record.dnt, record.userAgent, record.ipHash]
+      );
+    } else {
+      appendConsentRecordToFile(record);
+    }
+    return res.status(202).json({ received: true });
+  } catch (err) {
+    log('error', 'Consent audit persistence failed', { error: String(err) });
+    return res.status(500).json({ error: 'Failed to record consent' });
+  }
+});
 
 // ─── SALESBOT CHAT ENGINE ───
 const ECOAUDITOR_KB = [
@@ -998,7 +1230,7 @@ app.get('/api/emissions/trend', apiAuthGuard, async function (req, res) {
   }
 });
 
-app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], limit: '100kb' }), apiAuthGuard, async function (req, res) {
+app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], limit: '100kb' }), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const companyId = await requireCompanyAccess(req, res, req.query.company_id);
     if (!companyId) return;
@@ -1156,7 +1388,7 @@ app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, async func
   return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: new Date().toISOString() } });
 });
 
-app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, async function (req, res) {
+app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const companyId = await requireCompanyAccess(req, res, req.params.id);
     if (!companyId) return;

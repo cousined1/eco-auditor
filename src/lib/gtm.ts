@@ -30,10 +30,15 @@ export function useGTM() {
 }
 
 export function initializeGTM() {
+  if (typeof window === 'undefined') return;
+
   if (!GTM_ID) {
     console.warn('[GTM] VITE_GTM_ID not configured');
     return;
   }
+
+  const scriptId = `gtm-script-${GTM_ID}`;
+  if (document.getElementById(scriptId)) return;
 
   // Initialize dataLayer
   const gtmWindow = window as GTMWindow;
@@ -45,6 +50,7 @@ export function initializeGTM() {
 
   // Load GTM script
   const script = document.createElement('script');
+  script.id = scriptId;
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtm.js?id=${GTM_ID}`;
   document.head.appendChild(script);

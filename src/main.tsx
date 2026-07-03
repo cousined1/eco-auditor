@@ -3,20 +3,16 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './hooks/useTheme';
 import { ConsentProvider } from './lib/consent-context';
-import { initializeGTM } from './lib/gtm';
+import GTMInitializer from './components/GTMInitializer';
 import App from './App';
 import './index.css';
-
-// Initialize GTM on app load
-if (typeof window !== 'undefined') {
-  initializeGTM();
-}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider>
         <ConsentProvider>
+          <GTMInitializer />
           <App />
         </ConsentProvider>
       </ThemeProvider>

@@ -5,8 +5,8 @@
 //   cta prop accepts CtaAction[] with { label, href, variant?, icon? }
 //   Empty array hides CTAs. Omitted prop uses variant default.
 
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { ReactNode } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -54,6 +54,10 @@ function EcoLogo() {
       <path d="M8 20V8l6 4 6-4v12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
+}
+
+function MenuIcon() {
+  return <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 5.5h14M3 10h14M3 14.5h14" /></svg>;
 }
 
 // ─── Variant defaults ───────────────────────────────────────
@@ -105,9 +109,11 @@ const STICKY: Record<HeaderVariant, boolean> = {
 // ─── Component ───────────────────────────────────────────────
 
 export default function Header({ variant, cta, navItems, hideCta, extra, className }: HeaderProps) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const resolvedNav = navItems ?? DEFAULT_NAV[variant];
   const resolvedCta = hideCta ? [] : (cta ?? DEFAULT_CTA[variant]);
   const isSticky = STICKY[variant];
+  const showMobileMenuButton = resolvedNav.length > 0 || resolvedCta.some((action) => action.href);
 
   return (
     <header
@@ -134,6 +140,17 @@ export default function Header({ variant, cta, navItems, hideCta, extra, classNa
 
         {/* CTA slot + extras */}
         <div className="flex items-center gap-3">
+          {showMobileMenuButton && (
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen((open) => !open)}
+              className="md:hidden p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
+              aria-label="Toggle navigation menu"
+              aria-expanded={mobileNavOpen}
+            >
+              <MenuIcon />
+            </button>
+          )}
           {extra}
           {resolvedCta.map((action, i) => {
             const key = action.href ?? action.label;
@@ -146,15 +163,44 @@ export default function Header({ variant, cta, navItems, hideCta, extra, classNa
             }
             if (action.variant === 'secondary' || (resolvedCta.length > 1 && i < resolvedCta.length - 1)) {
               return (
-                <Link key={key} to={action.href ?? '#'} onClick={action.onClick as any} className="btn-secondary text-sm !py-2 !px-5">{action.label}</Link>
+                <Link key={key} to={action.href ?? '#'} onClick={action.onClick} className="hidden sm:inline-flex btn-secondary text-sm !py-2 !px-5">{action.label}</Link>
               );
             }
             return (
-              <Link key={key} to={action.href ?? '#'} onClick={action.onClick as any} className="btn-primary text-sm !py-2 !px-5">{action.label}</Link>
+              <Link key={key} to={action.href ?? '#'} onClick={action.onClick} className="hidden sm:inline-flex btn-primary text-sm !py-2 !px-5">{action.label}</Link>
             );
           })}
         </div>
       </div>
+      {mobileNavOpen && showMobileMenuButton && (
+        <div className="md:hidden border-t border-surface-200/80 dark:border-surface-800/80 bg-white dark:bg-surface-900">
+          {resolvedNav.length > 0 && (
+            <nav className="px-6 py-4 space-y-1" aria-label="Mobile navigation">
+              {resolvedNav.map((item) => (
+                item.href.startsWith('#') ? (
+                  <a key={item.href} href={item.href} onClick={() => setMobileNavOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium no-underline text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">{item.label}</a>
+                ) : (
+                  <Link key={item.href} to={item.href} onClick={() => setMobileNavOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium no-underline text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">{item.label}</Link>
+                )
+              ))}
+            </nav>
+          )}
+          {resolvedCta.some((action) => action.href) && (
+            <div className="px-6 pb-4 flex flex-col gap-2">
+              {resolvedCta.filter((action) => action.href).map((action) => (
+                <Link
+                  key={action.href ?? action.label}
+                  to={action.href ?? '#'} 
+                  onClick={() => { action.onClick?.(); setMobileNavOpen(false); }}
+                  className={action.variant === 'secondary' ? 'btn-secondary justify-center text-sm !py-2 !px-5' : 'btn-primary justify-center text-sm !py-2 !px-5'}
+                >
+                  {action.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </header>
   );
 }
