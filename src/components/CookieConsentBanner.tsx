@@ -10,10 +10,9 @@ export function CookieConsentBanner() {
   return (
     <>
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Cookie consent preferences"
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-surface-900 border-t border-gray-200 dark:border-surface-700 shadow-lg"
+        role="region"
+        aria-label="Cookie consent"
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-surface-900 border-t border-surface-200 dark:border-surface-700 shadow-lg"
       >
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -24,7 +23,7 @@ export function CookieConsentBanner() {
               <p className="text-sm text-surface-600 dark:text-surface-300">
                 We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic.
                 By clicking "Accept All", you consent to our use of cookies.{" "}
-                <a href="/privacy" className="text-green-600 hover:text-green-700 underline">
+                <a href="/privacy" className="text-brand-600 hover:text-brand-700 underline">
                   Learn more
                 </a>
               </p>
@@ -33,21 +32,21 @@ export function CookieConsentBanner() {
               <button
                 type="button"
                 onClick={acceptAll}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"
               >
                 Accept All
               </button>
               <button
                 type="button"
                 onClick={rejectAll}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium dark:bg-surface-700 dark:text-white dark:hover:bg-surface-600"
+                className="px-4 py-2 bg-surface-200 text-surface-800 rounded-lg hover:bg-surface-300 transition-colors text-sm font-medium dark:bg-surface-700 dark:text-white dark:hover:bg-surface-600"
               >
                 Reject Non-Essential
               </button>
               <button
                 type="button"
                 onClick={() => setShowPreferences(true)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium dark:border-surface-600 dark:text-white dark:hover:bg-surface-800"
+                className="px-4 py-2 border border-surface-300 text-surface-700 rounded-lg hover:bg-surface-50 transition-colors text-sm font-medium dark:border-surface-600 dark:text-white dark:hover:bg-surface-800"
               >
                 Manage Preferences
               </button>
@@ -73,70 +72,79 @@ function CookiePreferencesModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-surface-900 rounded-xl shadow-xl max-w-md w-full p-6">
-        <h3 className="text-xl font-semibold text-surface-900 dark:text-white mb-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cookie-preferences-title"
+        className="bg-white dark:bg-surface-900 rounded-xl shadow-xl max-w-md w-full p-6"
+      >
+        <h3 id="cookie-preferences-title" className="text-xl font-semibold text-surface-900 dark:text-white mb-4">
           Cookie Preferences
         </h3>
         <div className="space-y-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-surface-900 dark:text-white">Strictly Necessary</p>
+              <label htmlFor="cookie-consent-necessary" className="block font-medium text-surface-900 dark:text-white">Strictly Necessary</label>
               <p className="text-sm text-surface-500">Required for the site to function</p>
             </div>
             <input
+              id="cookie-consent-necessary"
               type="checkbox"
               checked={true}
               disabled
-              className="h-5 w-5 rounded border-gray-300"
+              className="h-5 w-5 rounded border-surface-300"
             />
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-surface-900 dark:text-white">Analytics</p>
+              <label htmlFor="cookie-consent-analytics" className="block font-medium text-surface-900 dark:text-white">Analytics</label>
               <p className="text-sm text-surface-500">Helps us improve our website</p>
             </div>
             <input
+              id="cookie-consent-analytics"
               type="checkbox"
               checked={localConsent.analytics}
               onChange={(e) => setLocalConsent({ ...localConsent, analytics: e.target.checked })}
-              className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              className="h-5 w-5 rounded border-surface-300 text-brand-600 focus:ring-brand-500"
             />
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-surface-900 dark:text-white">Preferences</p>
+              <label htmlFor="cookie-consent-preferences" className="block font-medium text-surface-900 dark:text-white">Preferences</label>
               <p className="text-sm text-surface-500">Remember your settings</p>
             </div>
             <input
+              id="cookie-consent-preferences"
               type="checkbox"
               checked={localConsent.preferences}
               onChange={(e) => setLocalConsent({ ...localConsent, preferences: e.target.checked })}
-              className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              className="h-5 w-5 rounded border-surface-300 text-brand-600 focus:ring-brand-500"
             />
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-surface-900 dark:text-white">Marketing</p>
+              <label htmlFor="cookie-consent-marketing" className="block font-medium text-surface-900 dark:text-white">Marketing</label>
               <p className="text-sm text-surface-500">Personalized advertisements</p>
             </div>
             <input
+              id="cookie-consent-marketing"
               type="checkbox"
               checked={localConsent.marketing}
               onChange={(e) => setLocalConsent({ ...localConsent, marketing: e.target.checked })}
-              className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              className="h-5 w-5 rounded border-surface-300 text-brand-600 focus:ring-brand-500"
             />
           </div>
         </div>
         <div className="flex gap-3">
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+            className="flex-1 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
           >
             Save Preferences
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium dark:border-surface-600 dark:text-white dark:hover:bg-surface-800"
+            className="px-4 py-2 border border-surface-300 text-surface-700 rounded-lg hover:bg-surface-50 transition-colors font-medium dark:border-surface-600 dark:text-white dark:hover:bg-surface-800"
           >
             Cancel
           </button>

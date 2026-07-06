@@ -6,7 +6,12 @@ import {
   startSocialSignIn,
   type SocialAuthProvider,
 } from '../lib/socialAuth';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+// Client-side password policy: min 8 chars with at least one letter and one number.
+const PASSWORD_MIN_LENGTH = 8;
+const isPasswordValid = (value: string) =>
+  value.length >= PASSWORD_MIN_LENGTH && /[a-zA-Z]/.test(value) && /\d/.test(value);
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -18,9 +23,35 @@ export default function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
 
+  // Already-authenticated users should land in the app, not on the signup form.
+  // Same auth check App.tsx uses (insforge.auth.getCurrentUser).
+  useEffect(() => {
+    if (!isInsForgeConfigured) return;
+    let cancelled = false;
+    async function checkSession() {
+      try {
+        const { data } = await insforge.auth.getCurrentUser();
+        if (cancelled) return;
+        if (data?.user) {
+          navigate('/app', { replace: true });
+        }
+      } catch {
+        // Not authenticated — stay on the signup form.
+      }
+    }
+    void checkSession();
+    return () => { cancelled = true; };
+  }, [navigate]);
+
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!isPasswordValid(password)) {
+      setError('Password must be at least 8 characters and include at least one letter and one number.');
+      return;
+    }
+
     setSubmitting(true);
 
     const { data, error: authError } = await insforge.auth.signUp({
@@ -168,8 +199,8 @@ export default function Signup() {
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={6}
-                  placeholder="Password (at least 6 characters)"
+                  minLength={PASSWORD_MIN_LENGTH}
+                  placeholder="Password (8+ characters, with a letter and a number)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={submitting}
@@ -178,7 +209,7 @@ export default function Signup() {
               </div>
               <button
                 type="submit"
-                disabled={submitting || !email.trim() || password.length < 6}
+                disabled={submitting || !email.trim() || !isPasswordValid(password)}
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
                 {submitting ? (
@@ -212,7 +243,7 @@ export default function Signup() {
             ))}
 
             {error && (
-              <div className="rounded-lg border border-risk-high/30 bg-risk-high/10 px-3 py-2 text-sm text-risk-high">
+              <div role="alert" className="rounded-lg border border-risk-high/30 bg-risk-high/10 px-3 py-2 text-sm text-risk-high">
                 {error}
               </div>
             )}

@@ -10,16 +10,10 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <svg width="24" height="24" viewBox="0 0 512 512" fill="none" aria-hidden="true">
-                <path fill="none" stroke="#06b6d4" strokeWidth="24" strokeLinecap="round" d="M380 310 A150 150 0 0 0 132 310" />
-                <polygon points="115,295 132,270 148,298" fill="#06b6d4" />
-                <path fill="none" stroke="#1e3a5f" strokeWidth="24" strokeLinecap="round" d="M132 202 A150 150 0 0 0 380 202" />
-                <polygon points="397,217 380,242 364,214" fill="#1e3a5f" />
-                <path fill="#52b788" d="M256 120 C256 120 200 170 200 260 C200 310 225 350 256 380 C287 350 312 310 312 260 C312 170 256 120 256 120Z" />
-                <path fill="#ffffff" d="M256 160 C256 160 225 200 225 260 C225 300 240 330 256 350 C272 330 287 300 287 260 C287 200 256 160 256 160Z" />
-                <line x1="256" y1="155" x2="256" y2="365" stroke="#2d6a4f" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-                <circle cx="256" cy="430" r="28" fill="#1e3a5f" />
-                <polyline points="242,430 252,440 270,420" fill="none" stroke="#ffffff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+              {/* TODO(audit): same mark as Header's EcoLogo (src/components/Header.tsx) — export it from a shared module so both stay in sync. */}
+              <svg className="w-6 h-6" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <rect width="28" height="28" rx="7" fill="currentColor" className="text-brand-600" />
+                <path d="M8 20V8l6 4 6-4v12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span className="text-sm font-semibold text-surface-900 dark:text-white">Eco-Auditor</span>
             </div>
@@ -45,17 +39,6 @@ export default function Footer() {
               <li><Link to="/privacy" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Privacy Policy</Link></li>
               <li><Link to="/terms" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Terms of Service</Link></li>
               <li><Link to="/dpa" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Data Processing Addendum</Link></li>
-              <li><Link to="/contact" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Contact Us</Link></li>
-            </ul>
-          </nav>
-
-          {/* Company nav */}
-          <nav aria-label="Company links">
-            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Company</h4>
-            <ul className="space-y-1.5">
-              <li><Link to="/contact" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Contact Us</Link></li>
-              <li><a href="mailto:hello@developer312.com" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">hello@developer312.com</a></li>
-              <li><a href="tel:+15104011225" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">(510) 401-1225</a></li>
             </ul>
           </nav>
 
@@ -71,17 +54,16 @@ export default function Footer() {
         </div>
 
         <div className="mt-6 pt-6 border-t border-surface-200 dark:border-surface-800 flex flex-col md:flex-row items-center justify-between gap-3">
-          <p className="text-2xs text-surface-400">© {year} Developer312. All rights reserved.</p>
-          <p className="text-2xs text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
+          <p className="text-2xs text-surface-400">© {year} EcoAuditor. All rights reserved.</p>
         </div>
 
-        {/* Developer312 Suite Interlinking */}
+        {/* EcoAuditor Suite Interlinking */}
         <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-surface-500">
-            <span className="font-medium text-surface-600 dark:text-surface-400">Developer312 suite:</span>
-            <a href="https://provenance-os.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">ProvenanceOS</a>
+            <span className="font-medium text-surface-600 dark:text-surface-400">EcoAuditor suite:</span>
+            <a href="https://provenance-os.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">ProvenanceOS</a>
             <span className="text-surface-300">·</span>
-            <a href="https://sim-2-real.com" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a>
+            <a href="https://sim-2-real.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a>
           </div>
         </div>
       </div>

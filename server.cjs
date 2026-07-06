@@ -1372,14 +1372,22 @@ app.get('/api/companies/:id/compliance', apiAuthGuard, async function (req, res)
 });
 
 app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
-  return res.json({
-    success: true,
-    data: [
-      { framework: 'SB 253', due_date: '2026-01-01', scope: 'Scope 1 and Scope 2', status: 'upcoming' },
-      { framework: 'SB 253', due_date: '2027-01-01', scope: 'Scope 3', status: 'upcoming' },
-      { framework: 'EU CSRD', due_date: '2025-01-01', scope: 'Sustainability report', status: 'upcoming' },
-    ],
+  // Derive status from the current date so past deadlines aren't reported as
+  // "upcoming" (e.g. EU CSRD 2025-01-01 was returned as upcoming in mid-2026).
+  const now = Date.now();
+  const SOON_MS = 90 * 24 * 60 * 60 * 1000; // within 90 days = "due_soon"
+  const deadlines = [
+    { framework: 'SB 253', due_date: '2026-01-01', scope: 'Scope 1 and Scope 2' },
+    { framework: 'SB 253', due_date: '2027-01-01', scope: 'Scope 3' },
+    { framework: 'EU CSRD', due_date: '2025-01-01', scope: 'Sustainability report' },
+  ].map(function (d) {
+    const due = Date.parse(d.due_date + 'T00:00:00Z');
+    let status = 'upcoming';
+    if (due < now) status = 'overdue';
+    else if (due - now <= SOON_MS) status = 'due_soon';
+    return Object.assign({}, d, { status: status });
   });
+  return res.json({ success: true, data: deadlines });
 });
 
 app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, async function (req, res) {
