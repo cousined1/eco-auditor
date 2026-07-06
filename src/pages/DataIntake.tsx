@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { UPLOADED_FILES, OCR_PREVIEW, FACILITIES } from '../data/mockData';
+import { insforge } from '../lib/insforge';
+import { buildApiRequestInit } from '../lib/api';
 
 const INTEGRATIONS = [
   { name: 'QuickBooks Online', status: 'not-connected' as const, icon: '📊' },
@@ -88,11 +90,23 @@ export default function DataIntake() {
 
       try {
         const text = await file.text();
+        // The /api/ingest/csv route is auth-guarded and plan-gated, so the
+        // request must carry the InsForge bearer token — without it every
+        // production upload 401s before parsing. See audit finding C5.
+        const authInit = buildApiRequestInit(insforge);
         const res = await fetch('/api/ingest/csv', {
           method: 'POST',
-          headers: { 'Content-Type': 'text/csv' },
+          headers: { ...(authInit.headers as Record<string, string>), 'Content-Type': 'text/csv' },
           body: text,
         });
+        if (res.status === 401) {
+          showStatus('error', 'Your session expired — please sign in again to upload.');
+          continue;
+        }
+        if (res.status === 402) {
+          showStatus('error', 'CSV import requires a paid plan. Upgrade to continue.');
+          continue;
+        }
         const data = await res.json();
 
         if (data.success) {

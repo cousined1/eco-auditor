@@ -37,6 +37,35 @@ describe('EPA emissions engine', () => {
     expect(result.co2e_tonnes).toBeCloseTo(54.208125, 6);
   });
 
+  // Regression: entries persisted by the in-app calculator arrive already in
+  // kg CO2e (amount = calculatedKg, unit = 'kg CO2e'). The engine must NOT
+  // re-apply an activity factor — it must pass them through as tonnes. See C3.
+  it('passes pre-calculated kg CO2e entries through without re-applying factors', () => {
+    const result = calculateEntry({
+      scope: 'Scope 1',
+      category: 'Stationary Combustion',
+      source: 'Natural Gas',
+      amount: 265100, // kg CO2e already computed by the calculator
+      unit: 'kg CO2e',
+      confidence: 85,
+    });
+    expect(result.co2e_tonnes).toBeCloseTo(265.1, 6);
+    expect(result.factor).toBe(0.001);
+    expect(result.confidence).toBe(85);
+  });
+
+  it('does not throw or inflate Scope 2 kg CO2e passthrough entries', () => {
+    // Previously this Scope 2 row was re-multiplied by an eGRID factor (~217x).
+    const result = calculateEntry({
+      scope: 'Scope 2',
+      category: 'Purchased Electricity',
+      source: 'Grid Electricity',
+      amount: 417,
+      unit: 'kg CO2e',
+    });
+    expect(result.co2e_tonnes).toBeCloseTo(0.417, 6);
+  });
+
   it('summarizes entries by scope and category with average confidence', () => {
     const summary = summarizeEntries([
       { scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 50000, unit: 'therms' },
