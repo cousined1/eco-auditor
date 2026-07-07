@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { buildApiRequestInit } from '../lib/api';
+import { buildApiRequestInit, getUpgradeRequired, type UpgradeRequired } from '../lib/api';
 import { insforge } from '../lib/insforge';
+import UpgradePrompt from '../components/UpgradePrompt';
 
 interface EmissionsSummaryData {
   total_co2e_tonnes: number;
@@ -32,6 +33,7 @@ export default function Dashboard() {
   const [trend, setTrend] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [upgrade, setUpgrade] = useState<UpgradeRequired | null>(null);
 
   // Fetch real API data on component mount
   useEffect(() => {
@@ -47,6 +49,14 @@ export default function Dashboard() {
           fetch('/api/emissions/summary', requestInit),
           fetch('/api/emissions/trend?period=monthly', requestInit),
         ]);
+
+        // Plan gate: an expired trial / free account gets a 402 upgrade_required.
+        // Show the upgrade paywall instead of a generic error or empty state.
+        const upgradeInfo = (await getUpgradeRequired(summaryRes)) || (await getUpgradeRequired(trendRes));
+        if (upgradeInfo) {
+          setUpgrade(upgradeInfo);
+          return;
+        }
 
         if (!summaryRes.ok) {
           throw new Error(`Failed to fetch emissions summary: ${summaryRes.statusText}`);
@@ -94,6 +104,22 @@ export default function Dashboard() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-surface-600 dark:text-surface-400">Loading your emissions data...</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Plan gate: expired trial / no active subscription
+  if (upgrade) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="py-12">
+          <UpgradePrompt
+            fullPage
+            feature="Your dashboard is a paid feature"
+            requiredPlan={upgrade.requiredPlan}
+            reason={upgrade.message || 'Your trial has ended. Reactivate a plan to view your emissions dashboard and reports.'}
+          />
         </div>
       </div>
     );

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { UPLOADED_FILES, OCR_PREVIEW, FACILITIES } from '../data/mockData';
 import { insforge } from '../lib/insforge';
-import { buildApiRequestInit } from '../lib/api';
+import { buildApiRequestInit, getUpgradeRequired, type UpgradeRequired } from '../lib/api';
+import UpgradePrompt from '../components/UpgradePrompt';
 
 const INTEGRATIONS = [
   { name: 'QuickBooks Online', status: 'not-connected' as const, icon: '📊' },
@@ -25,6 +26,7 @@ export default function DataIntake() {
   const [actionStatus, setActionStatus] = useState<ActionStatus>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [csvResult, setCsvResult] = useState<CsvUploadResult | null>(null);
+  const [uploadUpgrade, setUploadUpgrade] = useState<UpgradeRequired | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -104,7 +106,9 @@ export default function DataIntake() {
           continue;
         }
         if (res.status === 402) {
-          showStatus('error', 'CSV import requires a paid plan. Upgrade to continue.');
+          const up = await getUpgradeRequired(res);
+          setUploadUpgrade(up || { requiredPlan: 'starter' });
+          showStatus('error', 'CSV import requires an active plan.');
           continue;
         }
         const data = await res.json();
@@ -145,6 +149,15 @@ export default function DataIntake() {
           Upload Files
         </button>
       </div>
+
+      {/* Plan gate: CSV import rejected because the account has no active plan */}
+      {uploadUpgrade && (
+        <UpgradePrompt
+          feature="CSV import requires an active plan"
+          requiredPlan={uploadUpgrade.requiredPlan}
+          reason={uploadUpgrade.message || 'Reactivate a plan to import emissions data from CSV files.'}
+        />
+      )}
 
       {/* Action status banner */}
       {actionStatus && (
