@@ -9,6 +9,29 @@
 
 ---
 
+## ✅ Fixed in PR `audit/mvp-fixes-2026-07-06` (commits a70f87e · 034f5a1 · 457b2a1)
+
+All green after each commit: `tsc -b` clean · `eslint` clean · **111/111 tests** (+2 pipeline regression tests).
+
+**Critical / code correctness**
+- **C3** calculator→dashboard pipeline — kg/t CO2e passthrough (no more 500s / ~217× inflation).
+- **C4** CSV imports now persist to Postgres (transactional batch insert, scope mapping, facility resolution, row-date → `created_at`, DB-failure = 500 not false success).
+- **C5** CSV upload sends the auth token (was 401ing every prod upload).
+- **Client billing token** — `getAuthToken()` was silently dead for every signed-in user; now reads the SDK's managed header.
+- **`users` billing table** — added the migration every Stripe route/webhook depended on.
+- **C1** plan enforcement extended to core routes (`/api/calculate`, emissions summary/trend, facility create, compliance sign-off) — expired/free users now hit the 402 paywall.
+- **H2** annual "Start free trial" no longer charges immediately (trial gated to monthly billing).
+
+**Honesty / UX / a11y**
+- **H11/#43** Dashboard no longer shows fabricated Northstar/CFO/readiness/alerts/tasks mock data (keeps real emissions widgets; dynamic fiscal year).
+- Compliance deadlines derive overdue/due_soon/upcoming from the date.
+- Cookie banner a11y (dropped page-inert `aria-modal`, labelled checkboxes, tokens); Settings fake webhook panel + misleading copy removed; ContactUs mailto fallback + dedup; Login/Signup redirect-if-authed, `role=alert`, stronger password policy; footer dedup/logo/`rel=noopener`; dup manifest / broken icon / dark-mode FOUC.
+- Public brand shown as **EcoAuditor**; working contact email kept as `hello@developer312.com`; legal entity (Developer312/NIGHT LITE) unchanged in Terms/Privacy/DPA.
+
+**Deliberately left for you (product/legal/DB-schema judgment):** false marketing/methodology/security claims (AI-OCR extraction, immutable audit trail, SSO/RBAC, SB253/CBAM packages, XBRL exports), price reconciliation across SEO/FAQ/chatbot, `authGuard` endpoint contract, report/PDF end-to-end, facility DB persistence, session re-validation, and the 402 client-side upgrade UX (`UpgradePrompt`). See findings below.
+
+---
+
 ## Executive Summary
 
 This follow-up audit finds **97 actionable issues** (107 total incl. verified-fixed).
