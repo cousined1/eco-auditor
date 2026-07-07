@@ -1442,29 +1442,88 @@ app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, requirePla
   return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: new Date().toISOString() } });
 });
 
+// Renders the emissions summary into the plain text the PDF is built from.
+function buildReportText(summary, period) {
+  const lines = [
+    'EcoAuditor Emissions Report',
+    'Generated: ' + new Date().toISOString().split('T')[0],
+    'Reporting period: ' + (period || 'All time'),
+    '',
+    'Total: ' + summary.total_emissions_tCO2e + ' tCO2e',
+    'Scope 1: ' + summary.by_scope.scope1 + ' tCO2e',
+    'Scope 2: ' + summary.by_scope.scope2 + ' tCO2e',
+    'Scope 3: ' + summary.by_scope.scope3 + ' tCO2e',
+    'Confidence: ' + summary.confidence_score + '%',
+    'Methodology: ' + summary.methodology,
+  ];
+  return lines.join('\n');
+}
+
 app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const companyId = await requireCompanyAccess(req, res, req.params.id);
     if (!companyId) return;
-    const entries = await loadEmissionEntries(companyId, req.body && req.body.period);
-    const summary = summarizeEntries(entries, { companyId: companyId, period: req.body && req.body.period });
+    const period = req.body && req.body.period ? String(req.body.period) : null;
+    const entries = await loadEmissionEntries(companyId, period);
+    const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+
+    if (pgPool) {
+      // Persist report metadata; the PDF is regenerated deterministically on
+      // download from the stored company + period (no in-memory PDF store).
+      const title = 'Carbon Report ' + new Date().toISOString().split('T')[0];
+      const result = await queryWithRlsBypass(
+        `INSERT INTO public.reports (company_id, title, type, status, last_updated, completeness, signoff, period)
+         VALUES ($1, $2, 'carbon', 'final', now(), 100, 'pending', $3) RETURNING id`,
+        [companyId, title, period]
+      );
+      const reportId = result.rows[0].id;
+      return res.json({ success: true, report_id: reportId, download_url: `/api/reports/${reportId}/download` });
+    }
+
+    // Dev / no-DB fallback: keep the PDF in memory for the immediate download.
     const reportId = crypto.randomUUID();
-    const pdf = createSimplePdf(`EcoAuditor Emissions Report\nCompany: ${companyId}\nTotal: ${summary.total_emissions_tCO2e} tCO2e\nScope 1: ${summary.by_scope.scope1}\nScope 2: ${summary.by_scope.scope2}\nScope 3: ${summary.by_scope.scope3}\nMethodology: ${summary.methodology}`);
-    generatedReports.set(reportId, { id: reportId, company_id: companyId, pdf: pdf, summary: summary });
+    const pdf = createSimplePdf(buildReportText(summary, period));
+    generatedReports.set(reportId, { id: reportId, company_id: companyId, period: period, pdf: pdf });
     return res.json({ success: true, report_id: reportId, download_url: `/api/reports/${reportId}/download` });
   } catch (err) {
+    log('error', 'Report generation failed', { error: String(err) });
     return res.status(500).json({ success: false, error: String(err.message || err) });
   }
 });
 
 app.get('/api/reports/:id/download', apiAuthGuard, async function (req, res) {
-  const report = generatedReports.get(req.params.id);
-  if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
-  const companyId = await requireCompanyAccess(req, res, report.company_id);
-  if (!companyId) return;
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-${req.params.id}.pdf"`);
-  return res.send(report.pdf);
+  try {
+    let companyId;
+    let period = null;
+
+    if (pgPool && /^\d+$/.test(req.params.id)) {
+      const { rows } = await pgPool.query('SELECT company_id, period FROM reports WHERE id = $1', [req.params.id]);
+      if (rows.length === 0) return res.status(404).json({ success: false, error: 'Report not found' });
+      companyId = await requireCompanyAccess(req, res, rows[0].company_id);
+      if (!companyId) return;
+      period = rows[0].period;
+    } else {
+      // Dev / no-DB fallback: serve the in-memory PDF captured at generate time.
+      const report = generatedReports.get(req.params.id);
+      if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+      companyId = await requireCompanyAccess(req, res, report.company_id);
+      if (!companyId) return;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-report-${req.params.id}.pdf"`);
+      return res.send(report.pdf);
+    }
+
+    // Regenerate the PDF from persisted data for the report's period.
+    const entries = await loadEmissionEntries(companyId, period);
+    const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+    const pdf = createSimplePdf(buildReportText(summary, period));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-report-${req.params.id}.pdf"`);
+    return res.send(pdf);
+  } catch (err) {
+    log('error', 'Report download failed', { error: String(err), reportId: req.params.id });
+    return res.status(500).json({ success: false, error: 'Failed to generate report PDF' });
+  }
 });
 
 function createSimplePdf(text) {

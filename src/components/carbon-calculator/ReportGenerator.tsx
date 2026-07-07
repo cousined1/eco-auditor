@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { insforge } from '@/lib/insforge';
+import { buildApiRequestInit, getUpgradeRequired } from '@/lib/api';
 import type { Company, EmissionEntry } from './utils';
 
 interface Props {
@@ -16,49 +17,44 @@ export default function ReportGenerator({ company, entries }: Props) {
     setStatus(null);
 
     try {
-      const safeAmount = (e: EmissionEntry) => {
-        const v = parseFloat(e.amount);
-        return isNaN(v) ? 0 : v;
-      };
+      const init = buildApiRequestInit(insforge);
+      const headers = { ...(init.headers as Record<string, string>), 'Content-Type': 'application/json' };
 
-      const totalScope1 = entries
-        .filter((e) => e.scope === 'Scope 1')
-        .reduce((s, e) => s + safeAmount(e), 0);
-      const totalScope2 = entries
-        .filter((e) => e.scope === 'Scope 2')
-        .reduce((s, e) => s + safeAmount(e), 0);
-      const totalScope3 = entries
-        .filter((e) => e.scope === 'Scope 3')
-        .reduce((s, e) => s + safeAmount(e), 0);
-
-      const { data: report, error } = await insforge.database
-        .from('reports')
-        .insert([{
-          company_id: company.id,
-          title: `Carbon Report ${new Date().toISOString().split('T')[0]}`,
-          type: 'carbon',
-          status: 'final',
-          last_updated: new Date().toISOString(),
-          completeness: 100,
-          signoff: 'pending',
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const { error: invokeError } = await insforge.functions.invoke('generate-pdf', {
-        body: {
-          reportId: report.id,
-          companyId: company.id,
-          totals: { scope1: totalScope1, scope2: totalScope2, scope3: totalScope3 },
-        },
+      // Generate the report server-side from persisted emissions data.
+      const genRes = await fetch(`/api/companies/${company.id}/reports/generate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
       });
-      if (invokeError) {
-        setStatus('Report record saved. PDF generation function not yet deployed.');
-      } else {
-        setStatus('Report generated and saved.');
+
+      const upgrade = await getUpgradeRequired(genRes);
+      if (upgrade) {
+        setStatus('Reports require an active plan — visit Pricing to upgrade.');
+        return;
       }
+      if (!genRes.ok) {
+        const body = await genRes.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error || `Report generation failed (${genRes.status})`);
+      }
+      const data = (await genRes.json()) as { success?: boolean; report_id?: string; download_url?: string; error?: string };
+      if (!data.success || !data.download_url) {
+        throw new Error(data.error || 'Report generation failed');
+      }
+
+      // Download the generated PDF (auth header required — so fetch + blob, not a bare link).
+      const dlRes = await fetch(data.download_url, init);
+      if (!dlRes.ok) throw new Error(`Report download failed (${dlRes.status})`);
+      const blob = await dlRes.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ecoauditor-report-${data.report_id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      setStatus('Report generated and downloaded.');
     } catch (err) {
       setStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
