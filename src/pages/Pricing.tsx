@@ -7,11 +7,11 @@ const PRICING_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "ItemList",
   "name": "Eco-Auditor Pricing Plans",
-  "description": "Carbon accounting plans for small and mid-size businesses. From free tier to enterprise-grade compliance reporting.",
+  "description": "Carbon accounting plans for small and mid-size businesses. From startups to enterprise-grade compliance reporting.",
   "itemListElement": [
-    { "@type": "ListItem", "position": 1, "item": { "@type": "Product", "name": "Starter", "description": "Basic carbon tracking for small teams", "offers": { "@type": "Offer", "price": "49", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
-    { "@type": "ListItem", "position": 2, "item": { "@type": "Product", "name": "Growth", "description": "Full Scope 1/2/3 reporting with AI extraction", "offers": { "@type": "Offer", "price": "149", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
-    { "@type": "ListItem", "position": 3, "item": { "@type": "Product", "name": "Pro", "description": "Enterprise-grade compliance with custom integrations", "offers": { "@type": "Offer", "price": "499", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
+    { "@type": "ListItem", "position": 1, "item": { "@type": "Product", "name": "Starter", "description": "Basic carbon tracking for small teams", "offers": { "@type": "Offer", "price": "149", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
+    { "@type": "ListItem", "position": 2, "item": { "@type": "Product", "name": "Growth", "description": "Full Scope 1/2/3 reporting with CSV import", "offers": { "@type": "Offer", "price": "399", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
+    { "@type": "ListItem", "position": 3, "item": { "@type": "Product", "name": "Pro", "description": "Enterprise-grade compliance with custom integrations", "offers": { "@type": "Offer", "price": "999", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
   ]
 };
 
@@ -26,7 +26,7 @@ export default function Pricing() {
     document.title = 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs';
 
     const meta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (meta) meta.content = 'Eco-Auditor pricing: Free tier, Starter $49/mo, Growth $149/mo, Pro $499/mo. Audit-ready Scope 1-3 emissions tracking. 14-day free trial, no credit card required.';
+    if (meta) meta.content = 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. Audit-ready Scope 1-3 emissions tracking. 14-day free trial on monthly plans.';
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';

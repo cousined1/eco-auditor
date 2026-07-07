@@ -802,7 +802,7 @@ app.post('/api/consent-audit', express.json({ limit: '4kb' }), async function (r
 const ECOAUDITOR_KB = [
   {
     pattern: /pricing|cost|how much|plan/i,
-    response: "We offer three plans:\n\n• **Starter** — $49/mo for basic carbon tracking\n• **Growth** — $149/mo for full Scope 1/2/3 reporting\n• **Enterprise** — Custom pricing for large organizations\n\nAll plans include a 14-day free trial. Would you like me to help you choose the right plan?"
+    response: "We offer three plans:\n\n• **Starter** — $149/mo for basic carbon tracking\n• **Growth** — $399/mo for full Scope 1/2/3 reporting\n• **Pro** — $999/mo for multi-facility teams\n\nAll plans include a 14-day free trial. Would you like me to help you choose the right plan?"
   },
   {
     pattern: /demo|book a demo|schedule a call|talk to sales/i,
@@ -814,7 +814,7 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /how (it|does) work|features|what is|about/i,
-    response: "EcoAuditor helps businesses track and report carbon emissions:\n\n• **Automatic data collection** from your systems\n• **Scope 1/2/3 reporting** aligned with GHG Protocol\n• **Compliance readiness** for SEC, CBAM, and California AB 1305\n• **AI-powered insights** to reduce emissions\n\nWant to see it in action? I can book you a demo!"
+    response: "EcoAuditor helps businesses track and report carbon emissions:\n\n• **CSV import** of activity data\n• **Scope 1/2/3 reporting** aligned with GHG Protocol\n• **Compliance readiness** for California SB 253/SB 261 and EU CBAM\n• **Scope 1/2/3 emission calculations** using EPA & eGRID factors\n\nWant to see it in action? I can book you a demo!"
   },
   {
     pattern: /scope 1|scope 2|scope 3|ghg|protocol/i,
@@ -825,20 +825,20 @@ const ECOAUDITOR_KB = [
     response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Track embedded emissions in imports\n• Generate CBAM-compliant reports\n• Monitor compliance deadlines\n• Calculate carbon costs\n\nNeed help getting CBAM-ready? Book a demo with our team!"
   },
   {
-    pattern: /sec|disclosure|climate rule/i,
-    response: "We support SEC climate disclosure requirements:\n\n• Materiality assessment guidance\n• Emissions data collection and validation\n• Scenario analysis support\n• Audit-ready documentation\n\nOur platform helps you meet the SEC's climate disclosure rules efficiently."
+    pattern: /\bsec\b|disclosure|climate rule/i,
+    response: "EcoAuditor helps you build audit-ready GHG disclosures:\n\n• Emissions data collection and validation\n• Scope 1/2/3 inventory with confidence scoring\n• Exportable summaries for voluntary and regulatory reporting\n\nNote: the U.S. SEC climate-disclosure rule was withdrawn in 2025 — we focus on California SB 253/SB 261, EU CBAM, and voluntary GHG reporting."
   },
   {
     pattern: /california|ab 1305|climate corporate/i,
-    response: "EcoAuditor is built for California's Climate Corporate Data Accountability Act (AB 1305):\n\n• Automated emissions reporting\n• Third-party verification support\n• Public disclosure templates\n• Compliance timeline tracking\n\nStay ahead of California's climate reporting requirements with EcoAuditor."
+    response: "EcoAuditor is built for California's Climate Corporate Data Accountability Act (SB 253):\n\n• Automated emissions reporting\n• Third-party verification support\n• Public disclosure templates\n• Compliance timeline tracking\n\nStay ahead of California's climate reporting requirements with EcoAuditor."
   },
   {
     pattern: /smb|small business|startup|affordable/i,
-    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $49/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial today!"
+    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $149/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial today!"
   },
   {
     pattern: /integration|api|connect|erp|salesforce/i,
-    response: "EcoAuditor integrates with your existing tools:\n\n• **Direct API** for custom integrations\n• **Pre-built connectors** for major ERPs\n• **CSV import/export** for spreadsheets\n• **Webhook support** for real-time updates\n\nNeed a specific integration? Let us know and we'll build it!"
+    response: "EcoAuditor works with your existing tools:\n\n• **CSV import/export** for spreadsheets\n\nMore integrations are on our roadmap. Need a specific integration? Let us know!"
   }
 ];
 
@@ -938,7 +938,7 @@ function getBotResponse(message, state = {}) {
   // Quick reply triggers
   if (lowerMsg === '💰 pricing' || lowerMsg === 'pricing') {
     const match = ECOAUDITOR_KB.find(k => k.pattern.test('pricing'));
-    return { response: match ? match.response : "Our plans start at $49/mo. Would you like more details?", state };
+    return { response: match ? match.response : "Our plans start at $149/mo. Would you like more details?", state };
   }
   if (lowerMsg === '📅 book a demo' || lowerMsg === 'book a demo') {
     return {
@@ -1011,7 +1011,7 @@ app.post('/api/chat', express.json({ limit: '16kb' }), async function (req, res)
   }
 
   try {
-    const systemPrompt = `You are the EcoAuditor AI assistant — an expert in carbon accounting, emissions reporting, GHG protocols, Scope 1/2/3, California AB 1305, CBAM, SEC climate disclosure, and sustainability compliance for SMBs. Answer clearly and concisely. When uncertain, say so rather than guessing. Do not provide legal or regulatory advice — recommend consulting a specialist for specific compliance questions.`;
+    const systemPrompt = `You are the EcoAuditor AI assistant — an expert in carbon accounting, emissions reporting, GHG protocols, Scope 1/2/3, California SB 253/SB 261, EU CBAM, and sustainability compliance for SMBs. Answer clearly and concisely. When uncertain, say so rather than guessing. Do not provide legal or regulatory advice — recommend consulting a specialist for specific compliance questions.`;
 
     let result;
     if (chatModel === 'anthropic' || process.env.ANTHROPIC_API_KEY) {

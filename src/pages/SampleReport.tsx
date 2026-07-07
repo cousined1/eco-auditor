@@ -159,7 +159,7 @@ export default function SampleReport() {
           {[
             { title: 'Executive Summary', items: ['Total emissions and scope breakdown', 'Year-over-year trend', 'Data quality score', 'Materiality analysis', 'Flagged items for review'] },
             { title: 'Detail Ledger', items: ['Every emissions entry with source', 'Emission factors and citations', 'Reviewer and timestamp per entry', 'Confidence score per data point', 'Version history with diffs'] },
-            { title: 'Compliance Package', items: ['GHG Protocol assertion letter', 'California SB 253 disclosure pack', 'CBAM reporting templates', 'Customer procurement response', 'Base year recalculation memo'] },
+            { title: 'Report Contents', items: ['Emissions summary (PDF)', 'Detailed entry ledger (CSV)', 'Scope 1/2/3 breakdown', 'Confidence scoring'] },
           ].map((cat) => (
             <div key={cat.title} className="card">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-3">{cat.title}</h3>
@@ -183,7 +183,7 @@ export default function SampleReport() {
           <p className="mt-3 text-surface-500 max-w-xl mx-auto">No proprietary formats. Download reports in standard tools your team already uses.</p>
         </div>
         <div className="flex flex-wrap justify-center gap-4">
-          {['PDF (executive summary)', 'CSV (detailed ledger)', 'XLSX (Excel)', 'JSON (API-ready)', 'XBRL (compliance)'].map((fmt) => (
+          {['PDF (executive summary)', 'CSV (detailed ledger)'].map((fmt) => (
             <div key={fmt} className="px-5 py-3 rounded-lg bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-sm font-medium text-surface-700 dark:text-surface-300 shadow-sm">
               {fmt}
             </div>
@@ -197,7 +197,7 @@ export default function SampleReport() {
           <div className="relative">
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Ready to see your own report?</h2>
             <p className="text-brand-100 max-w-lg mx-auto mb-6 text-sm">
-              Upload your first utility bills and invoices. We'll extract the data and build your carbon inventory — no credit card required.
+              Import your activity data by CSV and we'll build your carbon inventory. Start your 14-day free trial.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg">
