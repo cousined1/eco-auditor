@@ -6,7 +6,7 @@ const SCHEMA = {
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": "Security & Trust — Eco-Auditor",
-  "description": "Eco-Auditor security practices: encryption at rest and in transit, SOC 2-aligned controls, data handling, access management, and compliance certifications.",
+  "description": "Eco-Auditor security practices: encryption in transit (TLS 1.3), data handling, access controls, and privacy commitments.",
 };
 
 export default function Security() {
@@ -14,7 +14,7 @@ export default function Security() {
     document.title = 'Security & Trust — Eco-Auditor | Data Protection and Compliance';
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Eco-Auditor uses enterprise-grade encryption (AES-256, TLS 1.3), SOC 2-aligned controls, role-based access, and automated data retention. Your carbon data is yours — we never share or sell it.';
+    if (desc) desc.content = 'Eco-Auditor protects your data with TLS 1.3 encryption in transit, security headers, rate limiting, and row-level data isolation. Your carbon data is yours — we never share or sell it.';
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -56,28 +56,25 @@ export default function Security() {
             title="Encryption"
             items={[
               'Data in transit: TLS 1.3 for all API and web traffic',
-              'Data at rest: AES-256 encryption for all stored data',
-              'Database volumes encrypted at the storage layer',
-              'Backups encrypted with separate key material',
+              'HTTPS enforced across the entire application',
+              'Data stored with our infrastructure providers (Railway, InsForge)',
             ]}
           />
           <TrustCard
             icon={<InfraIcon />}
             title="Infrastructure"
             items={[
-              'Cloud infrastructure on AWS and InsForge (SOC 2-compliant hosts)',
-              'Multi-region redundancy for production workloads',
-              'DDoS protection and WAF at the edge',
-              'Automated vulnerability scanning (weekly)',
+              'Hosted on Railway and InsForge',
+              'Security headers (CSP, HSTS) on all responses',
+              'Rate limiting on API endpoints',
             ]}
           />
           <TrustCard
             icon={<AccessIcon />}
             title="Access Control"
             items={[
-              'Role-based access control (RBAC) per workspace',
-              'SSO-ready: SAML 2.0 and OIDC on Pro plan',
-              'API keys scoped to specific permissions',
+              'Sign-in via OAuth (InsForge)',
+              'Postgres row-level security isolates each workspace’s data',
               'Session timeout and automatic re-authentication',
             ]}
           />
@@ -86,8 +83,8 @@ export default function Security() {
             title="Data Handling"
             items={[
               'Your data is yours. We never share or sell customer data.',
-              'Document processing: files parsed, factors applied, source deleted on schedule',
-              'Data retention policies configurable per workspace',
+              'Uploaded files are parsed and emission factors applied; you can delete uploads at any time',
+              'Payments processed by Stripe — we never store card details',
               'GDPR-compliant data processing agreement available',
             ]}
           />
@@ -95,20 +92,9 @@ export default function Security() {
             icon={<ComplianceIcon />}
             title="Compliance"
             items={[
-              'SOC 2 Type II audit in progress (Q3 2026)',
               'GDPR compliant — DPA available on request',
               'California Consumer Privacy Act (CCPA) compliant',
               'Carbon accounting methodology follows GHG Protocol',
-            ]}
-          />
-          <TrustCard
-            icon={<BackupIcon />}
-            title="Backup & Recovery"
-            items={[
-              'Automated daily backups with 30-day retention',
-              'Cross-region backup replication',
-              'Point-in-time recovery (PITR) for databases',
-              'Disaster recovery plan tested quarterly',
             ]}
           />
         </div>
@@ -123,10 +109,10 @@ export default function Security() {
           </div>
           <div className="space-y-6 max-w-3xl mx-auto">
             {[
-              { q: 'Document upload and processing', a: 'When you upload a utility bill, invoice, or freight document, the file is encrypted and stored temporarily. Our AI extracts relevant data points (usage amounts, dates, provider names) and applies emission factors. Source documents can be auto-deleted after extraction based on your retention policy (default: 90 days).' },
+              { q: 'Document upload and processing', a: 'When you import a CSV of activity data, we apply emission factors to each row. You can delete uploaded data at any time.' },
               { q: 'Data sharing and third parties', a: 'We never share, sell, or license your emissions data to third parties. Data you upload is used exclusively to provide the Service — generating emissions estimates, audit trails, and compliance reports. We do not train AI models on customer data. Integrations with QuickBooks, Xero, or other platforms are read-only where possible and require explicit OAuth authorization.' },
               { q: 'Employee and contractor access', a: 'Production access is restricted to authorized engineering and support staff, requires multi-factor authentication, and is logged and audited monthly. Support staff access customer data only to resolve specific, documented support requests with workspace owner consent.' },
-              { q: 'Data deletion on cancellation', a: 'When a subscription is canceled, customer data is retained for 90 days to allow for export and transition. After this period, all customer data is securely deleted from production systems, backups, and disaster recovery storage. Customers can request expedited deletion at any time.' },
+              { q: 'Data deletion on cancellation', a: 'When you cancel, you can export your data; on request we delete your account data from production systems.' },
             ].map((item) => (
               <details key={item.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">
@@ -221,7 +207,4 @@ function DataIcon() {
 }
 function ComplianceIcon() {
   return <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2l3 3h4v4l3 3-3 3v4h-4l-3 3-3-3H3v-4l-3-3 3-3V5h4l3-3z" /><path d="M7 10l2 2 4-4" /></svg>;
-}
-function BackupIcon() {
-  return <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3a7 7 0 017 7v1" /><path d="M17 11l-2-2-2 2" /><path d="M10 17a7 7 0 01-7-7V9" /><path d="M3 9l2 2 2-2" /></svg>;
 }

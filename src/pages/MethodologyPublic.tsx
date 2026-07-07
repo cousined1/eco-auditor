@@ -6,7 +6,7 @@ const METHODOLOGY_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "Article",
   "headline": "Eco-Auditor Methodology — GHG Protocol Carbon Accounting",
-  "description": "How Eco-Auditor calculates Scope 1, 2, and 3 emissions using EPA, eGRID, GLEC, and IPCC emission factors, aligned with the GHG Protocol Corporate Standard.",
+  "description": "How Eco-Auditor calculates Scope 1, 2, and 3 emissions using EPA, eGRID, and IPCC AR6 emission factors, aligned with the GHG Protocol Corporate Standard.",
   "datePublished": "2026-05-21",
 };
 
@@ -14,10 +14,10 @@ const FAQ_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "Which emission factor databases does Eco-Auditor use?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor uses the EPA GHG Factor Hub, eGRID regional factors, GLEC Framework for freight, EXIOBASE for upstream Scope 3, and IPCC AR6 GWP-100 values for methane and refrigerants." } },
+    { "@type": "Question", "name": "Which emission factor databases does Eco-Auditor use?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR6 GWP-100 values." } },
     { "@type": "Question", "name": "Is Eco-Auditor aligned with the GHG Protocol?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard for Scope 1 and 2, and the Corporate Value Chain (Scope 3) Standard for Scope 3 emissions." } },
     { "@type": "Question", "name": "How does Eco-Auditor handle data quality?", "acceptedAnswer": { "@type": "Answer", "text": "Every data point is scored on a 5-level quality hierarchy: direct measurement > primary source data > industry average > proxy data > default estimate. Low-confidence entries are flagged for human review." } },
-    { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor supports reporting packages for California SB 253, EU CBAM, GHG Protocol annual inventories, and customer procurement questionnaires. Report templates are pre-configured for each framework." } },
+    { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "You can export your inventory to support California SB 253 and EU CBAM reporting, as well as GHG Protocol annual inventories and customer procurement questionnaires." } },
   ]
 };
 
@@ -37,8 +37,8 @@ const SCOPES = [
     subtitle: 'Indirect emissions from electricity, steam, heat, cooling',
     color: 'from-blue-500 to-indigo-500',
     examples: ['Purchased electricity (grid)', 'Purchased steam or hot water', 'Purchased cooling / chilled water', 'On-site solar (net metering)'],
-    method: 'Location-based: kWh × eGRID subregion emission factor (lbs/MWh). Market-based: kWh × utility-specific or residual mix factor. Dual reporting recommended for GHG Protocol compliance.',
-    badge: 'Location & market-based',
+    method: 'Location-based: kWh × eGRID subregion emission factor (lbs/MWh).',
+    badge: 'Location-based',
   },
   {
     id: 'scope3',
@@ -46,15 +46,15 @@ const SCOPES = [
     subtitle: 'All other indirect emissions in your value chain',
     color: 'from-emerald-500 to-teal-500',
     examples: ['Purchased goods & services (spend-based)', 'Upstream transportation & distribution', 'Business travel (air, rail, hotel)', 'Employee commuting', 'Downstream transportation', 'Waste generated in operations'],
-    method: 'Spend-based (EXIOBASE EEIO factors) × procurement data. Where primary data exists (fuel bills, freight invoices), activity-based method supersedes. Category 1–15 as defined by GHG Protocol Scope 3 Standard.',
-    badge: '15 categories supported',
+    method: 'Common Scope 3 categories via spend-based (EXIOBASE-style EEIO) estimates applied to procurement spend data.',
+    badge: 'Spend-based Scope 3',
   },
 ];
 
 const QUALITY_TIERS = [
   { level: 1, label: 'Direct Measurement', desc: 'Continuous monitoring or stack testing', confidence: '95–100%' },
   { level: 2, label: 'Primary Source Data', desc: 'Utility bills, fuel receipts, meter readings', confidence: '80–95%' },
-  { level: 3, label: 'Industry Average Factors', desc: 'EPA, eGRID, GLEC, EXIOBASE factors applied to activity data', confidence: '60–80%' },
+  { level: 3, label: 'Industry Average Factors', desc: 'EPA, eGRID, and spend-based EEIO factors applied to activity data', confidence: '60–80%' },
   { level: 4, label: 'Proxy Data', desc: 'Scaled from similar facilities or time periods', confidence: '40–60%' },
   { level: 5, label: 'Default Estimate', desc: 'Statistical imputation where no source data exists', confidence: '< 40%' },
 ];
@@ -64,7 +64,7 @@ export default function MethodologyPublic() {
     document.title = 'Carbon Accounting Methodology — Eco-Auditor | GHG Protocol Alignment';
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, GLEC, and IPCC factors. Transparent, audit-ready carbon accounting methodology.';
+    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, and IPCC AR6 factors. Transparent, audit-ready carbon accounting methodology.';
 
     // Structured data
     const scripts = [
@@ -134,8 +134,8 @@ export default function MethodologyPublic() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             { name: 'GHG Protocol Corporate Standard', org: 'WRI / WBCSD', desc: 'Scope 1 and 2 accounting, organizational boundary setting (operational control), and base year emissions tracking.' },
-            { name: 'GHG Protocol Scope 3 Standard', org: 'WRI / WBCSD', desc: 'Corporate Value Chain (Scope 3) Standard covering all 15 categories with spend-based and activity-based methods.' },
-            { name: 'California SB 253 / SB 261', org: 'CARB', desc: 'Reporting packages designed to satisfy California\'s Climate Corporate Data Accountability Act disclosure requirements.' },
+            { name: 'GHG Protocol Scope 3 Standard', org: 'WRI / WBCSD', desc: 'Corporate Value Chain (Scope 3) Standard with spend-based estimates for common Scope 3 categories.' },
+            { name: 'California SB 253 / SB 261', org: 'CARB', desc: 'Export your inventory to support California\'s Climate Corporate Data Accountability Act disclosures.' },
           ].map((s) => (
             <div key={s.name} className="card">
               <div className="text-xs font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-wider mb-1">{s.org}</div>
@@ -146,8 +146,8 @@ export default function MethodologyPublic() {
         </div>
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           {[
-            { name: 'EU CBAM', org: 'European Commission', desc: 'Carbon Border Adjustment Mechanism reporting templates for importers of carbon-intensive goods into the EU.' },
-            { name: 'EPA GHG Inventory Guidance', org: 'US EPA', desc: 'Emission factor libraries from the EPA GHG Factor Hub, eGRID, and Waste Reduction Model (WARM).' },
+            { name: 'EU CBAM', org: 'European Commission', desc: 'Export your inventory to support Carbon Border Adjustment Mechanism reporting for importers of carbon-intensive goods into the EU.' },
+            { name: 'EPA GHG Inventory Guidance', org: 'US EPA', desc: 'Emission factor libraries from the EPA GHG Emission Factors Hub and eGRID.' },
           ].map((s) => (
             <div key={s.name} className="card">
               <div className="text-xs font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-wider mb-1">{s.org}</div>
@@ -236,11 +236,8 @@ export default function MethodologyPublic() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               { name: 'EPA GHG Factor Hub 2024', org: 'US EPA', scopes: ['Scope 1', 'Scope 2'], coverage: 'Stationary combustion, mobile, fugitive, electricity' },
-              { name: 'eGRID 2024', org: 'US EPA', scopes: ['Scope 2'], coverage: 'Subregion-level grid emission factors (lbs/MWh)' },
-              { name: 'GLEC Framework v3', org: 'Smart Freight Centre', scopes: ['Scope 3'], coverage: 'Freight and logistics emission factors by mode' },
-              { name: 'EXIOBASE 3.8', org: 'Exiobase Consortium', scopes: ['Scope 3'], coverage: 'Environmentally-extended input-output for spend-based estimates' },
+              { name: 'eGRID 2024', org: 'US EPA', scopes: ['Scope 2'], coverage: 'Subregion-level grid emission factors (lbs/MWh), location-based' },
               { name: 'IPCC AR6 GWP-100', org: 'IPCC', scopes: ['Scope 1'], coverage: 'Global warming potentials for methane (CH₄) and refrigerants (F-gases)' },
-              { name: 'EPA WARM / EEIO', org: 'US EPA', scopes: ['Scope 3'], coverage: 'Waste, materials, and upstream/downstream impacts' },
             ].map((lib) => (
               <div key={lib.name} className="card">
                 <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-1">{lib.name}</h3>
@@ -263,12 +260,11 @@ export default function MethodologyPublic() {
           </div>
           <div className="space-y-4">
             {[
-              { q: 'Which emission factor databases does Eco-Auditor use?', a: 'Eco-Auditor uses the EPA GHG Factor Hub for stationary combustion and mobile sources, eGRID for electricity (location-based), GLEC Framework for freight, EXIOBASE for spend-based Scope 3 estimates, and IPCC AR6 for global warming potentials. All factors are updated annually when new source data is published.' },
+              { q: 'Which emission factor databases does Eco-Auditor use?', a: 'Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR6 GWP-100 values.' },
               { q: 'Is Eco-Auditor aligned with the GHG Protocol?', a: 'Yes. Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Our organizational boundary default is operational control, consistent with the Protocol\'s recommended approach.' },
               { q: 'How does Eco-Auditor handle data quality?', a: 'Every data point receives a confidence score on our 5-level quality hierarchy — from direct measurement (L1) down to default estimates (L5). Entries below L3 are surfaced for human review. This scoring is carried through to reports so reviewers know exactly which numbers are primary and which are estimated.' },
-              { q: 'What compliance frameworks does Eco-Auditor support?', a: 'Eco-Auditor can generate reporting packages aligned with California SB 253, EU CBAM, customer procurement questionnaires (CDP, EcoVadis-style), and annual GHG inventories. Templates are pre-configured but can be customized for your specific framework.' },
-              { q: 'How often are emission factors updated?', a: 'We update factors annually when source agencies release new data (EPA GHG Factor Hub in April, eGRID in January, GLEC in Q3). We also publish change logs so you can assess the impact of factor updates on your baseline.' },
-              { q: 'Can I use my own emission factors?', a: 'Yes. Customers on Pro and Enterprise plans can upload custom emission factors or override default factors at the facility or activity level. Custom overrides are tracked in the audit trail.' },
+              { q: 'What compliance frameworks does Eco-Auditor support?', a: 'You can export your inventory to support California SB 253 and EU CBAM reporting, as well as customer procurement questionnaires (CDP, EcoVadis-style) and annual GHG inventories.' },
+              { q: 'How often are emission factors updated?', a: 'We update factors annually when source agencies release new data (EPA GHG Emission Factors Hub in April, eGRID in January). We also publish change logs so you can assess the impact of factor updates on your baseline.' },
             ].map((faq) => (
               <details key={faq.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">

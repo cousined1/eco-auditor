@@ -195,7 +195,7 @@ export default function PrivacyPolicy() {
             <li><strong>Right to know:</strong> You can request information about the categories of personal information we have collected, the purposes, and the categories of third parties with whom we share it</li>
             <li><strong>Right to delete:</strong> You can request deletion of personal information we have collected, subject to certain exceptions</li>
             <li><strong>Right to correct:</strong> You can request correction of inaccurate personal information</li>
-            <li><strong>Right to opt out of sale or sharing:</strong> We do not sell or share personal information for cross-context behavioral advertising purposes</li>
+            <li><strong>Right to opt out of sale or sharing:</strong> We do not sell personal information. Marketing cookies that may involve sharing for cross-context behavioral advertising are used only with your consent, and you can opt out at any time through the cookie preferences settings; we also honor Global Privacy Control signals</li>
             <li><strong>Right to limit use of sensitive personal information:</strong> We do not collect or use sensitive personal information beyond what is necessary to provide our service</li>
           </ul>
           <p>We are not a data broker and do not sell personal information. Our service is directed at businesses, and the personal information we process is primarily business-related rather than consumer-oriented.</p>
@@ -218,8 +218,9 @@ export default function PrivacyPolicy() {
             <li><strong>Essential cookies:</strong> Required for authentication, security, and basic service functionality</li>
             <li><strong>Analytics cookies:</strong> Help us understand how users interact with our service so we can improve it</li>
             <li><strong>Preference cookies:</strong> Remember your settings such as theme preferences</li>
+            <li><strong>Marketing cookies:</strong> Used only with your consent to support marketing activities such as personalized advertising; these are off by default</li>
           </ul>
-          <p>We do not use cookies for cross-site tracking or targeted advertising. You can manage cookie preferences through your browser settings. Disabling essential cookies may affect service functionality.</p>
+          <p>Analytics, preference, and marketing cookies are set only if you consent to them. You can grant or withdraw consent at any time through the cookie preferences settings on our site or manage cookies through your browser settings. We also honor Global Privacy Control (GPC) and Do Not Track browser signals. Disabling essential cookies may affect service functionality.</p>
         </LegalSection>
 
         <LegalSection id="children" title="16. Children's Privacy" onScroll={setActiveSection}>

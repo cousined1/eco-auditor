@@ -4,6 +4,7 @@ import { useTheme } from './hooks/useTheme';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
+import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
@@ -80,7 +81,8 @@ function AppContent() {
   const location = locationInfo.pathname;
   const navigate = useNavigate();
   const isLegalPage = LEGAL_PATHS.includes(location);
-  const isAppPage = location.startsWith('/app');
+  // Exact '/app' or a '/app/' subpath — NOT '/apple', '/application', etc.
+  const isAppPage = location === '/app' || location.startsWith('/app/');
 
   const [user, setUser] = useState<AppUser | null>(null);
   const [authStatus, setAuthStatus] = useState<'loading' | 'authed' | 'anon'>('loading');
@@ -125,33 +127,50 @@ function AppContent() {
     return () => { cancelled = true; };
   }, [isAppPage]);
 
-  // H6: Re-validate session periodically so mid-session expiry is caught.
+  // #81: Real mid-session expiry detection. The browser SDK's getCurrentUser()
+  // only reads cached session state, so re-validation must hit the server.
+  // We (a) intercept any /api/* 401 to force re-login immediately, and
+  // (b) proactively re-validate against an auth-guarded endpoint on an interval
+  // and whenever the tab regains focus.
   useEffect(() => {
     if (!isAppPage || authStatus !== 'authed') return;
-    let cancelled = false;
-    const intervalId = window.setInterval(async () => {
-      try {
-        const { data } = await insforge.auth.getCurrentUser();
-        if (cancelled) return;
-        if (!data?.user) {
-          setAuthStatus('anon');
-        }
-      } catch {
-        if (!cancelled) setAuthStatus('anon');
-      }
-    }, 5 * 60 * 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
+    let done = false;
+    const forceReauth = () => {
+      if (done) return;
+      done = true;
+      setUser(null);
+      setAuthStatus('anon');
+      navigate('/login', { replace: true });
     };
-  }, [isAppPage, authStatus]);
+    const revalidate = async () => {
+      const ok = await isSessionValid();
+      if (!ok) forceReauth();
+    };
+    const uninstall = installUnauthorizedInterceptor(forceReauth);
+    const intervalId = window.setInterval(revalidate, 5 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void revalidate();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      done = true;
+      uninstall();
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [isAppPage, authStatus, navigate]);
 
   async function handleLogout() {
+    // signOut hits /api/auth/logout to kill the server session. Log (don't
+    // swallow) failures so a session that fails to end is visible, then clear
+    // local state and reload regardless so the UI never shows a stale session.
     try {
       await insforge.auth.signOut();
-    } catch {
-      void 0;
+    } catch (err) {
+      console.warn('Sign-out request failed; clearing local session anyway.', err);
     }
+    setUser(null);
+    setAuthStatus('anon');
     navigate('/login', { replace: true });
     window.location.reload();
   }

@@ -1,12 +1,31 @@
+import { useState } from 'react';
 import { formatCO2e, type EmissionEntry, type Facility } from './utils';
 
 interface Props {
   entries: EmissionEntry[];
   facilities: Facility[];
-  onDelete: (id: number) => void;
+  onDelete: (id: number) => void | Promise<void>;
 }
 
 export default function EmissionList({ entries, facilities, onDelete }: Props) {
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete(entry: EmissionEntry) {
+    if (!window.confirm(`Delete emission entry "${entry.source}"? This cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(entry.id);
+    setDeleteError(null);
+    try {
+      await onDelete(entry.id);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete entry');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (entries.length === 0) {
     return (
       <div className="card">
@@ -34,6 +53,9 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
       <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">
         Emission Entries ({entries.length})
       </h2>
+      {deleteError && (
+        <p className="text-sm text-risk-high mb-3">{deleteError}</p>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -65,8 +87,9 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
                 <td className="py-2 pr-3 text-surface-500">{facilityName(e.facility_id)}</td>
                 <td className="py-2">
                   <button
-                    onClick={() => onDelete(e.id)}
-                    className="text-surface-400 hover:text-risk-high transition-colors"
+                    onClick={() => handleDelete(e)}
+                    disabled={deletingId === e.id}
+                    className="text-surface-400 hover:text-risk-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label={`Delete entry ${e.source}`}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">

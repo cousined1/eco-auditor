@@ -197,7 +197,7 @@ export default function Settings() {
                   </div>
                 ))}
               </div>
-              <p className="text-2xs text-surface-400 mt-3">Plan changes take effect at the end of your current billing period. Prorated credits apply for upgrades.</p>
+              <p className="text-2xs text-surface-400 mt-3">Plan changes take effect according to Stripe billing terms. Any applicable charges or credits will appear on your next invoice.</p>
             </div>
           )}
 
@@ -206,7 +206,6 @@ export default function Settings() {
               <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Cancel subscription?</h3>
               <p className="text-xs text-surface-600 dark:text-surface-400 mb-3">
                 You will lose access to paid features at the end of your current period ({sub.currentPeriodEnd}).
-                Your historical emissions data and reports will be preserved for 90 days.
               </p>
               <div className="flex gap-2">
                 <button onClick={handleCancel} className="text-xs px-3 py-1.5 rounded-lg bg-risk-high text-white font-medium">Confirm cancellation</button>
@@ -259,31 +258,6 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="card">
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">Stripe Webhook Events</h3>
-            <p className="text-2xs text-surface-500 mb-3">Configure these webhook endpoints in your Stripe dashboard to sync subscription state.</p>
-            <div className="space-y-2">
-              {[
-                { event: 'checkout.session.completed', desc: 'Triggered when a customer completes checkout', status: 'configured' },
-                { event: 'customer.subscription.updated', desc: 'Triggered on plan changes, upgrades, downgrades', status: 'configured' },
-                { event: 'customer.subscription.deleted', desc: 'Triggered when a subscription is canceled', status: 'configured' },
-                { event: 'invoice.paid', desc: 'Triggered when an invoice payment succeeds', status: 'configured' },
-                { event: 'invoice.payment_failed', desc: 'Triggered when an invoice payment fails', status: 'configured' },
-              ].map((wh) => (
-                <div key={wh.event} className="flex items-center justify-between p-2.5 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-                  <div>
-                    <code className="text-xs font-mono text-surface-800 dark:text-surface-200">{wh.event}</code>
-                    <div className="text-2xs text-surface-500 mt-0.5">{wh.desc}</div>
-                  </div>
-                  <span className="badge-green">{wh.status}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 p-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-              <div className="text-2xs font-medium text-surface-500 mb-1">Webhook endpoint</div>
-              <code className="text-xs font-mono text-surface-800 dark:text-surface-200 break-all">https://api.eco-auditor.app/webhooks/stripe</code>
-            </div>
-          </div>
         </div>
       )}
 

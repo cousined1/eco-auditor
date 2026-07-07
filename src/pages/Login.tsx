@@ -6,7 +6,7 @@ import {
   startSocialSignIn,
   type SocialAuthProvider,
 } from '../lib/socialAuth';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -15,6 +15,26 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Already-authenticated users should land in the app, not on the login form.
+  // Same auth check App.tsx uses (insforge.auth.getCurrentUser).
+  useEffect(() => {
+    if (!isInsForgeConfigured) return;
+    let cancelled = false;
+    async function checkSession() {
+      try {
+        const { data } = await insforge.auth.getCurrentUser();
+        if (cancelled) return;
+        if (data?.user) {
+          navigate('/app', { replace: true });
+        }
+      } catch {
+        // Not authenticated — stay on the login form.
+      }
+    }
+    void checkSession();
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -111,6 +131,14 @@ export default function Login() {
                   disabled={submitting}
                   className="w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent"
                 />
+                <div className="mt-1.5 text-right">
+                  <a
+                    href="mailto:hello@developer312.com?subject=Password%20reset%20request"
+                    className="text-xs text-accent hover:underline"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
               </div>
               <button
                 type="submit"
@@ -150,7 +178,7 @@ export default function Login() {
             ))}
 
             {error && (
-              <div className="rounded-lg border border-risk-high/30 bg-risk-high/10 px-3 py-2 text-sm text-risk-high">
+              <div role="alert" className="rounded-lg border border-risk-high/30 bg-risk-high/10 px-3 py-2 text-sm text-risk-high">
                 {error}
               </div>
             )}

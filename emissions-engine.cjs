@@ -85,6 +85,17 @@ function factorForEntry(entry) {
   const sourceRaw = String(entry.source || '').trim().toUpperCase();
   const unit = normalizeKey(entry.unit);
 
+  // Passthrough for entries already expressed in CO2e. The in-app calculator
+  // persists pre-computed kg CO2e (amount = calculatedKg, unit = 'kg CO2e'),
+  // so re-applying an activity factor would either throw (Scope 1/3) or inflate
+  // the number ~217x (Scope 2). Convert to tonnes instead. See audit C3.
+  if (unit === 'kg_co2e' || unit === 'kgco2e') {
+    return { factor: 0.001, category: category || 'precalculated' };
+  }
+  if (unit === 't_co2e' || unit === 'tco2e' || unit === 'tonnes_co2e' || unit === 'tonne_co2e') {
+    return { factor: 1, category: category || 'precalculated' };
+  }
+
   if (scope === 'scope1') {
     if (category === 'mobile_combustion') {
       const factor = MOBILE_FACTORS[sourceKey];
