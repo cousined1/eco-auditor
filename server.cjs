@@ -249,14 +249,21 @@ async function authGuard(req, res, next) {
       return res.status(503).json({ error: 'Authentication backend not configured' });
     }
     const token = header.slice('Bearer '.length);
+    // InsForge validates a session token at GET /api/auth/sessions/current
+    // (this is the endpoint the @insforge/sdk uses for server-mode
+    // getCurrentUser). It is NOT the Supabase '/auth/v1/user' route, and the
+    // user object is nested under `.user` in the response, not at the top level.
     const userRes = await fetchWithTimeout(
-      INSFORGE_BASE_URL.replace(/\/$/, '') + '/auth/v1/user',
+      INSFORGE_BASE_URL.replace(/\/$/, '') + '/api/auth/sessions/current',
       { headers: { Authorization: 'Bearer ' + token } }
     );
     if (!userRes.ok) {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
-    const user = await userRes.json();
+    const body = await userRes.json();
+    // Prefer the nested InsForge shape ({ user: { id, email, ... } }); fall back
+    // to a flat body so the guard is resilient to response-shape variation.
+    const user = body && body.user ? body.user : body;
     if (!user || !user.id) {
       return res.status(401).json({ error: 'Invalid user payload' });
     }
