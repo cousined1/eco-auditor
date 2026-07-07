@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { buildApiRequestInit, getUpgradeRequired, type UpgradeRequired } from '../lib/api';
 import { insforge } from '../lib/insforge';
@@ -33,7 +34,9 @@ export default function Dashboard() {
   const [trend, setTrend] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [upgrade, setUpgrade] = useState<UpgradeRequired | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   // Fetch real API data on component mount
   useEffect(() => {
@@ -41,6 +44,7 @@ export default function Dashboard() {
       try {
         setLoading(true);
         setError(null);
+        setNeedsOnboarding(false);
 
         const requestInit = buildApiRequestInit(insforge);
 
@@ -80,20 +84,22 @@ export default function Dashboard() {
       } catch (err) {
         console.error('Dashboard fetch error:', err);
         // If backend rejected because no company exists yet, treat as onboarding
-        // state instead of a hard error. Backend auto-provisions on next call,
-        // but if something else fails we still surface it.
+        // state instead of a hard error. Backend auto-provisions on next call.
+        // Any other failure (network error, 5xx, unexpected response) is a real
+        // error and gets surfaced with a retry affordance.
         const message = err instanceof Error ? err.message : 'Failed to load emissions data';
         if (message.includes('400') || message.includes('403') || message.includes('Forbidden') || message.includes('company_id')) {
-          setEmissions(null);
+          setNeedsOnboarding(true);
+        } else {
+          setError(message);
         }
-        setError(message);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [retryToken]);
 
   // Show loading state
   if (loading) {
@@ -125,8 +131,30 @@ export default function Dashboard() {
     );
   }
 
+  // Show a real error state (network failure, 5xx, unexpected response) with a retry affordance
+  if (error) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="text-center py-12 bg-surface-50 dark:bg-surface-900 rounded-lg border border-surface-200 dark:border-surface-800">
+          <div className="text-4xl mb-2">⚠️</div>
+          <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Unable to Load Dashboard</h2>
+          <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
+            Something went wrong while loading your emissions data. Please try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => setRetryToken((t) => t + 1)}
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Show onboarding state if we truly have no emissions data
-  if (error && !emissions) {
+  if (needsOnboarding) {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="text-center py-12 bg-surface-50 dark:bg-surface-900 rounded-lg border border-surface-200 dark:border-surface-800">
@@ -135,12 +163,12 @@ export default function Dashboard() {
           <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
             Your account is ready. Add your first emission entry to start tracking your carbon footprint and building audit-ready reports.
           </p>
-          <a
-            href="/app/calculator"
+          <Link
+            to="/app/calculator"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             Add Entry Now
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -156,12 +184,12 @@ export default function Dashboard() {
           <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
             Add your first emission entry to get started tracking your carbon footprint.
           </p>
-          <a
-            href="/app/calculator"
+          <Link
+            to="/app/calculator"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             Add Entry Now
-          </a>
+          </Link>
         </div>
       </div>
     );

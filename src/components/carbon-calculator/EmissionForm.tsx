@@ -29,6 +29,7 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
   const [unit, setUnit] = useState('');
   const [facilityId, setFacilityId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const categories = SCOPE_CATEGORIES[scope];
   const sources = getSourcesForCategory(category);
@@ -39,6 +40,7 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
     e.preventDefault();
     if (!category || !source || !parsedAmount || !unit) return;
     setSubmitting(true);
+    setError(null);
     try {
       await onSubmit({
         scope,
@@ -54,6 +56,8 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
       setAmount('');
       setUnit('');
       setFacilityId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add emission entry');
     } finally {
       setSubmitting(false);
     }
@@ -183,6 +187,10 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
           </select>
         </div>
       </div>
+
+      {error && (
+        <p className="text-xs text-risk-high" role="alert">{error}</p>
+      )}
 
       {/* Preview + Submit */}
       <div className="flex items-center justify-between pt-2 border-t border-surface-200 dark:border-surface-700">
