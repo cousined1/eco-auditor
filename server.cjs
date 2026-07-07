@@ -1124,6 +1124,34 @@ async function loadFacilities(companyId) {
   });
 }
 
+// Loads a single facility by id (Postgres when configured, sample otherwise).
+// Returns null when not found. DB ids are numeric; a non-numeric id in a
+// DB-backed deployment simply cannot match, so it returns null (404).
+async function loadFacilityById(facilityId) {
+  if (pgPool) {
+    if (!/^\d+$/.test(String(facilityId))) return null;
+    try {
+      const { rows } = await pgPool.query(
+        'SELECT id, company_id, name, type, city FROM facilities WHERE id = $1',
+        [facilityId]
+      );
+      return rows[0] || null;
+    } catch (err) {
+      if (!allowSampleData()) {
+        log('error', 'Facilities data store unavailable', { error: String(err), facilityId });
+        throw new Error('Facilities data store unavailable');
+      }
+      log('warn', 'Falling back to in-memory facility', { error: String(err), facilityId });
+    }
+  }
+  if (!allowSampleData()) {
+    throw new Error('Facilities data store unavailable');
+  }
+  return sampleFacilities.find(function (facility) {
+    return String(facility.id) === String(facilityId);
+  }) || null;
+}
+
 function getCompany(companyId) {
   return sampleCompanies[companyId] || { id: companyId, name: 'Company', revenue: 0, employees: 0, region: 'CA' };
 }
@@ -1396,19 +1424,44 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
   if (!body.name || !body.type || !body.city) {
     return res.status(400).json({ success: false, error: 'name, type, and city are required' });
   }
-  const facility = { id: crypto.randomUUID(), company_id: companyId, name: body.name, type: body.type, city: body.city };
-  sampleFacilities.push(facility);
-  return res.status(201).json({ success: true, data: facility });
+  if (String(body.name).length > 200) {
+    return res.status(400).json({ success: false, error: 'name must be 200 characters or fewer' });
+  }
+  try {
+    if (pgPool) {
+      const result = await queryWithRlsBypass(
+        `INSERT INTO public.facilities (company_id, name, type, city)
+         VALUES ($1, $2, $3, $4) RETURNING id, company_id, name, type, city`,
+        [companyId, String(body.name), String(body.type), String(body.city)]
+      );
+      emissionsSummaryCache.clear();
+      return res.status(201).json({ success: true, data: result.rows[0] });
+    }
+    if (allowSampleData()) {
+      const facility = { id: crypto.randomUUID(), company_id: companyId, name: body.name, type: body.type, city: body.city };
+      sampleFacilities.push(facility);
+      return res.status(201).json({ success: true, data: facility });
+    }
+    return res.status(503).json({ success: false, error: 'Data store unavailable' });
+  } catch (err) {
+    log('error', 'Facility create failed', { error: String(err), companyId });
+    return res.status(500).json({ success: false, error: 'Failed to create facility' });
+  }
 });
 
 app.get('/api/facilities/:id/emissions', apiAuthGuard, async function (req, res) {
-  const facility = sampleFacilities.find(function (item) { return String(item.id) === String(req.params.id); });
-  if (!facility) return res.status(404).json({ success: false, error: 'Facility not found' });
-  const companyId = await requireCompanyAccess(req, res, facility.company_id);
-  if (!companyId) return;
-  const entries = await loadEmissionEntries(facility.company_id);
-  const result = buildFacilityEmissions([facility], entries);
-  return res.json({ success: true, data: result[0] });
+  try {
+    const facility = await loadFacilityById(req.params.id);
+    if (!facility) return res.status(404).json({ success: false, error: 'Facility not found' });
+    const companyId = await requireCompanyAccess(req, res, facility.company_id);
+    if (!companyId) return;
+    const entries = await loadEmissionEntries(companyId);
+    const result = buildFacilityEmissions([facility], entries);
+    return res.json({ success: true, data: result[0] });
+  } catch (err) {
+    log('error', 'Facility emissions failed', { error: String(err), facilityId: req.params.id });
+    return res.status(500).json({ success: false, error: 'Failed to load facility emissions' });
+  }
 });
 
 app.get('/api/companies/:id/compliance', apiAuthGuard, async function (req, res) {
