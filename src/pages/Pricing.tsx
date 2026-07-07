@@ -80,6 +80,8 @@ export default function Pricing() {
           const price = billing === 'annual' ? plan.annual : plan.monthly;
           const annualMonthly = Math.round(plan.annual / 12);
           const isPopular = plan.id === 'growth';
+          // Server only honors trials on monthly billing (TRIAL_ELIGIBLE_PLANS in server.cjs)
+          const trialEligible = Boolean(plan.trial) && billing === 'monthly';
 
           return (
             <div key={plan.id} className={`relative card !p-0 flex flex-col ${isPopular ? 'ring-2 ring-brand-500' : ''}`}>
@@ -104,6 +106,11 @@ export default function Pricing() {
                       ${plan.annual.toLocaleString()}/year · save ${(plan.monthly * 12 - plan.annual).toLocaleString()}
                     </div>
                   )}
+                  {billing === 'annual' && plan.trial && (
+                    <div className="text-2xs text-surface-400 mt-1">
+                      Free trial available on monthly billing
+                    </div>
+                  )}
                 </div>
                 <ul className="space-y-2 mb-5">
                   {plan.features.map((f) => (
@@ -122,14 +129,14 @@ export default function Pricing() {
               </div>
               <div className="p-5 pt-0 space-y-2">
                 <button
-                  onClick={() => handleCheckout(plan.id, billing, plan.trial)}
+                  onClick={() => handleCheckout(plan.id, billing, trialEligible)}
                   className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                     isPopular
                       ? 'bg-brand-600 hover:bg-brand-700 text-white'
                       : 'bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-800 dark:text-surface-200'
                   }`}
                 >
-                  {plan.trial ? 'Start free trial' : 'Get started'}
+                  {trialEligible ? 'Start free trial' : 'Get started'}
                 </button>
                 <button className="w-full py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
                   Book demo

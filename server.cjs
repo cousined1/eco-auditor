@@ -1141,7 +1141,7 @@ function cacheSet(key, value, ttlMs) {
   emissionsSummaryCache.set(key, { value: value, expiresAt: Date.now() + ttlMs });
 }
 
-app.post('/api/calculate', express.json(), apiAuthGuard, async function (req, res) {
+app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const body = req.body || {};
     const companyId = await requireCompanyAccess(req, res, body.company_id || body.companyId);
@@ -1164,7 +1164,7 @@ app.post('/api/calculate', express.json(), apiAuthGuard, async function (req, re
   }
 });
 
-app.get('/api/emissions/summary', apiAuthGuard, async function (req, res) {
+app.get('/api/emissions/summary', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.query.company_id);
   if (!companyId) return;
   const period = req.query.period || String(new Date().getFullYear());
@@ -1185,7 +1185,7 @@ app.get('/api/emissions/summary', apiAuthGuard, async function (req, res) {
   }
 });
 
-app.get('/api/emissions/trend', apiAuthGuard, async function (req, res) {
+app.get('/api/emissions/trend', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.query.company_id);
   if (!companyId) return;
   const period = req.query.period || 'monthly';
@@ -1241,7 +1241,10 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     }
 
     const jobId = crypto.randomUUID();
-    const companyFacilities = sampleFacilities.filter(function (f) { return String(f.company_id) === String(companyId); });
+    // Resolve facilities from the real store (Postgres when configured, sample
+    // array otherwise) so CSV rows link to persisted facilities, not in-memory ones.
+    const companyFacilities = await loadFacilities(companyId);
+    const SCOPE_LABELS = { scope1: 'Scope 1', scope2: 'Scope 2', scope3: 'Scope 3' };
     const entries = [];
     var importErrors = [];   // fatal per-row errors
     var importWarnings = []; // non-fatal per-row notes
@@ -1272,23 +1275,41 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
         rowErrors.push('Row ' + rowNum + ': ' + calcErr.message);
       }
 
-      if (rowErrors.length === 0 && calculated) {
+      // Map the engine's normalized scope back to the DB's CHECK format.
+      var scopeLabel = SCOPE_LABELS[calculated && calculated.scope];
+      if (rowErrors.length === 0 && calculated && !scopeLabel) {
+        rowErrors.push('Row ' + rowNum + ': Unrecognized scope "' + row.scope + '" (expected Scope 1, 2, or 3)');
+      }
+
+      // Carry the row's own date into created_at when valid, so imported
+      // historical data is attributed to the right period (not the import time).
+      var createdAt = new Date().toISOString();
+      if (row.date) {
+        var parsedDate = Date.parse(row.date);
+        if (Number.isFinite(parsedDate)) {
+          createdAt = new Date(parsedDate).toISOString();
+        } else {
+          rowWarnings.push('Row ' + rowNum + ': Unparseable date "' + row.date + '" — using import time');
+        }
+      }
+
+      if (rowErrors.length === 0 && calculated && scopeLabel) {
         var entry = {
           id: crypto.randomUUID(),
           company_id: companyId,
           facility_id: facilityId,
-          scope: String(calculated.scope || ''),
+          scope: scopeLabel,
           category: String(row.category || ''),
           source: String(row.source || ''),
           amount: Number(row.amount),
           unit: String(row.unit || ''),
           method: String(row.method || 'calculation'),
           co2e_tonnes: calculated.co2e_tonnes,
-          factor: calculated.factor,
+          factor: String(calculated.factor),
           confidence: Number(calculated.confidence),
           date: row.date || null,
           notes: row.notes || null,
-          created_at: new Date().toISOString(),
+          created_at: createdAt,
         };
         entries.push(entry);
       }
@@ -1298,9 +1319,34 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       rowWarnings.forEach(function (w) { importWarnings.push(w); });
     }
 
-    // Persist valid entries
+    // Persist valid entries. Postgres (via RLS-bypass transaction) when a DB is
+    // configured; otherwise the in-memory sample store (dev/preview only).
     if (entries.length > 0) {
-      sampleEmissionEntries.push.apply(sampleEmissionEntries, entries);
+      if (pgPool) {
+        try {
+          var cols = ['company_id', 'facility_id', 'scope', 'category', 'source', 'amount', 'unit', 'factor', 'method', 'confidence', 'created_at'];
+          var valueGroups = [];
+          var insertParams = [];
+          var p = 1;
+          entries.forEach(function (e) {
+            var placeholders = cols.map(function () { return '$' + (p++); });
+            valueGroups.push('(' + placeholders.join(', ') + ')');
+            insertParams.push(
+              e.company_id, e.facility_id, e.scope, e.category, e.source,
+              e.amount, e.unit, e.factor, e.method, e.confidence, e.created_at
+            );
+          });
+          await queryWithRlsBypass(
+            'INSERT INTO public.emission_entries (' + cols.join(', ') + ') VALUES ' + valueGroups.join(', '),
+            insertParams
+          );
+        } catch (dbErr) {
+          log('error', 'CSV ingest DB insert failed', { error: String(dbErr), companyId, rows: entries.length });
+          return res.status(500).json({ success: false, error: 'Failed to save imported rows. No data was imported.' });
+        }
+      } else if (allowSampleData()) {
+        sampleEmissionEntries.push.apply(sampleEmissionEntries, entries);
+      }
       emissionsSummaryCache.clear();
     }
 
@@ -1343,7 +1389,7 @@ app.get('/api/companies/:id/facilities', apiAuthGuard, async function (req, res)
   return res.json({ success: true, data: facilities });
 });
 
-app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, async function (req, res) {
+app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   const body = req.body || {};
@@ -1390,7 +1436,7 @@ app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
   return res.json({ success: true, data: deadlines });
 });
 
-app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, async function (req, res) {
+app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.body && req.body.company_id);
   if (!companyId) return;
   return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: new Date().toISOString() } });
