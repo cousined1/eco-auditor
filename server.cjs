@@ -139,6 +139,35 @@ setInterval(function () {
   }
 }, 120_000);
 
+// Per-route rate limiter (tighter than the global one) for sensitive public
+// endpoints. Keyed on req.ip, with its own store pruned on access.
+function perRouteRateLimit(max, windowMs) {
+  const store = new Map();
+  return function (req, res, next) {
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const entry = store.get(key);
+    if (!entry || now - entry.windowStart > windowMs) {
+      // Opportunistic prune to bound memory.
+      if (store.size > 5000) {
+        for (const [k, e] of store) {
+          if (now - e.windowStart > windowMs) store.delete(k);
+        }
+      }
+      store.set(key, { windowStart: now, count: 1 });
+      return next();
+    }
+    entry.count++;
+    if (entry.count > max) {
+      const retryAfter = Math.ceil((windowMs - (now - entry.windowStart)) / 1000);
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Too many requests', retryAfter });
+    }
+    return next();
+  };
+}
+const consentRateLimit = perRouteRateLimit(10, 60_000);
+
 // ─── Version endpoint (for forced-update watchdog) ───
 app.get('/api/version', function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
@@ -505,11 +534,22 @@ function requirePlan(minPlanId) {
 }
 
 // Finds the customer's current subscription (active first, then trialing).
+// Finds the subscription the customer can currently manage. Includes past_due
+// and unpaid so a customer whose payment failed can still change or cancel their
+// plan (they were previously stuck on a 404 and locked out on the first failure).
 async function findActiveSubscription(customerId) {
-  const active = await stripe.subscriptions.list({ customer: customerId, status: 'active', limit: 1 });
-  if (active.data.length) return active.data[0];
-  const trialing = await stripe.subscriptions.list({ customer: customerId, status: 'trialing', limit: 1 });
-  return trialing.data.length ? trialing.data[0] : null;
+  for (const status of ['active', 'trialing', 'past_due', 'unpaid']) {
+    const list = await stripe.subscriptions.list({ customer: customerId, status: status, limit: 1 });
+    if (list.data.length) return list.data[0];
+  }
+  return null;
+}
+
+// True if the customer has ever had a subscription (any status), so we don't
+// grant a fresh trial to a returning customer who already used one.
+async function customerHasPriorSubscription(customerId) {
+  const list = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 1 });
+  return list.data.length > 0;
 }
 
 // JSON body parser for Stripe API routes (NOT webhook)
@@ -527,11 +567,18 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription to change. Start one from the pricing page.' });
     }
-    const updated = await stripe.subscriptions.update(subscription.id, {
+    const updateParams = {
       items: [{ id: subscription.items.data[0].id, price: priceId }],
       proration_behavior: 'create_prorations',
       cancel_at_period_end: false,
-    });
+    };
+    // A trialing customer switching to a trial-ineligible plan (e.g. Pro) would
+    // otherwise ride the free trial on the higher tier. End the trial now so the
+    // change is billed immediately.
+    if (subscription.status === 'trialing' && !TRIAL_ELIGIBLE_PLANS.has(priceId)) {
+      updateParams.trial_end = 'now';
+    }
+    const updated = await stripe.subscriptions.update(subscription.id, updateParams);
     await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env));
     log('info', 'Subscription changed', { subId: updated.id, planId, billing, userId: req.user.id });
     return res.json({ success: true, plan: planId, billing });
@@ -619,9 +666,14 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
       cancel_url: (process.env.APP_URL || 'http://localhost:3000') + '/pricing',
     };
 
-    // Only allow trial on eligible plans
+    // Only allow a trial on eligible plans, and only once per customer — a
+    // returning customer who already had a subscription (trial or paid) does not
+    // get another free trial.
     if (trial && TRIAL_ELIGIBLE_PLANS.has(priceId)) {
-      sessionParams.subscription_data = { trial_period_days: 14 };
+      const hadPrior = await customerHasPriorSubscription(customerId);
+      if (!hadPrior) {
+        sessionParams.subscription_data = { trial_period_days: 14 };
+      }
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
@@ -747,11 +799,35 @@ function writeLead(lead) {
   fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
 }
 
+// The chatbot carries lead fields in client-controlled conversation state, so a
+// forged /api/chat request could persist unvalidated data. Run it through the
+// same sanitizer /api/leads uses (bounds + email validation) before writing.
+function writeChatLead(raw) {
+  const sanitized = sanitizeLeadPayload(raw);
+  if (!sanitized.ok) {
+    log('warn', 'Rejected chatbot lead payload', { error: sanitized.error });
+    return false;
+  }
+  writeLead({ ...sanitized.value, source: 'chatbot' });
+  return true;
+}
+
 // ─── CONSENT AUDIT TRAIL ───
 // Server-side record of consent decisions (GDPR/CCPA record-keeping).
 // Public endpoint: consent happens before authentication. No raw IP is stored.
 const CONSENT_FILE = path.join(__dirname, '.data', 'consent-audit.json');
 const CONSENT_METHODS = new Set(['accept_all', 'reject_all', 'custom', 'privacy_signal', 'reset']);
+
+// A plain SHA-256 of an IP is reversible (the IPv4 space is trivially
+// brute-forceable), so pseudonymize with a keyed HMAC. Set CONSENT_IP_PEPPER in
+// prod for stable hashes; otherwise a random per-process pepper is used.
+const CONSENT_IP_PEPPER = process.env.CONSENT_IP_PEPPER || crypto.randomBytes(32).toString('hex');
+if (!process.env.CONSENT_IP_PEPPER) {
+  log('warn', 'CONSENT_IP_PEPPER not set — using a random per-process pepper; consent IP hashes will not be stable across restarts');
+}
+function hashConsentIp(ip) {
+  return crypto.createHmac('sha256', CONSENT_IP_PEPPER).update(String(ip || '')).digest('hex').slice(0, 32);
+}
 
 function appendConsentRecordToFile(record) {
   ensureLeadsDir();
@@ -763,7 +839,7 @@ function appendConsentRecordToFile(record) {
   fs.writeFileSync(CONSENT_FILE, JSON.stringify(records, null, 2));
 }
 
-app.post('/api/consent-audit', express.json({ limit: '4kb' }), async function (req, res) {
+app.post('/api/consent-audit', consentRateLimit, express.json({ limit: '4kb' }), async function (req, res) {
   const body = req.body || {};
   const consent = body.consent;
   if (!consent || typeof consent !== 'object' ||
@@ -783,7 +859,7 @@ app.post('/api/consent-audit', express.json({ limit: '4kb' }), async function (r
     gpc: Boolean(body.gpc),
     dnt: Boolean(body.dnt),
     userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
-    ipHash: crypto.createHash('sha256').update(String(req.ip || '')).digest('hex').slice(0, 32),
+    ipHash: hashConsentIp(req.ip),
     createdAt: new Date().toISOString(),
   };
 
@@ -886,15 +962,14 @@ function getBotResponse(message, state = {}) {
       };
     }
     if (state.step === 'time') {
-      // Save lead
-      writeLead({
+      // Save lead (sanitized — state is client-controlled)
+      writeChatLead({
         type: 'demo_request',
         name: state.name,
         email: state.email,
         company: state.company,
         preferredDate: state.date,
         preferredTime: message,
-        source: 'chatbot'
       });
       
       // Generate PrismDeck presentation link
@@ -928,12 +1003,11 @@ function getBotResponse(message, state = {}) {
       };
     }
     if (state.step === 'message') {
-      writeLead({
+      writeChatLead({
         type: 'contact_request',
         name: state.name,
         email: state.email,
         message: message,
-        source: 'chatbot'
       });
       return {
         response: `✅ Message sent!\n\nOur sales team will contact you at ${state.email} within 24 hours.\n\nIs there anything else I can help you with?`,
