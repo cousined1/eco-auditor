@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import Header from '../components/Header';
+import { renderFact, trustFacts } from '@/content/trust-facts';
 
 const SCHEMA = {
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": "Security & Trust — Eco-Auditor",
-  "description": "Eco-Auditor security practices: encryption at rest and in transit, SOC 2-aligned controls, data handling, access management, and compliance certifications.",
+  "description": "Eco-Auditor security practices: encryption at rest and in transit, SOC 2-aligned controls, data handling, access management, and security and compliance practices.",
 };
 
 export default function Security() {
@@ -23,7 +24,7 @@ export default function Security() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses audit-ready GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
       document.head.removeChild(script);
     };
   }, []);
@@ -55,7 +56,7 @@ export default function Security() {
             icon={<EncryptionIcon />}
             title="Encryption"
             items={[
-              'Data in transit: TLS 1.3 for all API and web traffic',
+              'Data in transit: TLS 1.2 minimum, TLS 1.3 preferred',
               'Data at rest: AES-256 encryption for all stored data',
               'Database volumes encrypted at the storage layer',
               'Backups encrypted with separate key material',
@@ -65,7 +66,7 @@ export default function Security() {
             icon={<InfraIcon />}
             title="Infrastructure"
             items={[
-              'Cloud infrastructure on AWS and InsForge (SOC 2-compliant hosts)',
+              `Cloud infrastructure: ${renderFact(trustFacts.cloudHosting)}`,
               'Multi-region redundancy for production workloads',
               'DDoS protection and WAF at the edge',
               'Automated vulnerability scanning (weekly)',
@@ -88,7 +89,7 @@ export default function Security() {
               'Your data is yours. We never share or sell customer data.',
               'Document processing: files parsed, factors applied, source deleted on schedule',
               'Data retention policies configurable per workspace',
-              'GDPR-compliant data processing agreement available',
+              'GDPR-aligned data processing agreement available',
             ]}
           />
           <TrustCard
@@ -96,8 +97,8 @@ export default function Security() {
             title="Compliance"
             items={[
               'SOC 2 Type II audit in progress (Q3 2026)',
-              'GDPR compliant — DPA available on request',
-              'California Consumer Privacy Act (CCPA) compliant',
+              'Aligned with GDPR requirements',
+              'Designed around CCPA requirements',
               'Carbon accounting methodology follows GHG Protocol',
             ]}
           />
@@ -144,13 +145,13 @@ export default function Security() {
       <section className="max-w-5xl mx-auto px-6 py-14">
         <div className="text-center mb-10">
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white">Trust documentation</h2>
-          <p className="mt-3 text-surface-500 max-w-2xl mx-auto">We publish our security and compliance documentation transparently. NoNDA required for standard materials.</p>
+          <p className="mt-3 text-surface-500 max-w-2xl mx-auto">We publish our security and compliance documentation transparently. No NDA required for standard materials.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Privacy Policy', to: '/privacy', desc: 'How we collect, use, and protect your personal data' },
             { label: 'Terms of Service', to: '/terms', desc: 'Legal terms governing use of the platform' },
-            { label: 'Data Processing Addendum', to: '/dpa', desc: 'GDPR-compliant DPA for EU customers' },
+            { label: 'Data Processing Addendum', to: '/dpa', desc: 'GDPR-aligned DPA for EU customers' },
             { label: 'Contact Security Team', to: '/contact', desc: 'Report vulnerabilities or request a security review' },
           ].map((doc) => (
             <Link key={doc.label} to={doc.to} className="card hover:shadow-md transition-shadow group">
