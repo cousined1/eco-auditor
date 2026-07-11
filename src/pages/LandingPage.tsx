@@ -11,8 +11,8 @@ const FAQ_SCHEMA = {
   "mainEntity": [
     { "@type": "Question", "name": "What is Scope 1, 2, and 3 emissions?", "acceptedAnswer": { "@type": "Answer", "text": "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." } },
     { "@type": "Question", "name": "What is SB 253 and who does it affect?", "acceptedAnswer": { "@type": "Answer", "text": "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." } },
-    { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides audit-ready emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically $49–$499/month versus six-figure annual licenses." } },
-    { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running in under 10 minutes. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." } },
+    { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically Starter through Pro plans available versus six-figure annual licenses." } },
+    { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running quickly. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." } },
     { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." } },
     { "@type": "Question", "name": "Do I need a sustainability consultant to use Eco-Auditor?", "acceptedAnswer": { "@type": "Answer", "text": "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." } },
   ]
@@ -21,8 +21,8 @@ const FAQ_SCHEMA = {
 const FAQS = [
   { q: "What is Scope 1, 2, and 3 emissions?", a: "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." },
   { q: "What is SB 253 and who does it affect?", a: "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." },
-  { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides audit-ready emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically $49–$499/month versus six-figure annual licenses." },
-  { q: "How long does it take to get started?", a: "Most teams are up and running in under 10 minutes. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." },
+  { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically Starter through Pro plans available versus six-figure annual licenses." },
+  { q: "How long does it take to get started?", a: "Most teams are up and running quickly. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." },
   { q: "What compliance frameworks does Eco-Auditor support?", a: "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." },
   { q: "Do I need a sustainability consultant to use Eco-Auditor?", a: "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." },
 ];
@@ -82,7 +82,7 @@ export default function LandingPage() {
             <span className="text-brand-600 dark:text-brand-400">as easy as bookkeeping</span>
           </h1>
           <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">
-            Large-company disclosure rules are cascading through supply chains. Your buyers, lenders, and regulators increasingly want audit-ready emissions data. Eco-Auditor gets you there — without enterprise complexity or consultant fees.
+            Large-company disclosure rules are cascading through supply chains. Your buyers, lenders, and regulators increasingly want reviewable emissions data. Eco-Auditor gets you there — without enterprise complexity or consultant fees.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link to="/signup" className="btn-primary !px-8 !py-3 text-base font-semibold shadow-lg shadow-brand-600/20">
@@ -92,7 +92,7 @@ export default function LandingPage() {
               Book a Demo
             </a>
           </div>
-          <p className="mt-4 text-xs text-surface-400">No credit card required · 14-day free trial · Set up in under 10 minutes</p>
+          <p className="mt-4 text-xs text-surface-400">14-day free trial · Card required to start · Cancel anytime before trial ends</p>
         </div>
       </section>
 
@@ -114,7 +114,7 @@ export default function LandingPage() {
             },
             {
               step: '3',
-              title: 'Get audit-ready reports',
+              title: 'Get reviewable records',
               desc: 'Generate compliance packages for SB 253, CBAM, or customer procurement. Every number traces to source — your auditor sees a ledger, not a spreadsheet.',
               icon: <ReportIcon />,
             },
@@ -153,7 +153,7 @@ export default function LandingPage() {
             Your browser does not support the video tag.
           </video>
         </div>
-        <p className="text-center mt-4 text-xs text-surface-400">See how Eco-Auditor turns messy data into audit-ready carbon records</p>
+        <p className="text-center mt-4 text-xs text-surface-400">See how Eco-Auditor turns messy data into reviewable carbon records</p>
       </section>
 
       {/* ─── Social Proof ─── */}
@@ -167,7 +167,7 @@ export default function LandingPage() {
             <span className="text-surface-300 dark:text-surface-600">•</span>
             <span className="font-medium">Scope 1, 2 &amp; 3 tracking</span>
             <span className="text-surface-300 dark:text-surface-600">•</span>
-            <span className="font-medium">Audit-ready ledger</span>
+            <span className="font-medium">Reviewable ledger</span>
             <span className="text-surface-300 dark:text-surface-600">•</span>
             <span className="font-medium">CSV &amp; document intake</span>
           </div>
@@ -209,7 +209,7 @@ export default function LandingPage() {
       <section id="how-it-works" className="bg-white dark:bg-surface-900 border-y border-surface-200 dark:border-surface-800">
         <div className="max-w-6xl mx-auto px-6 py-20">
           <div className="text-center mb-14">
-            <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">Four steps to audit-ready emissions</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">Four steps to defensible emissions</h2>
             <p className="mt-3 text-surface-500 max-w-xl mx-auto">From messy utility bills to a defensible carbon inventory in weeks, not months.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -322,9 +322,9 @@ export default function LandingPage() {
           <div className="absolute top-0 left-0 w-72 h-72 bg-brand-400/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-brand-400/10 rounded-full translate-x-1/3 translate-y-1/3" />
           <div className="relative">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">Ready to get audit-ready?</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">Ready to get reviewable records?</h2>
             <p className="text-brand-100 max-w-lg mx-auto mb-8">
-              Join hundreds of SMBs turning messy data into defensible emissions records. Start free — no credit card, no consultant required.
+              Join hundreds of SMBs turning messy data into defensible emissions records. 14-day free trial · Card required to start · Cancel anytime before trial ends. No consultant required.
             </p>
             <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-base rounded-lg transition-colors shadow-lg">
               Start Your Free Trial
