@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import Header from '../components/Header';
+import { summarizeQuality } from '../lib/reports/quality-summary';
 
 const SCHEMA = {
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": "Sample Carbon Emissions Report — Eco-Auditor",
-  "description": "See what an audit-ready GHG emissions report looks like. Scope 1-3 breakdown, data quality scoring, compliance framework alignment.",
+  "description": "See what a reviewable GHG emissions report looks like. Scope 1-3 breakdown, data quality scoring, compliance framework alignment.",
 };
 
 const METRICS = {
@@ -34,7 +35,7 @@ export default function SampleReport() {
     document.title = 'Sample Carbon Report — Eco-Auditor | See What You Get';
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Preview a sample audit-ready GHG emissions report from Eco-Auditor. See Scope 1-3 breakdown, data quality scoring, and compliance dashboard.';
+    if (desc) desc.content = 'Preview a sample reviewable GHG emissions report from Eco-Auditor. See Scope 1-3 breakdown, data quality scoring, and compliance dashboard.';
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -43,7 +44,7 @@ export default function SampleReport() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses audit-ready GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses defensible GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
       document.head.removeChild(script);
     };
   }, []);
@@ -146,7 +147,10 @@ export default function SampleReport() {
               ))}
             </div>
             <p className="text-xs text-surface-400 mt-3">
-              83% of total emissions backed by primary source data or better. 17% flagged for improvement.
+              {(() => {
+                const quality = summarizeQuality(QUALITY_SCORES);
+                return `${quality.primaryOrBetter}% of total emissions backed by primary source data or better. ${quality.estimated}% flagged for improvement.`;
+              })()}
             </p>
           </div>
         </div>
@@ -197,7 +201,7 @@ export default function SampleReport() {
           <div className="relative">
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Ready to see your own report?</h2>
             <p className="text-brand-100 max-w-lg mx-auto mb-6 text-sm">
-              Upload your first utility bills and invoices. We'll extract the data and build your carbon inventory — no credit card required.
+              Upload your first utility bills and invoices. We'll extract the data and build your carbon inventory — 14-day free trial, card required to start. Cancel anytime before trial ends.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg">
