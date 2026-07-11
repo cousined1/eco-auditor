@@ -13,7 +13,7 @@ export default function ContactUs() {
     setSubmitError(null);
 
     if (!isInsForgeConfigured) {
-      setSubmitError('Form submission is not available — backend not configured.');
+      setSubmitError('Our contact form is temporarily unavailable.');
       setSubmitting(false);
       return;
     }
@@ -21,12 +21,14 @@ export default function ContactUs() {
     try {
       await insforge.database.from('contact_submissions').insert([{ ...form }]);
       setSubmitted(true);
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to send message. Please try again or email us directly.');
+    } catch {
+      setSubmitError('We couldn’t send your message right now.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const mailtoHref = `mailto:hello@developer312.com?subject=${encodeURIComponent(form.subject || 'Contact request')}&body=${encodeURIComponent(form.message)}`;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -64,8 +66,7 @@ export default function ContactUs() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Company</h3>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Developer312</p>
-            <p className="text-2xs text-surface-500">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">EcoAuditor</p>
           </div>
         </div>
       </div>
@@ -115,7 +116,13 @@ export default function ContactUs() {
                   <textarea className="input" rows={4} placeholder="How can we help?" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} required />
                 </div>
                 <button type="submit" className="btn-primary" disabled={submitting}>{submitting ? 'Sending...' : 'Send message'}</button>
-                {submitError && <p className="text-xs text-risk-high mt-2">{submitError}</p>}
+                {submitError && (
+                  <p className="text-xs text-risk-high mt-2">
+                    {submitError} You can still reach us — email{' '}
+                    <a href={mailtoHref} className="text-accent hover:underline">hello@developer312.com</a>{' '}
+                    and we&apos;ll get back to you within 1–2 business days.
+                  </p>
+                )}
               </form>
             )}
           </div>
@@ -149,8 +156,7 @@ export default function ContactUs() {
           </div>
 
           <div className="p-4 rounded-lg border border-surface-200 dark:border-surface-700">
-            <p className="text-2xs text-surface-500">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-2xs text-surface-400 mt-1">© {new Date().getFullYear()} Developer312. All rights reserved.</p>
+            <p className="text-2xs text-surface-400">© {new Date().getFullYear()} EcoAuditor. All rights reserved.</p>
           </div>
         </div>
       </div>

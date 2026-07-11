@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { READINESS_SCORE, MISSING_DATA_ALERTS, COMPLIANCE_TASKS, CFO_METRICS, ONBOARDING_CHECKLIST, COMPANY } from '../data/mockData';
+import { Link } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { buildApiRequestInit } from '../lib/api';
+import { buildApiRequestInit, getUpgradeRequired, type UpgradeRequired } from '../lib/api';
 import { insforge } from '../lib/insforge';
+import UpgradePrompt from '../components/UpgradePrompt';
 
 interface EmissionsSummaryData {
   total_co2e_tonnes: number;
@@ -33,6 +34,9 @@ export default function Dashboard() {
   const [trend, setTrend] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [upgrade, setUpgrade] = useState<UpgradeRequired | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   // Fetch real API data on component mount
   useEffect(() => {
@@ -40,6 +44,7 @@ export default function Dashboard() {
       try {
         setLoading(true);
         setError(null);
+        setNeedsOnboarding(false);
 
         const requestInit = buildApiRequestInit(insforge);
 
@@ -48,6 +53,14 @@ export default function Dashboard() {
           fetch('/api/emissions/summary', requestInit),
           fetch('/api/emissions/trend?period=monthly', requestInit),
         ]);
+
+        // Plan gate: an expired trial / free account gets a 402 upgrade_required.
+        // Show the upgrade paywall instead of a generic error or empty state.
+        const upgradeInfo = (await getUpgradeRequired(summaryRes)) || (await getUpgradeRequired(trendRes));
+        if (upgradeInfo) {
+          setUpgrade(upgradeInfo);
+          return;
+        }
 
         if (!summaryRes.ok) {
           throw new Error(`Failed to fetch emissions summary: ${summaryRes.statusText}`);
@@ -71,20 +84,22 @@ export default function Dashboard() {
       } catch (err) {
         console.error('Dashboard fetch error:', err);
         // If backend rejected because no company exists yet, treat as onboarding
-        // state instead of a hard error. Backend auto-provisions on next call,
-        // but if something else fails we still surface it.
+        // state instead of a hard error. Backend auto-provisions on next call.
+        // Any other failure (network error, 5xx, unexpected response) is a real
+        // error and gets surfaced with a retry affordance.
         const message = err instanceof Error ? err.message : 'Failed to load emissions data';
         if (message.includes('400') || message.includes('403') || message.includes('Forbidden') || message.includes('company_id')) {
-          setEmissions(null);
+          setNeedsOnboarding(true);
+        } else {
+          setError(message);
         }
-        setError(message);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [retryToken]);
 
   // Show loading state
   if (loading) {
@@ -100,8 +115,46 @@ export default function Dashboard() {
     );
   }
 
+  // Plan gate: expired trial / no active subscription
+  if (upgrade) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="py-12">
+          <UpgradePrompt
+            fullPage
+            feature="Your dashboard is a paid feature"
+            requiredPlan={upgrade.requiredPlan}
+            reason={upgrade.message || 'Your trial has ended. Reactivate a plan to view your emissions dashboard and reports.'}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Show a real error state (network failure, 5xx, unexpected response) with a retry affordance
+  if (error) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="text-center py-12 bg-surface-50 dark:bg-surface-900 rounded-lg border border-surface-200 dark:border-surface-800">
+          <div className="text-4xl mb-2">⚠️</div>
+          <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Unable to Load Dashboard</h2>
+          <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
+            Something went wrong while loading your emissions data. Please try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => setRetryToken((t) => t + 1)}
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Show onboarding state if we truly have no emissions data
-  if (error && !emissions) {
+  if (needsOnboarding) {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="text-center py-12 bg-surface-50 dark:bg-surface-900 rounded-lg border border-surface-200 dark:border-surface-800">
@@ -110,12 +163,12 @@ export default function Dashboard() {
           <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
             Your account is ready. Add your first emission entry to start tracking your carbon footprint and building reviewable reports.
           </p>
-          <a
-            href="/app/calculator"
+          <Link
+            to="/app/calculator"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             Add Entry Now
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -131,12 +184,12 @@ export default function Dashboard() {
           <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
             Add your first emission entry to get started tracking your carbon footprint.
           </p>
-          <a
-            href="/app/calculator"
+          <Link
+            to="/app/calculator"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             Add Entry Now
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -170,25 +223,9 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-surface-900 dark:text-white">{COMPANY.name}</h1>
-          <p className="text-sm text-surface-500 mt-0.5">FY 2026 Carbon Accounting Overview</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="badge-green">Food & Beverage</span>
-          <span className="badge-blue">{COMPANY.facilities} Facilities</span>
-        </div>
-      </div>
-
-      {/* CFO Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <CFOMetricCard label="Consultant spend avoided" value={CFO_METRICS.consultantSpendAvoided} />
-        <CFOMetricCard label="Contracts at risk" value={String(CFO_METRICS.contractsAtRisk)} variant="warning" />
-        <CFOMetricCard label="Records defensible in audit" value={CFO_METRICS.recordsDefensible} />
-        <CFOMetricCard label="Reporting package readiness" value={CFO_METRICS.reportingReadiness} />
-        <CFOMetricCard label="Primary data coverage" value={CFO_METRICS.primaryDataCoverage} variant="warning" />
-        <CFOMetricCard label="Exposure from incomplete disclosures" value={CFO_METRICS.estimatedExposureIncomplete} variant="warning" />
+      <div>
+        <h1 className="text-xl font-semibold text-surface-900 dark:text-white">Dashboard</h1>
+        <p className="text-sm text-surface-500 mt-0.5">Carbon Accounting Overview</p>
       </div>
 
       {/* Emissions Summary + Trend */}
@@ -232,107 +269,11 @@ export default function Dashboard() {
             </div>
             <div className="text-right">
               <div className="text-xs text-surface-500">Reporting Year</div>
-              <div className="text-sm font-medium">FY 2026</div>
+              <div className="text-sm font-medium">FY {new Date().getFullYear()}</div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Readiness + Alerts + Tasks */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="card">
-          <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">Reporting Readiness</h2>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative w-20 h-20">
-              <svg className="w-20 h-20 -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="3" className="text-surface-200 dark:text-surface-700" />
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#16a34a" strokeWidth="3" strokeDasharray={`${READINESS_SCORE.overall} ${100 - READINESS_SCORE.overall}`} strokeLinecap="round" />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-surface-900 dark:text-white">{READINESS_SCORE.overall}</span>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-surface-800 dark:text-surface-200">{READINESS_SCORE.label}</div>
-              <div className="text-xs text-surface-500 mt-0.5">Across 5 dimensions</div>
-            </div>
-          </div>
-          <div className="space-y-2.5">
-            {READINESS_SCORE.dimensions.map((d) => (
-              <div key={d.name}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-surface-600 dark:text-surface-400">{d.name}</span>
-                  <span className={`font-medium ${d.score >= 75 ? 'text-risk-low' : d.score >= 55 ? 'text-risk-medium' : 'text-risk-high'}`}>{d.score}%</span>
-                </div>
-                <div className="h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${d.score >= 75 ? 'bg-risk-low' : d.score >= 55 ? 'bg-risk-medium' : 'bg-risk-high'}`} style={{ width: `${d.score}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">Missing Data & Alerts</h2>
-          <div className="space-y-2">
-            {MISSING_DATA_ALERTS.map((alert) => (
-              <div key={alert.id} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-                <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${alert.severity === 'high' ? 'bg-risk-high' : alert.severity === 'medium' ? 'bg-risk-medium' : 'bg-risk-info'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-surface-700 dark:text-surface-300">{alert.message}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-2xs text-surface-400">{alert.scope}</span>
-                    <button className="text-2xs text-accent hover:underline">{alert.action}</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">Filing & Compliance Tasks</h2>
-          <div className="space-y-2">
-            {COMPLIANCE_TASKS.map((task) => (
-              <div key={task.id} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-                <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'overdue' ? 'bg-risk-high' : task.status === 'in-progress' ? 'bg-risk-medium' : 'bg-surface-400'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-surface-700 dark:text-surface-300">{task.title}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`badge ${task.status === 'overdue' ? 'badge-red' : task.status === 'in-progress' ? 'badge-amber' : 'badge-gray'}`}>
-                      {task.status.replace('-', ' ')}
-                    </span>
-                    <span className="text-2xs text-surface-400">{task.deadline}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Onboarding Checklist */}
-      <div className="card">
-        <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">Setup Progress</h2>
-        <div className="flex items-center gap-3">
-          {ONBOARDING_CHECKLIST.map((item, i) => (
-            <div key={item.id} className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${item.status === 'complete' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-300' : item.status === 'in-progress' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-surface-200 text-surface-500 dark:bg-surface-700'}`}>
-                {item.status === 'complete' ? '✓' : i + 1}
-              </div>
-              <span className={`text-xs ${item.status === 'complete' ? 'text-surface-500 dark:text-surface-400 line-through' : 'text-surface-700 dark:text-surface-300'}`}>{item.title}</span>
-              {i < ONBOARDING_CHECKLIST.length - 1 && <div className="w-6 h-px bg-surface-300 dark:bg-surface-600" />}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CFOMetricCard({ label, value, variant = 'default' }: { label: string; value: string; variant?: 'default' | 'warning' }) {
-  return (
-    <div className="card !p-3.5">
-      <div className="text-2xs text-surface-500 mb-1">{label}</div>
-      <div className={`text-lg font-bold ${variant === 'warning' ? 'text-risk-medium' : 'text-surface-900 dark:text-white'}`}>{value}</div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useConsent } from './consent-context';
 import { useCallback } from 'react';
 
-const GTM_ID = import.meta.env.VITE_GTM_ID || 'GTM-PS2XR44V';
+const GTM_ID = import.meta.env.VITE_GTM_ID || '';
 
 type GTMWindow = Window & {
   dataLayer?: Array<Record<string, unknown>>;

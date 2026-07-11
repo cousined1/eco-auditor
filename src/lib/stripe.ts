@@ -9,10 +9,18 @@ const insforge = _insforge as any;
 
 // Resolves the InsForge access token for the current session. Returns null if
 // the user is not signed in — callers should treat that as an auth error.
+// NOTE: `insforge.auth.getSession()` is not part of the SDK's public Auth
+// contract (and returns a camelCase `accessToken` shape, not `data.session`),
+// so the previous implementation always returned null — silently breaking
+// checkout, billing portal, plan change, and cancel for every signed-in user.
+// Read the Authorization header the SDK's HTTP client already manages instead
+// (same mechanism as src/lib/api.ts / Dashboard). See audit finding.
 async function getAuthToken(): Promise<string | null> {
   try {
-    const result = await insforge.auth.getSession();
-    return result?.data?.session?.access_token ?? null;
+    const headers = insforge.getHttpClient?.().getHeaders?.() || {};
+    const authorization: string = headers.Authorization || headers.authorization || '';
+    if (!authorization) return null;
+    return authorization.replace(/^Bearer\s+/i, '');
   } catch {
     return null;
   }

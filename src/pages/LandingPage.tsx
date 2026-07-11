@@ -11,8 +11,8 @@ const FAQ_SCHEMA = {
   "mainEntity": [
     { "@type": "Question", "name": "What is Scope 1, 2, and 3 emissions?", "acceptedAnswer": { "@type": "Answer", "text": "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." } },
     { "@type": "Question", "name": "What is SB 253 and who does it affect?", "acceptedAnswer": { "@type": "Answer", "text": "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." } },
-    { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically Starter through Pro plans available versus six-figure annual licenses." } },
-    { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running quickly. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." } },
+    { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides audit-ready emissions tracking, CSV-based activity import with confidence scoring, and compliance report generation at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." } },
+    { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running in under 10 minutes. You import a CSV and we apply emission factors, flagging low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." } },
     { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." } },
     { "@type": "Question", "name": "Do I need a sustainability consultant to use Eco-Auditor?", "acceptedAnswer": { "@type": "Answer", "text": "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." } },
   ]
@@ -21,8 +21,8 @@ const FAQ_SCHEMA = {
 const FAQS = [
   { q: "What is Scope 1, 2, and 3 emissions?", a: "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." },
   { q: "What is SB 253 and who does it affect?", a: "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." },
-  { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, AI-powered document extraction, and compliance report generation at a fraction of enterprise platform costs — typically Starter through Pro plans available versus six-figure annual licenses." },
-  { q: "How long does it take to get started?", a: "Most teams are up and running quickly. Upload your utility bills, invoices, and freight documents, and our AI extracts the data, applies emission factors, and flags low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." },
+  { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides audit-ready emissions tracking, CSV-based activity import with confidence scoring, and compliance report generation at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." },
+  { q: "How long does it take to get started?", a: "Most teams are up and running in under 10 minutes. You import a CSV and we apply emission factors, flagging low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." },
   { q: "What compliance frameworks does Eco-Auditor support?", a: "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." },
   { q: "Do I need a sustainability consultant to use Eco-Auditor?", a: "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." },
 ];
@@ -108,8 +108,8 @@ export default function LandingPage() {
             },
             {
               step: '2',
-              title: 'AI extracts & calculates',
-              desc: 'Our engine parses every document, applies EPA/eGRID/GLEC emission factors, and assigns a confidence score to each data point. Low-confidence entries flagged for review.',
+              title: 'Import & calculate',
+              desc: 'Import activity data by CSV; we apply EPA/eGRID emission factors and flag low-confidence entries for review.',
               icon: <AIIcon />,
             },
             {
@@ -215,8 +215,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {[
               { step: '01', title: 'Connect Data', desc: 'Upload utility bills, invoices, and freight docs. Or connect QuickBooks and Xero directly.' },
-              { step: '02', title: 'AI Extraction', desc: 'OCR and AI parse your documents, apply emission factors, and flag low-confidence entries.' },
-              { step: '03', title: 'Review & Verify', desc: 'Your team reviews flagged items, confirms assumptions, and builds an immutable audit trail.' },
+              { step: '02', title: 'Import & Map', desc: 'Import CSV activity data; we apply emission factors and flag low-confidence rows for your review.' },
+              { step: '03', title: 'Review & Verify', desc: 'Your team reviews flagged items, confirms assumptions, and builds a reviewable emissions ledger.' },
               { step: '04', title: 'Export Reports', desc: 'Generate compliance-ready packages for California, CBAM, customer procurement, and annual inventory.' },
             ].map((item) => (
               <div key={item.step} className="text-center md:text-left">
@@ -245,7 +245,7 @@ export default function LandingPage() {
           />
           <FeatureCard
             title="Data Intake"
-            description="Upload utility bills, invoices, and freight docs. OCR extraction with confidence scores and a human review queue."
+            description="Upload CSV activity data with confidence scores and a human review queue."
             icon={<DataIcon />}
           />
           <FeatureCard
@@ -255,7 +255,7 @@ export default function LandingPage() {
           />
           <FeatureCard
             title="Emissions Ledger"
-            description="Immutable audit trail. Every entry shows source, emission factor, reviewer, timestamp, and version history."
+            description="Traceable emissions ledger. Every entry records its source, emission factor, and confidence score."
             icon={<LedgerIcon />}
           />
           <FeatureCard
@@ -324,7 +324,7 @@ export default function LandingPage() {
           <div className="relative">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">Ready to get reviewable records?</h2>
             <p className="text-brand-100 max-w-lg mx-auto mb-8">
-              Join hundreds of SMBs turning messy data into defensible emissions records. 14-day free trial · Card required to start · Cancel anytime before trial ends. No consultant required.
+              Turn messy data into defensible emissions records. Start your 14-day free trial — no consultant required.
             </p>
             <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-base rounded-lg transition-colors shadow-lg">
               Start Your Free Trial
