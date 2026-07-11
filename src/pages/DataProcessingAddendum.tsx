@@ -47,7 +47,7 @@ export default function DataProcessingAddendum() {
         </div>
 
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Data Processing Addendum</h1>
-        <p className="text-sm text-surface-500">Last updated: [Date to be set upon legal review]</p>
+        <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
 
         <S id="purpose" title="1. Purpose and Scope" onScroll={setActiveSection}>
           <p>This Data Processing Addendum ("DPA") forms part of the Terms of Service between Developer312 and the Customer and supplements the Terms with respect to the processing of personal data.</p>
