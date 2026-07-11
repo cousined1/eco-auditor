@@ -14,7 +14,7 @@ Language: English
 Framework: React 19 + Vite + TypeScript
 Styling: Tailwind CSS 3.4
 Backend: Express.js + PostgreSQL
-Hosting: Railway
+Hosting: (to be confirmed)
 
 /* SUITE */
 ProvenanceOS: https://provenance-os.com

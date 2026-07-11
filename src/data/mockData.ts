@@ -255,7 +255,7 @@ export const FEATURE_COMPARISON = [
   { feature: 'Scope 1 tracking', starter: '✓', growth: '✓', pro: '✓' },
   { feature: 'Scope 2 tracking', starter: '✓', growth: '✓', pro: '✓' },
   { feature: 'Scope 3 workflows', starter: '—', growth: '✓', pro: '✓' },
-  { feature: 'Document uploads', starter: '10/mo', growth: 'Unlimited', pro: 'Unlimited' },
+  { feature: 'CSV imports', starter: '10/mo', growth: 'Unlimited', pro: 'Unlimited' },
   { feature: 'Reporting templates', starter: '1', growth: 'All standard', pro: 'Custom + standard' },
   { feature: 'AI Carbon Assistant', starter: '—', growth: '✓', pro: '✓' },
   { feature: 'Supplier request hub', starter: '—', growth: '✓', pro: '✓' },

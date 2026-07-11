@@ -39,7 +39,7 @@ export const PLANS: Record<PlanId, Plan> = {
       '1 company',
       '1 facility',
       'Baseline Scope 1 & 2 tracking',
-      'Limited document uploads (10/month)',
+      'Limited CSV imports (10/month)',
       '1 reporting template',
       'Email support',
     ],

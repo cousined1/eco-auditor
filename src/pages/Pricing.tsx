@@ -35,7 +35,7 @@ export default function Pricing() {
     document.title = 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs';
 
     const meta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (meta) meta.content = 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. Audit-ready Scope 1-3 emissions tracking. 14-day free trial on monthly plans.';
+    if (meta) meta.content = 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly plans.';
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -44,7 +44,7 @@ export default function Pricing() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (meta) meta.content = 'Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (meta) meta.content = 'Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Import activity data by CSV, connect integrations (roadmap), and generate Scope 1-3 reports aligned with the GHG Protocol.';
       document.head.removeChild(script);
     };
   }, []);

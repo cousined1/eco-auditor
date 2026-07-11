@@ -10,9 +10,18 @@ describe('emission-factor registry (P0-04)', () => {
     }
   });
 
-  it('all entries are verified:true (publicly published sources)', () => {
+  it('calculator-wired factors are verified:true; roadmap factors are verified:false', () => {
+    // EPA/eGRID/IPCC are wired into utils.ts (calculateEmissions) and must be
+    // verified:true. GLEC + EXIOBASE are roadmap-only (not consumed by the
+    // calculator) and must be verified:false so they render the sentinel.
+    const wired = new Set(['epa-efh-2025', 'epa-egrid-2023', 'ipcc-ar6-gwp100']);
+    const roadmap = new Set(['glec-v3', 'exiobase-3.8']);
     for (const e of EMISSION_FACTOR_REGISTRY) {
-      expect(e.verified, `${e.id} must be verified:true`).toBe(true);
+      if (wired.has(e.id)) {
+        expect(e.verified, `${e.id} is wired into the calculator → must be verified:true`).toBe(true);
+      } else if (roadmap.has(e.id)) {
+        expect(e.verified, `${e.id} is roadmap-only → must be verified:false`).toBe(false);
+      }
     }
   });
 

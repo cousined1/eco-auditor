@@ -171,7 +171,7 @@ export default function Signup() {
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Start your free trial</h1>
             <p className="mt-2 text-sm text-surface-500">
-              14-day free trial · Card required to start · Cancel anytime before trial ends. Most teams are up and running quickly.
+              14-day free trial · No card required · Cancel anytime. Most teams are up and running quickly.
             </p>
           </div>
 

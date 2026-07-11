@@ -85,15 +85,15 @@ export default function Security() {
               'Your data is yours. We never share or sell customer data.',
               'Uploaded files are parsed and emission factors applied; you can delete uploads at any time',
               'Payments processed by Stripe — we never store card details',
-              'GDPR-compliant data processing agreement available',
+              'GDPR-aligned data processing agreement available',
             ]}
           />
           <TrustCard
             icon={<ComplianceIcon />}
             title="Compliance"
             items={[
-              'GDPR compliant — DPA available on request',
-              'California Consumer Privacy Act (CCPA) compliant',
+              'GDPR-aligned — DPA available on request',
+              'Aligned with the California Consumer Privacy Act (CCPA)',
               'Carbon accounting methodology follows GHG Protocol',
             ]}
           />
