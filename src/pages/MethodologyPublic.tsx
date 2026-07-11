@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import Header from '../components/Header';
+import { factorLabel } from '@/lib/emission-factors/registry';
 
 const METHODOLOGY_SCHEMA = {
   "@context": "https://schema.org",
@@ -64,7 +65,7 @@ export default function MethodologyPublic() {
     document.title = 'Carbon Accounting Methodology — Eco-Auditor | GHG Protocol Alignment';
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, GLEC, and IPCC factors. Transparent, audit-ready carbon accounting methodology.';
+    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, GLEC, and IPCC factors. Transparent, defensible carbon accounting methodology.';
 
     // Structured data
     const scripts = [
@@ -82,7 +83,7 @@ export default function MethodologyPublic() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses audit-ready GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses defensible GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
       elements.forEach((el) => document.head.removeChild(el));
     };
   }, []);
@@ -103,7 +104,7 @@ export default function MethodologyPublic() {
           </h1>
           <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
             Every number in Eco-Auditor traces back to a methodology, an emission factor, a source document, and a reviewer.
-            No black boxes, no mystery calculations — just transparent, audit-ready carbon accounting.
+            No black boxes, no mystery calculations — just transparent, defensible carbon accounting.
           </p>
         </div>
       </section>
@@ -235,8 +236,8 @@ export default function MethodologyPublic() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { name: 'EPA GHG Factor Hub 2024', org: 'US EPA', scopes: ['Scope 1', 'Scope 2'], coverage: 'Stationary combustion, mobile, fugitive, electricity' },
-              { name: 'eGRID 2024', org: 'US EPA', scopes: ['Scope 2'], coverage: 'Subregion-level grid emission factors (lbs/MWh)' },
+              { name: factorLabel('epa-efh-2025'), org: 'US EPA', scopes: ['Scope 1', 'Scope 2'], coverage: 'Stationary combustion, mobile, fugitive, electricity' },
+              { name: factorLabel('epa-egrid-2023'), org: 'US EPA', scopes: ['Scope 2'], coverage: 'Subregion-level grid emission factors (lbs/MWh)' },
               { name: 'GLEC Framework v3', org: 'Smart Freight Centre', scopes: ['Scope 3'], coverage: 'Freight and logistics emission factors by mode' },
               { name: 'EXIOBASE 3.8', org: 'Exiobase Consortium', scopes: ['Scope 3'], coverage: 'Environmentally-extended input-output for spend-based estimates' },
               { name: 'IPCC AR6 GWP-100', org: 'IPCC', scopes: ['Scope 1'], coverage: 'Global warming potentials for methane (CH₄) and refrigerants (F-gases)' },
@@ -264,10 +265,10 @@ export default function MethodologyPublic() {
           <div className="space-y-4">
             {[
               { q: 'Which emission factor databases does Eco-Auditor use?', a: 'Eco-Auditor uses the EPA GHG Factor Hub for stationary combustion and mobile sources, eGRID for electricity (location-based), GLEC Framework for freight, EXIOBASE for spend-based Scope 3 estimates, and IPCC AR6 for global warming potentials. All factors are updated annually when new source data is published.' },
-              { q: 'Is Eco-Auditor aligned with the GHG Protocol?', a: 'Yes. Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Our organizational boundary default is operational control, consistent with the Protocol\'s recommended approach.' },
+              { q: 'Is Eco-Auditor aligned with the GHG Protocol?', a: 'Yes. Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Our organizational boundary default is operational control — Eco-Auditor\'s default. The GHG Protocol also permits equity-share and financial-control consolidation; contact us if you need an alternative.' },
               { q: 'How does Eco-Auditor handle data quality?', a: 'Every data point receives a confidence score on our 5-level quality hierarchy — from direct measurement (L1) down to default estimates (L5). Entries below L3 are surfaced for human review. This scoring is carried through to reports so reviewers know exactly which numbers are primary and which are estimated.' },
               { q: 'What compliance frameworks does Eco-Auditor support?', a: 'Eco-Auditor can generate reporting packages aligned with California SB 253, EU CBAM, customer procurement questionnaires (CDP, EcoVadis-style), and annual GHG inventories. Templates are pre-configured but can be customized for your specific framework.' },
-              { q: 'How often are emission factors updated?', a: 'We update factors annually when source agencies release new data (EPA GHG Factor Hub in April, eGRID in January, GLEC in Q3). We also publish change logs so you can assess the impact of factor updates on your baseline.' },
+              { q: 'How often are emission factors updated?', a: 'We update factors annually when source agencies release new data. We also publish change logs so you can assess the impact of factor updates on your baseline.' },
               { q: 'Can I use my own emission factors?', a: 'Yes. Customers on Pro and Enterprise plans can upload custom emission factors or override default factors at the facility or activity level. Custom overrides are tracked in the audit trail.' },
             ].map((faq) => (
               <details key={faq.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
@@ -288,7 +289,7 @@ export default function MethodologyPublic() {
           <div className="relative">
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Ready to build your carbon inventory?</h2>
             <p className="text-brand-100 max-w-lg mx-auto mb-6 text-sm">
-              Start free, no credit card required. Upload your first utility bills and see how transparent emissions tracking should work.
+              14-day free trial · Card required to start · Cancel anytime before trial ends. Upload your first utility bills and see how transparent emissions tracking should work.
             </p>
             <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg">
               Start Free Trial

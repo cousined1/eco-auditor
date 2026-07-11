@@ -1,4 +1,5 @@
 import { METHODOLOGY_SETTINGS, FACILITIES } from '../data/mockData';
+import { factorLabel } from '@/lib/emission-factors/registry';
 
 export default function Methodology() {
   const m = METHODOLOGY_SETTINGS;
@@ -84,8 +85,8 @@ export default function Methodology() {
         <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Emission Factor Library</h3>
         <div className="space-y-2">
           {[
-            { source: 'EPA GHG Factor Hub 2024', scopes: ['Scope 1', 'Scope 2'], status: 'active' },
-            { source: 'eGRID WECC / NWPP 2024', scopes: ['Scope 2'], status: 'active' },
+            { source: factorLabel('epa-efh-2025'), scopes: ['Scope 1', 'Scope 2'], status: 'active' },
+            { source: `WECC / NWPP ${factorLabel('epa-egrid-2023')}`, scopes: ['Scope 2'], status: 'active' },
             { source: 'GLEC Framework v3', scopes: ['Scope 3'], status: 'active' },
             { source: 'EXIOBASE 3.8', scopes: ['Scope 3'], status: 'active' },
             { source: 'IPCC AR6 GWP-100', scopes: ['Scope 1'], status: 'active' },

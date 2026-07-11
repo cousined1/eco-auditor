@@ -14,7 +14,7 @@ describe('Calculator Engine (Slice 1)', () => {
   // ─── Scope 2: Electricity ───
   it('calculates Scope 2 Electricity (California)', () => {
     const amount = 500;           // kWh
-    const factor = 0.23;          // kg CO2e/kWh (California eGRID 2024)
+    const factor = 0.23;          // kg CO2e/kWh (California eGRID2023)
     const expected = 115;         // kg CO2e
     
     const result = calculateEmissions(amount, factor);
@@ -188,16 +188,16 @@ describe('Input Validation', () => {
 // ─── EPA Factor Sources ───
 describe('Factor Source Attribution', () => {
   const FACTOR_SOURCES = {
-    'Stationary Combustion': 'EPA GHG Factor Hub 2024',
-    'Mobile Combustion': 'EPA GHG Factor Hub 2024',
-    'Purchased Electricity': 'eGRID 2024',
+    'Stationary Combustion': 'EPA GHG Emission Factors Hub 2025',
+    'Mobile Combustion': 'EPA GHG Emission Factors Hub 2025',
+    'Purchased Electricity': 'eGRID2023',
     'Process Emissions': 'EPA Industrial Production Data',
     'Fugitive Emissions': 'IPCC AR6 GWP-100',
   };
 
   it('verifies EPA source attribution', () => {
-    expect(FACTOR_SOURCES['Purchased Electricity']).toBe('eGRID 2024');
-    expect(FACTOR_SOURCES['Stationary Combustion']).toBe('EPA GHG Factor Hub 2024');
+    expect(FACTOR_SOURCES['Purchased Electricity']).toBe('eGRID2023');
+    expect(FACTOR_SOURCES['Stationary Combustion']).toBe('EPA GHG Emission Factors Hub 2025');
   });
 
   it('includes all major categories', () => {
