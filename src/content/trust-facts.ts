@@ -15,11 +15,11 @@ export const trustFacts = {
   backupsDeletionWindowDays: { value: 30, verified: false } as TrustFact<number>,
   contentUsedForModelTraining: { value: false, verified: true } as TrustFact<boolean>,
   soc2Status: { value: 'in progress (Q3 2026)', verified: true } as TrustFact<string>,
-  // ponytail: 'VERIFY' sentinel (NOT 'Railway') — code says AWS, DPA says generic; resolve before launch.
+  // ponytail: 'VERIFY' sentinel — do not assert a hosting provider; code says AWS, DPA says generic; resolve before launch.
   cloudHosting: {
     value: 'VERIFY',
     verified: false,
-    note: 'Deploy target (Railway vs AWS) unverified; code says AWS, DPA says generic. Verify before publication.',
+    note: 'Deploy target unverified; code says AWS, DPA says generic. Confirm provider identity before publication.',
   } as TrustFact<string>,
   subprocessors: [
     { name: 'Stripe, Inc.', purpose: 'Payment processing', processingRegion: 'United States', dpaUrl: null, verified: true },
