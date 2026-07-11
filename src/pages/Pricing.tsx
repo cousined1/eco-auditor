@@ -1,18 +1,27 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { PLANS, ADD_ONS, FEATURE_COMPARISON } from '../data/mockData';
+import { PLANS } from '@/content/pricing';
+import { ADD_ONS, FEATURE_COMPARISON } from '../data/mockData';
 import { createCheckoutSession } from '../lib/stripe';
 
+// AF-1: PRICING_SCHEMA is built from pricing.ts so JSON-LD prices always match
+// the UI prices and the salesbot KB. pricing.ts is the single source of truth.
+const PLAN_ORDER = ['starter', 'growth', 'pro'] as const;
 const PRICING_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "ItemList",
   "name": "Eco-Auditor Pricing Plans",
-  "description": "Carbon accounting plans for small and mid-size businesses. From free tier to enterprise-grade compliance reporting.",
-  "itemListElement": [
-    { "@type": "ListItem", "position": 1, "item": { "@type": "Product", "name": "Starter", "description": "Basic carbon tracking for small teams", "offers": { "@type": "Offer", "price": "49", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
-    { "@type": "ListItem", "position": 2, "item": { "@type": "Product", "name": "Growth", "description": "Full Scope 1/2/3 reporting with AI extraction", "offers": { "@type": "Offer", "price": "149", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
-    { "@type": "ListItem", "position": 3, "item": { "@type": "Product", "name": "Pro", "description": "Enterprise-grade compliance with custom integrations", "offers": { "@type": "Offer", "price": "499", "priceCurrency": "USD", "billingIncrement": "P1M" } } },
-  ]
+  "description": "Carbon accounting plans for small and mid-size businesses. Starter through Pro plans for compliance reporting.",
+  "itemListElement": PLAN_ORDER.map((id, i) => ({
+    "@type": "ListItem",
+    "position": i + 1,
+    "item": {
+      "@type": "Product",
+      "name": PLANS[id].name,
+      "description": PLANS[id].badge ?? `${PLANS[id].name} plan`,
+      "offers": { "@type": "Offer", "price": String(PLANS[id].monthly), "priceCurrency": "USD", "billingIncrement": "P1M" },
+    },
+  })),
 };
 
 type BillingCycle = 'monthly' | 'annual';
@@ -26,7 +35,8 @@ export default function Pricing() {
     document.title = 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs';
 
     const meta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (meta) meta.content = 'Eco-Auditor pricing: Free tier, Starter $49/mo, Growth $149/mo, Pro $499/mo. Audit-ready Scope 1-3 emissions tracking. 14-day free trial, no credit card required.';
+    // AF-1: prices read from PLANS so meta stays in sync with UI + JSON-LD.
+    if (meta) meta.content = `Eco-Auditor pricing: Starter $${PLANS.starter.monthly}/mo, Growth $${PLANS.growth.monthly}/mo, Pro $${PLANS.pro.monthly}/mo. Reviewable Scope 1-3 emissions tracking. 14-day free trial, card required to start.`;
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -35,7 +45,7 @@ export default function Pricing() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (meta) meta.content = 'Eco-Auditor gives small and mid-size businesses audit-ready GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (meta) meta.content = 'Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
       document.head.removeChild(script);
     };
   }, []);
@@ -131,9 +141,9 @@ export default function Pricing() {
                 >
                   {plan.trial ? 'Start free trial' : 'Get started'}
                 </button>
-                <button className="w-full py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
+                <Link to="/contact" className="block w-full py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-center">
                   Book demo
-                </button>
+                </Link>
                 <p className="text-2xs text-surface-400 text-center mt-1">
                   By signing up, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
                 </p>
@@ -210,14 +220,14 @@ export default function Pricing() {
         </p>
         <p className="text-xs text-surface-400 mt-1">EU-facing customers can request a <Link to="/dpa" className="text-accent hover:underline">Data Processing Addendum</Link>.</p>
         <div className="flex items-center justify-center gap-3 mt-4">
-          <button className="btn-primary">Talk to sales</button>
-          <button className="btn-secondary">Book a demo</button>
+          <Link to="/contact" className="btn-primary">Talk to sales</Link>
+          <Link to="/contact" className="btn-secondary">Book a demo</Link>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
         {[
-          { title: 'Get audit-ready without enterprise-software overhead', desc: 'Scope 1–3 tracking, methodology documentation, and reviewable records — without a six-figure platform.' },
+          { title: 'Get reviewable records without enterprise-software overhead', desc: 'Scope 1–3 tracking, methodology documentation, and reviewable records — without a six-figure platform.' },
           { title: 'Contract readiness, not just compliance', desc: 'Large-company disclosure rules are cascading through supply chains. Be ready when your customers ask.' },
           { title: 'Cheaper than a single consultant engagement', desc: 'Typical consultant fees for a basic GHG inventory: $15K–$40K. Eco-Auditor Growth plan: $3,990/year.' },
         ].map((item) => (

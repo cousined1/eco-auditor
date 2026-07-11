@@ -151,8 +151,20 @@ app.get('/api/version', function (_req, res) {
   });
 });
 
-// ─── Health check with DB status ───
-app.get('/health', function (_req, res) {
+// ─── Health check with DB status + build SHA (AF-2) ───
+// Build SHA self-report + no-store caching. The SHA is injected by the
+// platform at build/deploy time (Railway: RAILWAY_GIT_COMMIT_SHA; Vercel:
+// VERCEL_GIT_COMMIT_SHA; generic CI: GIT_SHA). null is a signal that
+// the deploy pipeline isn't wiring the SHA — fix that before trusting
+// gate-13 AC-P0-1 (F1) SHA-equality checks. Mirrors /api/version :143-152.
+function buildSha() {
+  return process.env.RAILWAY_GIT_COMMIT_SHA
+    || process.env.VERCEL_GIT_COMMIT_SHA
+    || process.env.GIT_SHA
+    || null;
+}
+
+function healthPayload() {
   // Check InsForge/DB connectivity if configured
   let dbStatus = 'not configured';
   const insforgeUrl = process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL;
@@ -160,13 +172,34 @@ app.get('/health', function (_req, res) {
     dbStatus = 'configured';
   }
 
-  res.json({
+  return {
     status: 'ok',
+    sha: buildSha(),
+    build: buildSha(), // alias kept for /api/version parity (impl-spec AF-2)
     uptime: process.uptime(),
     version: process.env.APP_VERSION || process.env.npm_package_version || '0.0.0',
     db: dbStatus,
     timestamp: new Date().toISOString(),
-  });
+  };
+}
+
+app.get('/health', function (_req, res) {
+  // ponytail: no-store so cached health never defeats its purpose (godmythos HR #25).
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json(healthPayload());
+});
+
+// ─── /api/health — godmythos HR #24 §0 mandatory health route (AF-2) ───
+// Canonical SHA-self-report endpoint. Same payload as /health; the /api
+// prefix aligns with the API surface so uptime monitors and the gate-13
+// F1 check can probe a stable, semantically-named URL.
+app.get('/api/health', function (_req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json(healthPayload());
 });
 
 // ─── InsForge config endpoint (for auth) ───
@@ -802,7 +835,7 @@ app.post('/api/consent-audit', express.json({ limit: '4kb' }), async function (r
 const ECOAUDITOR_KB = [
   {
     pattern: /pricing|cost|how much|plan/i,
-    response: "We offer three plans:\n\n• **Starter** — $49/mo for basic carbon tracking\n• **Growth** — $149/mo for full Scope 1/2/3 reporting\n• **Enterprise** — Custom pricing for large organizations\n\nAll plans include a 14-day free trial. Would you like me to help you choose the right plan?"
+    response: "We offer three plans:\n\n• **Starter** — $149/mo for basic carbon tracking\n• **Growth** — $399/mo for full Scope 1/2/3 reporting\n• **Pro** — $999/mo for enterprise-grade compliance and custom integrations\n\nAll plans include a 14-day free trial (card required to start). Would you like me to help you choose the right plan?"
   },
   {
     pattern: /demo|book a demo|schedule a call|talk to sales/i,
@@ -822,11 +855,11 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /cbam|carbon border|eu|europe/i,
-    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Track embedded emissions in imports\n• Generate CBAM-compliant reports\n• Monitor compliance deadlines\n• Calculate carbon costs\n\nNeed help getting CBAM-ready? Book a demo with our team!"
+    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Track embedded emissions in imports\n• Generate CBAM-aligned reports\n• Monitor compliance deadlines\n• Calculate carbon costs\n\nNeed help preparing for CBAM? Book a demo with our team!"
   },
   {
     pattern: /sec|disclosure|climate rule/i,
-    response: "We support SEC climate disclosure requirements:\n\n• Materiality assessment guidance\n• Emissions data collection and validation\n• Scenario analysis support\n• Audit-ready documentation\n\nOur platform helps you meet the SEC's climate disclosure rules efficiently."
+    response: "We support SEC climate disclosure requirements:\n\n• Materiality assessment guidance\n• Emissions data collection and validation\n• Scenario analysis support\n• Reviewable documentation\n\nOur platform helps you meet the SEC's climate disclosure rules efficiently."
   },
   {
     pattern: /california|ab 1305|climate corporate/i,
@@ -834,7 +867,7 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /smb|small business|startup|affordable/i,
-    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $49/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial today!"
+    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $149/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial today!"
   },
   {
     pattern: /integration|api|connect|erp|salesforce/i,
@@ -938,7 +971,7 @@ function getBotResponse(message, state = {}) {
   // Quick reply triggers
   if (lowerMsg === '💰 pricing' || lowerMsg === 'pricing') {
     const match = ECOAUDITOR_KB.find(k => k.pattern.test('pricing'));
-    return { response: match ? match.response : "Our plans start at $49/mo. Would you like more details?", state };
+    return { response: match ? match.response : "Our plans start at $149/mo. Would you like more details?", state };
   }
   if (lowerMsg === '📅 book a demo' || lowerMsg === 'book a demo') {
     return {
@@ -1518,11 +1551,13 @@ app.use(express.static(path.join(__dirname, 'static'), {
 // slash, but crawlers and most inbound links hit the bare path
 // (/pricing, /methodology, …). Map those to the prerendered file BEFORE
 // the SPA fallback so non-JS clients receive real content. Routes NOT
-// in this set (/app/*, /login, /signup, /auth/*) fall through to the
-// client-side shell as before.
+// in this set (/app/*, /auth/*) fall through to the client-side shell as
+// before. /login and /signup are prerendered (noindex) so non-JS clients
+// and crawlers see route-appropriate content instead of the homepage shell.
 var PRERENDERED_ROUTES = [
   '/pricing', '/methodology', '/sample-report', '/security',
   '/contact', '/privacy', '/terms', '/dpa',
+  '/login', '/signup',
 ];
 PRERENDERED_ROUTES.forEach(function (route) {
   app.get(route, function (_req, res, next) {

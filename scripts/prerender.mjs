@@ -10,11 +10,12 @@
  * No new runtime dependencies. The only node_modules used are already
  * present: vite, react, react-dom, react-router-dom.
  *
- * Why renderToStaticMarkup and not renderToString? We don't need the
+ * Why renderToString? entry-server.tsx:14 uses react-dom/server's
+ * renderToString (not renderToStaticMarkup). We don't need the
  * data-react attributes — there is no hydration step on the marketing
  * surface (the client mount is `createRoot().render()`, which replaces
- * server HTML in place). Static markup is smaller and free of hydration
- * warnings.
+ * server HTML in place). renderToString output is smaller and free of
+ * hydration warnings.
  *
  * Failure mode: if SSR render throws for any route, this script exits
  * non-zero and the Railway build fails loud — never silently ship an
@@ -33,7 +34,9 @@ const TEMPLATE_PATH = path.join(STATIC_DIR, 'index.html');
 
 // Routes mirrored from public/sitemap.xml — public marketing surface only.
 // App routes (/app/*) are auth-gated and excluded by robots.txt, so they
-// must NOT be prerendered (would snapshot a "loading…" shell).
+// must NOT be prerendered (would snapshot a "loading…" shell). /login and
+// /signup are prerendered (noindex) so non-JS clients and crawlers see
+// route-appropriate content instead of the homepage SPA shell (P0-01).
 const ROUTES = [
   '/',
   '/pricing',
@@ -44,7 +47,62 @@ const ROUTES = [
   '/privacy',
   '/terms',
   '/dpa',
+  '/login',
+  '/signup',
 ];
+
+// P0-01: noindex these routes so search engines don't index auth pages.
+// The static HTML gets a noindex,nofollow robots meta replacing the
+// homepage's index,follow (verified single occurrence — I5 regex risk).
+const NOINDEX_ROUTES = new Set(['/login', '/signup']);
+
+// AF-4: per-route <title> and <meta name="description">. The template
+// (static/index.html) has exactly one <title> and one description meta
+// (I5 verified), so the regex replace hits the single homepage tag and
+// swaps in the route-specific value. Titles mirror the document.title
+// each page sets client-side so server HTML and client mount agree.
+const HEAD = {
+  '/methodology': {
+    title: 'Carbon Accounting Methodology — Eco-Auditor | GHG Protocol Alignment',
+    description: 'Eco-Auditor’s carbon accounting methodology — GHG Protocol aligned Scope 1, 2, 3 emission factors from EPA, eGRID, GLEC, and EXIOBASE.',
+  },
+  '/security': {
+    title: 'Security & Trust — Eco-Auditor | Data Protection and Compliance',
+    description: 'Eco-Auditor security and trust: AES-256 encryption, TLS 1.2+ in transit, SOC 2-aligned controls, GDPR-aligned DPA.',
+  },
+  '/pricing': {
+    title: 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs',
+    description: 'Eco-Auditor pricing: Starter, Growth, and Pro plans for Scope 1-3 emissions tracking. 14-day free trial, card required to start.',
+  },
+  '/sample-report': {
+    title: 'Sample Carbon Report — Eco-Auditor | See What You Get',
+    description: 'See a sample Eco-Auditor carbon report — Scope 1, 2, 3 emissions breakdown, quality scores, and reviewable ledger entries.',
+  },
+  '/login': {
+    title: 'Sign In — Eco-Auditor',
+    description: 'Sign in to Eco-Auditor to access your emissions ledger, reports, and compliance dashboard.',
+  },
+  '/signup': {
+    title: 'Start Your Free Trial — Eco-Auditor',
+    description: 'Start your 14-day free Eco-Auditor trial. Card required to start, cancel anytime before trial ends.',
+  },
+  '/contact': {
+    title: 'Contact Us — Eco-Auditor',
+    description: 'Contact Eco-Auditor for demos, enterprise pricing, and compliance questions.',
+  },
+  '/privacy': {
+    title: 'Privacy Policy — Eco-Auditor',
+    description: 'Eco-Auditor Privacy Policy — how we collect, use, and protect your data.',
+  },
+  '/terms': {
+    title: 'Terms of Service — Eco-Auditor',
+    description: 'Eco-Auditor Terms of Service — business draft for review.',
+  },
+  '/dpa': {
+    title: 'Data Processing Addendum — Eco-Auditor',
+    description: 'Eco-Auditor Data Processing Addendum — GDPR-aligned terms for EU customers.',
+  },
+};
 
 async function main() {
   if (!existsSync(TEMPLATE_PATH)) {
@@ -96,7 +154,34 @@ async function main() {
         // A near-empty render is a strong signal something blew up silently.
         throw new Error(`rendered output suspiciously short (${html.length} chars)`);
       }
-      const out = templateHtml.replace('<div id="root"></div>', `<div id="root">${html}</div>`);
+      let out = templateHtml.replace('<div id="root"></div>', `<div id="root">${html}</div>`);
+
+      // P0-01: noindex auth routes. The template has a single
+      // <meta name="robots" content="index, follow" /> (I5 verified), so
+      // replace it with noindex,nofollow for /login and /signup.
+      if (NOINDEX_ROUTES.has(route)) {
+        out = out.replace(
+          /<meta name="robots" content="index, follow" \/>/,
+          '<meta name="robots" content="noindex,nofollow" />',
+        );
+      }
+
+      // AF-4: per-route <title> and <meta name="description">. Template has
+      // exactly one of each (I5 verified), so the regex hits the single
+      // homepage tag. '/' keeps the homepage title/description from the
+      // template (no HEAD entry) — that's the canonical homepage meta.
+      const head = HEAD[route];
+      if (head) {
+        if (head.title) {
+          out = out.replace(/<title>[^<]*<\/title>/, `<title>${head.title}</title>`);
+        }
+        if (head.description) {
+          out = out.replace(
+            /(<meta name="description" content=")[^"]*(")/,
+            `$1${head.description}$2`,
+          );
+        }
+      }
 
       if (route === '/') {
         await fs.writeFile(TEMPLATE_PATH, out, 'utf8');
