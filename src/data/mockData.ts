@@ -1,3 +1,5 @@
+import { factorLabel } from '@/lib/emission-factors/registry';
+
 export const COMPANY = {
   name: 'Northstar Foods',
   industry: 'Food & Beverage',
@@ -19,23 +21,23 @@ export const EMISSIONS_SUMMARY = {
   total: 4872,
   unit: 'tCO2e',
   scope1: { value: 1834, label: 'Scope 1 — Direct', pct: 37.6, trend: -3.2, items: [
-    { source: 'Natural gas — Sacramento', value: 612, factor: 'EPA eGRID 2024', confidence: 94 },
-    { source: 'Refrigerant leaks — R-404A', value: 478, factor: 'IPCC AR6 GWP', confidence: 71 },
-    { source: 'Fleet diesel — 14 vehicles', value: 398, factor: 'EPA GHG Factor Hub', confidence: 88 },
-    { source: 'Natural gas — Fresno', value: 289, factor: 'EPA eGRID 2024', confidence: 91 },
-    { source: 'Propane — forklifts', value: 57, factor: 'EPA GHG Factor Hub', confidence: 95 },
+    { source: 'Natural gas — Sacramento', value: 612, factor: factorLabel('epa-egrid-2023'), confidence: 94 },
+    { source: 'Refrigerant leaks — R-404A', value: 478, factor: factorLabel('ipcc-ar6-gwp100'), confidence: 71 },
+    { source: 'Fleet diesel — 14 vehicles', value: 398, factor: factorLabel('epa-efh-2025'), confidence: 88 },
+    { source: 'Natural gas — Fresno', value: 289, factor: factorLabel('epa-egrid-2023'), confidence: 91 },
+    { source: 'Propane — forklifts', value: 57, factor: factorLabel('epa-efh-2025'), confidence: 95 },
   ]},
   scope2: { value: 1453, label: 'Scope 2 — Electricity', pct: 29.8, trend: +1.4, items: [
-    { source: 'Electricity — Sacramento (PG&E)', value: 634, factor: 'eGRID WECC 2024', confidence: 96 },
-    { source: 'Electricity — Fresno (SCE)', value: 489, factor: 'eGRID WECC 2024', confidence: 93 },
-    { source: 'Electricity — Portland (PGE)', value: 330, factor: 'eGRID NWPP 2024', confidence: 97 },
+    { source: 'Electricity — Sacramento (PG&E)', value: 634, factor: `WECC ${factorLabel('epa-egrid-2023')}`, confidence: 96 },
+    { source: 'Electricity — Fresno (SCE)', value: 489, factor: `WECC ${factorLabel('epa-egrid-2023')}`, confidence: 93 },
+    { source: 'Electricity — Portland (PGE)', value: 330, factor: `NWPP ${factorLabel('epa-egrid-2023')}`, confidence: 97 },
   ]},
   scope3: { value: 1585, label: 'Scope 3 — Value Chain', pct: 32.5, trend: +8.1, items: [
     { source: 'Upstream freight (truck)', value: 412, factor: 'GLEC Framework v3', confidence: 72 },
     { source: 'Purchased packaging', value: 347, factor: 'EPA WARM / EEIO', confidence: 58 },
     { source: 'Ingredient sourcing (est.)', value: 298, factor: 'EXIOBASE 3.8', confidence: 44 },
     { source: 'Downstream freight (EU)', value: 231, factor: 'GLEC Framework v3', confidence: 65 },
-    { source: 'Employee commuting (est.)', value: 189, factor: 'EPA GHG Factor Hub', confidence: 39 },
+    { source: 'Employee commuting (est.)', value: 189, factor: factorLabel('epa-efh-2025'), confidence: 39 },
     { source: 'Cloud hosting & SaaS', value: 108, factor: 'GHG Protocol ICT', confidence: 82 },
   ]},
 };
@@ -116,19 +118,19 @@ export const OCR_PREVIEW = {
     { label: 'Service Address', value: '4210 Industrial Blvd, Sacramento', confidence: 99 },
     { label: 'Emission Factor Applied', value: '0.212 kgCO2e/kWh (WECC)', confidence: 100 },
     { label: 'Estimated Emissions', value: '39.1 tCO2e', confidence: 96 },
-    { label: 'Emissions Method', value: 'Location-based (eGRID 2024)', confidence: 100 },
+    { label: 'Emissions Method', value: `Location-based (${factorLabel('epa-egrid-2023')})`, confidence: 100 },
   ],
 };
 
 export const LEDGER_ENTRIES = [
-  { id: 'LED-001', date: '2026-03-28', source: 'PG&E_bill_sacramento_Q1.pdf', scope: 'Scope 2', category: 'Electricity', amount: 39.1, unit: 'tCO2e', factor: 'eGRID WECC 2024', method: 'Location-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 96 },
-  { id: 'LED-002', date: '2026-03-27', source: 'SCE_bill_fresno_Q1.pdf', scope: 'Scope 2', category: 'Electricity', amount: 28.4, unit: 'tCO2e', factor: 'eGRID WECC 2024', method: 'Location-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 93 },
+  { id: 'LED-001', date: '2026-03-28', source: 'PG&E_bill_sacramento_Q1.pdf', scope: 'Scope 2', category: 'Electricity', amount: 39.1, unit: 'tCO2e', factor: `WECC ${factorLabel('epa-egrid-2023')}`, method: 'Location-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 96 },
+  { id: 'LED-002', date: '2026-03-27', source: 'SCE_bill_fresno_Q1.pdf', scope: 'Scope 2', category: 'Electricity', amount: 28.4, unit: 'tCO2e', factor: `WECC ${factorLabel('epa-egrid-2023')}`, method: 'Location-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 93 },
   { id: 'LED-003', date: '2026-03-25', source: 'FedEx_freight_report_Q1.csv', scope: 'Scope 3', category: 'Upstream Freight', amount: 42.8, unit: 'tCO2e', factor: 'GLEC Framework v3', method: 'Distance-based (est.)', extraction: 'CSV Import', reviewer: 'Unassigned', status: 'pending-review' as const, version: 1, confidence: 72 },
   { id: 'LED-004', date: '2026-03-24', source: 'UPS_shipment_log_Q1.csv', scope: 'Scope 3', category: 'Upstream Freight', amount: 31.2, unit: 'tCO2e', factor: 'GLEC Framework v3', method: 'Shipment-based (est.)', extraction: 'CSV Import', reviewer: 'Unassigned', status: 'pending-review' as const, version: 1, confidence: 68 },
-  { id: 'LED-005', date: '2026-03-20', source: 'Natural_gas_invoice_Q1.pdf', scope: 'Scope 1', category: 'Stationary Combustion', amount: 35.6, unit: 'tCO2e', factor: 'EPA GHG Factor Hub 2024', method: 'Fuel-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 94 },
-  { id: 'LED-006', date: '2026-03-18', source: 'Fleet_fuel_card_Q1.csv', scope: 'Scope 1', category: 'Mobile Combustion', amount: 24.2, unit: 'tCO2e', factor: 'EPA GHG Factor Hub 2024', method: 'Fuel-based', extraction: 'CSV Import', reviewer: 'Sarah Chen', status: 'approved' as const, version: 2, confidence: 88 },
+  { id: 'LED-005', date: '2026-03-20', source: 'Natural_gas_invoice_Q1.pdf', scope: 'Scope 1', category: 'Stationary Combustion', amount: 35.6, unit: 'tCO2e', factor: factorLabel('epa-efh-2025'), method: 'Fuel-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 94 },
+  { id: 'LED-006', date: '2026-03-18', source: 'Fleet_fuel_card_Q1.csv', scope: 'Scope 1', category: 'Mobile Combustion', amount: 24.2, unit: 'tCO2e', factor: factorLabel('epa-efh-2025'), method: 'Fuel-based', extraction: 'CSV Import', reviewer: 'Sarah Chen', status: 'approved' as const, version: 2, confidence: 88 },
   { id: 'LED-007', date: '2026-03-15', source: 'Expert estimate — ingredient sourcing', scope: 'Scope 3', category: 'Purchased Goods', amount: 18.3, unit: 'tCO2e', factor: 'EXIOBASE 3.8', method: 'Spend-based (est.)', extraction: 'Manual Entry', reviewer: 'Tom Bradley', status: 'conditional' as const, version: 1, confidence: 44 },
-  { id: 'LED-008', date: '2026-03-10', source: 'Refrigerant service log — Fresno', scope: 'Scope 1', category: 'Refrigerant Leakage', amount: 12.7, unit: 'tCO2e', factor: 'IPCC AR6 GWP-100', method: 'Screening (3% leak rate)', extraction: 'Manual Entry', reviewer: 'Tom Bradley', status: 'conditional' as const, version: 1, confidence: 71 },
+  { id: 'LED-008', date: '2026-03-10', source: 'Refrigerant service log — Fresno', scope: 'Scope 1', category: 'Refrigerant Leakage', amount: 12.7, unit: 'tCO2e', factor: factorLabel('ipcc-ar6-gwp100'), method: 'Screening (3% leak rate)', extraction: 'Manual Entry', reviewer: 'Tom Bradley', status: 'conditional' as const, version: 1, confidence: 71 },
 ];
 
 export const REPORTS = [
@@ -201,7 +203,7 @@ export const ONBOARDING_CHECKLIST = [
 export const METHODOLOGY_SETTINGS = {
   boundaryType: 'operational',
   electricityMethod: 'location-based',
-  emissionFactorLib: 'EPA GHG Factor Hub 2024',
+  emissionFactorLib: factorLabel('epa-efh-2025'),
   reportingYear: 2026,
   baseYear: 2024,
   materialityThreshold: '5%',
@@ -209,62 +211,10 @@ export const METHODOLOGY_SETTINGS = {
   scope3Categories: [1, 2, 4, 6, 7, 9],
 };
 
-export const PLANS = {
-  starter: {
-    id: 'starter',
-    name: 'Starter',
-    monthly: 149,
-    annual: 1490,
-    badge: 'Best for first compliance workflow',
-    trial: true,
-    features: [
-      '1 company',
-      '1 facility',
-      'Baseline Scope 1 & 2 tracking',
-      'Limited document uploads (10/month)',
-      '1 reporting template',
-      'Email support',
-    ],
-    locked: ['Scope 3 workflows', 'AI Carbon Assistant', 'Supplier request hub', 'Integrations', 'Audit trail exports'],
-  },
-  growth: {
-    id: 'growth',
-    name: 'Growth',
-    monthly: 399,
-    annual: 3990,
-    badge: 'Most popular',
-    popular: true,
-    trial: true,
-    features: [
-      'Up to 5 facilities',
-      'Scope 1, 2, & key Scope 3 workflows',
-      'QuickBooks & Xero integrations',
-      'AI Carbon Assistant',
-      'Supplier request hub',
-      'Audit trail & report exports',
-      'Priority support',
-    ],
-    locked: ['Multi-entity', 'Custom reporting', 'Team permissions', 'API access'],
-  },
-  pro: {
-    id: 'pro',
-    name: 'Pro',
-    monthly: 999,
-    annual: 9990,
-    badge: 'Best for multi-facility teams',
-    trial: false,
-    features: [
-      'Multi-entity & advanced workflows',
-      'Advanced audit ledger',
-      'Approval workflows',
-      'Custom reporting templates',
-      'Team permissions & roles',
-      'Premium support & onboarding',
-      'API & advanced integrations',
-    ],
-    locked: [],
-  },
-} as const;
+// AF-1: pricing.ts is the single source of truth for plan pricing. Re-export
+// here so existing mockData consumers (Settings, UpgradePrompt) read canonical
+// values without a value drift.
+export { PLANS } from '@/content/pricing';
 
 export const ADD_ONS = [
   { id: 'extra-facility', name: 'Extra facility', price: 49, unit: '/month' },
@@ -305,7 +255,7 @@ export const FEATURE_COMPARISON = [
   { feature: 'Scope 1 tracking', starter: '✓', growth: '✓', pro: '✓' },
   { feature: 'Scope 2 tracking', starter: '✓', growth: '✓', pro: '✓' },
   { feature: 'Scope 3 workflows', starter: '—', growth: '✓', pro: '✓' },
-  { feature: 'Document uploads', starter: '10/mo', growth: 'Unlimited', pro: 'Unlimited' },
+  { feature: 'CSV imports', starter: '10/mo', growth: 'Unlimited', pro: 'Unlimited' },
   { feature: 'Reporting templates', starter: '1', growth: 'All standard', pro: 'Custom + standard' },
   { feature: 'AI Carbon Assistant', starter: '—', growth: '✓', pro: '✓' },
   { feature: 'Supplier request hub', starter: '—', growth: '✓', pro: '✓' },

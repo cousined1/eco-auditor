@@ -1,4 +1,5 @@
 import { METHODOLOGY_SETTINGS, FACILITIES } from '../data/mockData';
+import { factorLabel } from '@/lib/emission-factors/registry';
 
 export default function Methodology() {
   const m = METHODOLOGY_SETTINGS;
@@ -84,11 +85,12 @@ export default function Methodology() {
         <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Emission Factor Library</h3>
         <div className="space-y-2">
           {[
-            { source: 'EPA GHG Factor Hub 2024', scopes: ['Scope 1', 'Scope 2'], status: 'active' },
-            { source: 'eGRID WECC / NWPP 2024', scopes: ['Scope 2'], status: 'active' },
-            { source: 'GLEC Framework v3', scopes: ['Scope 3'], status: 'active' },
-            { source: 'EXIOBASE 3.8', scopes: ['Scope 3'], status: 'active' },
-            { source: 'IPCC AR6 GWP-100', scopes: ['Scope 1'], status: 'active' },
+            { source: factorLabel('epa-efh-2025'), scopes: ['Scope 1', 'Scope 2'], status: 'active' },
+            { source: `WECC / NWPP ${factorLabel('epa-egrid-2023')}`, scopes: ['Scope 2'], status: 'active' },
+            // ponytail: GLEC + EXIOBASE removed from the active list — they are
+            // roadmap-only (not wired into utils.ts) and marked verified:false in
+            // the registry. Do not re-list as 'active' without wiring them in.
+            { source: factorLabel('ipcc-ar6-gwp100'), scopes: ['Scope 1'], status: 'active' },
             { source: 'EPA WARM / EEIO', scopes: ['Scope 3'], status: 'active' },
           ].map((factor, i) => (
             <div key={i} className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">

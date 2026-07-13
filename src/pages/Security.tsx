@@ -23,7 +23,7 @@ export default function Security() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses audit-ready GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
       document.head.removeChild(script);
     };
   }, []);
@@ -85,15 +85,15 @@ export default function Security() {
               'Your data is yours. We never share or sell customer data.',
               'Uploaded files are parsed and emission factors applied; you can delete uploads at any time',
               'Payments processed by Stripe — we never store card details',
-              'GDPR-compliant data processing agreement available',
+              'GDPR-aligned data processing agreement available',
             ]}
           />
           <TrustCard
             icon={<ComplianceIcon />}
             title="Compliance"
             items={[
-              'GDPR compliant — DPA available on request',
-              'California Consumer Privacy Act (CCPA) compliant',
+              'GDPR-aligned — DPA available on request',
+              'Aligned with the California Consumer Privacy Act (CCPA)',
               'Carbon accounting methodology follows GHG Protocol',
             ]}
           />
@@ -130,13 +130,13 @@ export default function Security() {
       <section className="max-w-5xl mx-auto px-6 py-14">
         <div className="text-center mb-10">
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white">Trust documentation</h2>
-          <p className="mt-3 text-surface-500 max-w-2xl mx-auto">We publish our security and compliance documentation transparently. NoNDA required for standard materials.</p>
+          <p className="mt-3 text-surface-500 max-w-2xl mx-auto">We publish our security and compliance documentation transparently. No NDA required for standard materials.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Privacy Policy', to: '/privacy', desc: 'How we collect, use, and protect your personal data' },
             { label: 'Terms of Service', to: '/terms', desc: 'Legal terms governing use of the platform' },
-            { label: 'Data Processing Addendum', to: '/dpa', desc: 'GDPR-compliant DPA for EU customers' },
+            { label: 'Data Processing Addendum', to: '/dpa', desc: 'GDPR-aligned DPA for EU customers' },
             { label: 'Contact Security Team', to: '/contact', desc: 'Report vulnerabilities or request a security review' },
           ].map((doc) => (
             <Link key={doc.label} to={doc.to} className="card hover:shadow-md transition-shadow group">

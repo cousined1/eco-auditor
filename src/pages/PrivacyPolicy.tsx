@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
         </div>
 
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-surface-500">Last updated: [Date to be set upon legal review]</p>
+        <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
 
         <LegalSection id="introduction" title="1. Introduction" onScroll={setActiveSection}>
           <p>Developer312 ("we," "us," or "our") operates the Eco-Auditor platform, a carbon accounting and emissions management service. This Privacy Policy describes how we collect, use, disclose, and protect information when you use our service.</p>

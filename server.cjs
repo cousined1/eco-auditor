@@ -180,8 +180,20 @@ app.get('/api/version', function (_req, res) {
   });
 });
 
-// ─── Health check with DB status ───
-app.get('/health', function (_req, res) {
+// ─── Health check with DB status + build SHA (AF-2) ───
+// Build SHA self-report + no-store caching. The SHA is injected by the
+// platform at build/deploy time (Railway: RAILWAY_GIT_COMMIT_SHA; Vercel:
+// VERCEL_GIT_COMMIT_SHA; generic CI: GIT_SHA). null is a signal that
+// the deploy pipeline isn't wiring the SHA — fix that before trusting
+// gate-13 AC-P0-1 (F1) SHA-equality checks. Mirrors /api/version :143-152.
+function buildSha() {
+  return process.env.RAILWAY_GIT_COMMIT_SHA
+    || process.env.VERCEL_GIT_COMMIT_SHA
+    || process.env.GIT_SHA
+    || null;
+}
+
+function healthPayload() {
   // Check InsForge/DB connectivity if configured
   let dbStatus = 'not configured';
   const insforgeUrl = process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL;
@@ -189,13 +201,34 @@ app.get('/health', function (_req, res) {
     dbStatus = 'configured';
   }
 
-  res.json({
+  return {
     status: 'ok',
+    sha: buildSha(),
+    build: buildSha(), // alias kept for /api/version parity (impl-spec AF-2)
     uptime: process.uptime(),
     version: process.env.APP_VERSION || process.env.npm_package_version || '0.0.0',
     db: dbStatus,
     timestamp: new Date().toISOString(),
-  });
+  };
+}
+
+app.get('/health', function (_req, res) {
+  // ponytail: no-store so cached health never defeats its purpose (godmythos HR #25).
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json(healthPayload());
+});
+
+// ─── /api/health — godmythos HR #24 §0 mandatory health route (AF-2) ───
+// Canonical SHA-self-report endpoint. Same payload as /health; the /api
+// prefix aligns with the API surface so uptime monitors and the gate-13
+// F1 check can probe a stable, semantically-named URL.
+app.get('/api/health', function (_req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json(healthPayload());
 });
 
 // ─── InsForge config endpoint (for auth) ───
@@ -905,7 +938,7 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /cbam|carbon border|eu|europe/i,
-    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Track embedded emissions in imports\n• Generate CBAM-compliant reports\n• Monitor compliance deadlines\n• Calculate carbon costs\n\nNeed help getting CBAM-ready? Book a demo with our team!"
+    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Track embedded emissions in imports\n• Generate CBAM-aligned reports\n• Monitor compliance deadlines\n• Calculate carbon costs\n\nNeed help preparing for CBAM? Book a demo with our team!"
   },
   {
     pattern: /\bsec\b|disclosure|climate rule/i,
@@ -1765,11 +1798,13 @@ app.use(express.static(path.join(__dirname, 'static'), {
 // slash, but crawlers and most inbound links hit the bare path
 // (/pricing, /methodology, …). Map those to the prerendered file BEFORE
 // the SPA fallback so non-JS clients receive real content. Routes NOT
-// in this set (/app/*, /login, /signup, /auth/*) fall through to the
-// client-side shell as before.
+// in this set (/app/*, /auth/*) fall through to the client-side shell as
+// before. /login and /signup are prerendered (noindex) so non-JS clients
+// and crawlers see route-appropriate content instead of the homepage shell.
 var PRERENDERED_ROUTES = [
   '/pricing', '/methodology', '/sample-report', '/security',
   '/contact', '/privacy', '/terms', '/dpa',
+  '/login', '/signup',
 ];
 PRERENDERED_ROUTES.forEach(function (route) {
   app.get(route, function (_req, res, next) {

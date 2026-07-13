@@ -10,6 +10,17 @@ import { useEffect, useState } from 'react';
 
 export default function Login() {
   const navigate = useNavigate();
+
+  // ponytail: noindex for SPA-navigated auth views (prerendered static HTML covers direct/crawler loads)
+  useEffect(() => {
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex,nofollow';
+    document.head.appendChild(meta);
+    return () => {
+      document.head.removeChild(meta);
+    };
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -191,7 +202,7 @@ export default function Login() {
           <p className="mt-6 text-center text-sm text-surface-500">
             Don't have an account?{' '}
             <Link to="/signup" className="font-medium text-accent hover:underline">
-              Start your free trial
+              Sign up
             </Link>
           </p>
         </section>

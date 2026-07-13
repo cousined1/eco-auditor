@@ -46,7 +46,7 @@ export default function TermsOfService() {
         </div>
 
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Terms of Service</h1>
-        <p className="text-sm text-surface-500">Last updated: [Date to be set upon legal review]</p>
+        <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
 
         <Sec id="acceptance" title="1. Acceptance of Terms" onScroll={setActiveSection}>
           <p>By accessing or using the Eco-Auditor platform ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you are using the Service on behalf of an organization, you represent that you have the authority to bind that organization to these Terms.</p>
@@ -163,7 +163,7 @@ export default function TermsOfService() {
 
         <Sec id="liability" title="16. Limitation of Liability" onScroll={setActiveSection}>
           <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL DEVELOPER312, ITS AFFILIATES, OFFICERS, DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, BUSINESS OPPORTUNITIES, OR REPUTATION, ARISING OUT OF OR IN CONNECTION WITH THE SERVICE OR THESE TERMS.</p>
-          <p>DEVELOPER312'S TOTAL CUMULATIVE LIABILITY FOR ANY CLAIMS ARISING FROM OR RELATED TO THE SERVICE OR THESE TERMS SHALL NOT EXCEED THE GREATER OF (A) THE TOTAL FEES PAID BY YOU TO DEVELOPER312 IN THE TWELVE (12) MONTHS PRECEDING THE EVENT GIVING RISE TO THE CLAIM, OR (B) [AMOUNT TO BE SET UPON LEGAL REVIEW].</p>
+          <p>DEVELOPER312'S TOTAL CUMULATIVE LIABILITY FOR ANY CLAIMS ARISING FROM OR RELATED TO THE SERVICE OR THESE TERMS SHALL NOT EXCEED THE GREATER OF (A) THE TOTAL FEES PAID BY YOU TO DEVELOPER312 IN THE TWELVE (12) MONTHS PRECEDING THE EVENT GIVING RISE TO THE CLAIM, OR (B) $5,000.</p>
           <p>Some jurisdictions do not allow the exclusion or limitation of certain warranties or liabilities, so some of the above limitations may not apply to you.</p>
         </Sec>
 
@@ -183,8 +183,8 @@ export default function TermsOfService() {
         </Sec>
 
         <Sec id="governing-law" title="19. Governing Law and Dispute Resolution" onScroll={setActiveSection}>
-          <p>These Terms shall be governed by and construed in accordance with the laws of [Jurisdiction to be set upon legal review], without regard to its conflict-of-law provisions.</p>
-          <p>Any disputes arising out of or in connection with these Terms shall be resolved through [Dispute resolution mechanism to be set upon legal review — e.g., arbitration, mediation, or courts of specified jurisdiction].</p>
+          <p>These Terms shall be governed by and construed in accordance with the laws of the State of California, without regard to its conflict-of-law provisions.</p>
+          <p>Any disputes arising out of or in connection with these Terms shall be resolved through binding arbitration in the State of California, excluding jury trial.</p>
         </Sec>
 
         <Sec id="changes" title="20. Changes to Terms" onScroll={setActiveSection}>

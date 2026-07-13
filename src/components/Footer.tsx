@@ -17,7 +17,7 @@ export default function Footer() {
               </svg>
               <span className="text-sm font-semibold text-surface-900 dark:text-white">Eco-Auditor</span>
             </div>
-            <p className="text-xs text-surface-500 leading-relaxed">Carbon accounting for companies that need audit-ready emissions data, not enterprise software.</p>
+            <p className="text-xs text-surface-500 leading-relaxed">Carbon accounting for companies that need reviewable emissions data, not enterprise software.</p>
           </div>
 
           {/* Product nav */}

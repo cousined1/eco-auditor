@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import Header from '../components/Header';
+import { factorLabel } from '@/lib/emission-factors/registry';
 
 const METHODOLOGY_SCHEMA = {
   "@context": "https://schema.org",
@@ -64,7 +65,7 @@ export default function MethodologyPublic() {
     document.title = 'Carbon Accounting Methodology — Eco-Auditor | GHG Protocol Alignment';
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, and IPCC AR6 factors. Transparent, audit-ready carbon accounting methodology.';
+    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, and IPCC AR6 factors. Transparent, reviewable carbon accounting methodology.';
 
     // Structured data
     const scripts = [
@@ -82,7 +83,7 @@ export default function MethodologyPublic() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses audit-ready GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses defensible GHG emissions data. Import activity data by CSV, connect integrations (roadmap), and generate Scope 1-3 reports aligned with the GHG Protocol.';
       elements.forEach((el) => document.head.removeChild(el));
     };
   }, []);
@@ -103,7 +104,7 @@ export default function MethodologyPublic() {
           </h1>
           <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
             Every number in Eco-Auditor traces back to a methodology, an emission factor, a source document, and a reviewer.
-            No black boxes, no mystery calculations — just transparent, audit-ready carbon accounting.
+            No black boxes, no mystery calculations — just transparent, defensible carbon accounting.
           </p>
         </div>
       </section>
@@ -235,9 +236,9 @@ export default function MethodologyPublic() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { name: 'EPA GHG Factor Hub 2024', org: 'US EPA', scopes: ['Scope 1', 'Scope 2'], coverage: 'Stationary combustion, mobile, fugitive, electricity' },
-              { name: 'eGRID 2024', org: 'US EPA', scopes: ['Scope 2'], coverage: 'Subregion-level grid emission factors (lbs/MWh), location-based' },
-              { name: 'IPCC AR6 GWP-100', org: 'IPCC', scopes: ['Scope 1'], coverage: 'Global warming potentials for methane (CH₄) and refrigerants (F-gases)' },
+              { name: factorLabel('epa-efh-2025'), org: 'US EPA', scopes: ['Scope 1', 'Scope 2'], coverage: 'Stationary combustion, mobile, fugitive, electricity' },
+              { name: factorLabel('epa-egrid-2023'), org: 'US EPA', scopes: ['Scope 2'], coverage: 'Subregion-level grid emission factors (lbs/MWh), location-based' },
+              { name: factorLabel('ipcc-ar6-gwp100'), org: 'IPCC', scopes: ['Scope 1'], coverage: 'Global warming potentials for methane (CH₄) and refrigerants (F-gases)' },
             ].map((lib) => (
               <div key={lib.name} className="card">
                 <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-1">{lib.name}</h3>
@@ -284,7 +285,7 @@ export default function MethodologyPublic() {
           <div className="relative">
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Ready to build your carbon inventory?</h2>
             <p className="text-brand-100 max-w-lg mx-auto mb-6 text-sm">
-              Start free, no credit card required. Upload your first utility bills and see how transparent emissions tracking should work.
+              14-day free trial · No card required · Cancel anytime. Import your first activity data by CSV and see how transparent emissions tracking should work.
             </p>
             <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg">
               Start Free Trial

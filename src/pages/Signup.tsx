@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { insforge, isInsForgeConfigured } from '../lib/insforge';
 import {
   SOCIAL_AUTH_PROVIDERS,
@@ -15,6 +15,18 @@ const isPasswordValid = (value: string) =>
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // ponytail: noindex for SPA-navigated visits (prerendered static HTML covers direct/crawler loads)
+  useEffect(() => {
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex,nofollow';
+    document.head.appendChild(meta);
+    return () => {
+      document.head.removeChild(meta);
+    };
+  }, []);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,7 +83,13 @@ export default function Signup() {
     // signUp returns an accessToken when auto-confirm is on; navigate straight to app.
     // Without a token, the user must verify their email first.
     if (data?.accessToken) {
-      navigate('/app', { replace: true });
+      const plan = searchParams.get('plan');
+      const billing = searchParams.get('billing') === 'annual' ? 'annual' : 'monthly';
+      if (plan === 'starter' || plan === 'growth' || plan === 'pro') {
+        navigate(`/app?checkout=${plan}_${billing}`, { replace: true });
+      } else {
+        navigate('/app', { replace: true });
+      }
     } else {
       setNeedsVerification(true);
     }
@@ -153,7 +171,7 @@ export default function Signup() {
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Start your free trial</h1>
             <p className="mt-2 text-sm text-surface-500">
-              No credit card required. 14-day free trial. Set up in under 10 minutes.
+              14-day free trial · No card required · Cancel anytime. Most teams are up and running quickly.
             </p>
           </div>
 

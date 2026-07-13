@@ -161,7 +161,7 @@ export default function Dashboard() {
           <div className="text-4xl mb-2">🏢</div>
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Welcome to EcoAuditor</h2>
           <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
-            Your account is ready. Add your first emission entry to start tracking your carbon footprint and building audit-ready reports.
+            Your account is ready. Add your first emission entry to start tracking your carbon footprint and building reviewable reports.
           </p>
           <Link
             to="/app/calculator"
