@@ -43,6 +43,7 @@ const ROUTES = [
   '/methodology',
   '/sample-report',
   '/security',
+  '/demo',
   '/contact',
   '/privacy',
   '/terms',
@@ -72,7 +73,7 @@ const HEAD = {
   },
   '/pricing': {
     title: 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs',
-    description: 'Eco-Auditor pricing: Starter, Growth, and Pro plans for Scope 1-3 emissions tracking. 14-day free trial, card required to start.',
+    description: 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly plans, no card required.',
   },
   '/sample-report': {
     title: 'Sample Carbon Report — Eco-Auditor | See What You Get',
@@ -84,7 +85,11 @@ const HEAD = {
   },
   '/signup': {
     title: 'Start Your Free Trial — Eco-Auditor',
-    description: 'Start your 14-day free Eco-Auditor trial. Card required to start, cancel anytime before trial ends.',
+    description: 'Start your 14-day free Eco-Auditor trial. No card required. Cancel anytime before the trial ends; the workspace becomes read-only until you select a paid plan.',
+  },
+  '/demo': {
+    title: 'Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough',
+    description: 'Book a 25–30 minute Eco-Auditor demo. Tell us your goal — Scope 1/2 baseline, Scope 3 supplier collection, SB 253 readiness, or customer carbon-data requests.',
   },
   '/contact': {
     title: 'Contact Us — Eco-Auditor',
@@ -173,12 +178,14 @@ async function main() {
       const head = HEAD[route];
       if (head) {
         if (head.title) {
-          out = out.replace(/<title>[^<]*<\/title>/, `<title>${head.title}</title>`);
+          out = out.replace(/<title>[^<]*<\/title>/, () => `<title>${head.title}</title>`);
         }
         if (head.description) {
+          // Use a function replacement so `$` characters in head.description
+          // (e.g. "$149/mo") are not interpreted as capture-group refs.
           out = out.replace(
             /(<meta name="description" content=")[^"]*(")/,
-            `$1${head.description}$2`,
+            (_, p1, p2) => `${p1}${head.description}${p2}`,
           );
         }
       }

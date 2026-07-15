@@ -21,6 +21,7 @@ import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import ContactUs from './pages/ContactUs';
+import Demo from './pages/Demo';
 import DataProcessingAddendum from './pages/DataProcessingAddendum';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -187,12 +188,14 @@ function AppContent() {
             </button>
           }
         />
-        <Routes>
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/dpa" element={<DataProcessingAddendum />} />
-          <Route path="/contact" element={<ContactUs />} />
-        </Routes>
+        <main id="main-content">
+          <Routes>
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/dpa" element={<DataProcessingAddendum />} />
+            <Route path="/contact" element={<ContactUs />} />
+          </Routes>
+        </main>
         <Footer />
       </div>
     );
@@ -291,6 +294,7 @@ function AppContent() {
       <Route path="/methodology" element={<MethodologyPublic />} />
       <Route path="/sample-report" element={<SampleReport />} />
       <Route path="/security" element={<Security />} />
+      <Route path="/demo" element={<Demo />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />

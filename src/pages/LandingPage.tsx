@@ -31,11 +31,21 @@ export default function LandingPage() {
   const { theme, toggle } = useTheme();
 
   useEffect(() => {
+    document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs | Scope 1-3 Reporting';
+
+    const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    const originalDesc = desc?.content ?? '';
+    if (desc) desc.content = 'Eco-Auditor is carbon accounting for SMBs facing SB 253, CBAM, and supply-chain carbon disclosure. Import activity data by CSV, get reviewable Scope 1-3 emissions records with data-quality scoring. 14-day free trial, no card required.';
+
     const script = document.createElement('script');
     script.type = 'application/ld+json';
     script.textContent = JSON.stringify(FAQ_SCHEMA);
     document.head.appendChild(script);
-    return () => { document.head.removeChild(script); };
+    return () => {
+      document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
+      if (desc) desc.content = originalDesc;
+      document.head.removeChild(script);
+    };
   }, []);
 
   return (
@@ -66,7 +76,8 @@ export default function LandingPage() {
             loop
             muted
             playsInline
-            className="absolute inset-0 w-full h-full object-cover opacity-[0.08] dark:opacity-[0.06] mix-blend-multiply dark:mix-blend-screen pointer-events-none"
+            preload="none"
+            className="eco-hero-motion absolute inset-0 w-full h-full object-cover opacity-[0.08] dark:opacity-[0.06] mix-blend-multiply dark:mix-blend-screen pointer-events-none"
             aria-hidden="true"
           >
             <source src="/api/video" type="video/mp4" />
@@ -88,9 +99,7 @@ export default function LandingPage() {
             <Link to="/signup" className="btn-primary !px-8 !py-3 text-base font-semibold shadow-lg shadow-brand-600/20">
               Start Free Trial
             </Link>
-            <a href="mailto:hello@developer312.com?subject=Eco-Auditor%20Demo%20Request" className="btn-secondary !px-8 !py-3 text-base">
-              Book a Demo
-            </a>
+            <Link to="/demo" className="btn-secondary !px-8 !py-3 text-base">Book a Demo</Link>
           </div>
           <p className="mt-4 text-xs text-surface-400">14-day free trial · No card required · Cancel anytime before trial ends</p>
         </div>
@@ -142,15 +151,17 @@ export default function LandingPage() {
       <section className="max-w-5xl mx-auto px-6 mb-12 relative z-10">
         <div className="rounded-2xl overflow-hidden shadow-2xl shadow-surface-900/10 dark:shadow-black/30 border border-surface-200 dark:border-surface-700 bg-black">
           <video
-            autoPlay
-            loop
-            muted
-            playsInline
+            className="w-full h-auto eco-hero-motion"
             controls
-            className="w-full h-auto"
+            preload="metadata"
+            poster="/og-image.png"
+            aria-describedby="product-video-description"
           >
             <source src="/api/video" type="video/mp4" />
-            Your browser does not support the video tag.
+            <track kind="captions" src="/video/product-workflow.en.vtt" srcLang="en" label="English captions" default />
+            <p id="product-video-description">
+              Watch the <Link to="/demo">interactive product walkthrough</Link> or read the <Link to="/methodology">methodology overview</Link> for a text-based explanation of how Eco-Auditor turns activity data into a reviewable carbon inventory.
+            </p>
           </video>
         </div>
         <p className="text-center mt-4 text-xs text-surface-400">See how Eco-Auditor turns messy data into reviewable carbon records</p>

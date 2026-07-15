@@ -21,8 +21,7 @@ export function CookieConsentBanner() {
                 We value your privacy
               </h2>
               <p className="text-sm text-surface-600 dark:text-surface-300">
-                We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic.
-                By clicking "Accept All", you consent to our use of cookies.{" "}
+                We use cookies to keep you signed in and to understand how the site is used. We do not use cookies for personalized advertising and we do not sell your data.{" "}
                 <a href="/privacy" className="text-brand-600 hover:text-brand-700 underline">
                   Learn more
                 </a>
@@ -31,17 +30,17 @@ export function CookieConsentBanner() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={acceptAll}
-                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"
+                onClick={rejectAll}
+                className="px-4 py-2 border-2 border-brand-600 text-brand-700 dark:text-brand-300 bg-white dark:bg-surface-900 rounded-lg hover:bg-brand-50 dark:hover:bg-surface-800 transition-colors text-sm font-semibold dark:border-brand-400"
               >
-                Accept All
+                Reject Non-Essential
               </button>
               <button
                 type="button"
-                onClick={rejectAll}
-                className="px-4 py-2 bg-surface-200 text-surface-800 rounded-lg hover:bg-surface-300 transition-colors text-sm font-medium dark:bg-surface-700 dark:text-white dark:hover:bg-surface-600"
+                onClick={acceptAll}
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-semibold"
               >
-                Reject Non-Essential
+                Accept All
               </button>
               <button
                 type="button"

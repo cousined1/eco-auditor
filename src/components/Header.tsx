@@ -77,7 +77,14 @@ const DEFAULT_NAV: Record<HeaderVariant, Array<{ label: string; href: string }>>
     { label: 'Sample Report', href: '/sample-report' },
     { label: 'Security', href: '/security' },
   ],
+  // P1-05: legal/contact pages keep the same global navigation as marketing
+  // pages so a prospect reaching a policy or contact page retains a route
+  // back to product evaluation.
   legal: [
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'Methodology', href: '/methodology' },
+    { label: 'Sample Report', href: '/sample-report' },
+    { label: 'Security', href: '/security' },
   ],
   app: [
   ],
@@ -90,9 +97,12 @@ const DEFAULT_CTA: Record<HeaderVariant, CtaAction[]> = {
   ],
   marketing: [
     { label: 'Start Free Trial', href: '/signup', variant: 'primary' },
-    { label: 'Book a Demo', href: '/contact', variant: 'secondary' },
+    { label: 'Book a Demo', href: '/demo', variant: 'secondary' },
   ],
+  // P1-04: canonical CTA taxonomy — one label maps to one intent.
   legal: [
+    { label: 'Log In', href: '/login', variant: 'secondary' },
+    { label: 'Start Free Trial', href: '/signup', variant: 'primary' },
   ],
   app: [
     { label: 'Notifications', icon: <BellIcon />, variant: 'icon' },
@@ -116,6 +126,13 @@ export default function Header({ variant, cta, navItems, hideCta, extra, classNa
   const showMobileMenuButton = resolvedNav.length > 0 || resolvedCta.some((action) => action.href);
 
   return (
+    <>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-brand-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-semibold"
+      >
+        Skip to main content
+      </a>
     <header
       className={`${isSticky ? 'sticky top-0 ' : ''}z-50 border-b border-surface-200/80 dark:border-surface-800/80 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md${className ? ' ' + className : ''}`}>
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
@@ -202,5 +219,6 @@ export default function Header({ variant, cta, navItems, hideCta, extra, classNa
         </div>
       )}
     </header>
+    </>
   );
 }

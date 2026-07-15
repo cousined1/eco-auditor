@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import Header from '../components/Header';
+import { trustFacts, renderFact } from '@/content/trust-facts';
 
 const SCHEMA = {
   "@context": "https://schema.org",
@@ -14,7 +15,7 @@ export default function Security() {
     document.title = 'Security & Trust — Eco-Auditor | Data Protection and Compliance';
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Eco-Auditor protects your data with TLS 1.3 encryption in transit, security headers, rate limiting, and row-level data isolation. Your carbon data is yours — we never share or sell it.';
+    if (desc) desc.content = `Eco-Auditor protects your data with ${renderFact(trustFacts.encryptionInTransitMinimum)}+ encryption in transit, ${renderFact(trustFacts.encryptionAtRest)} encryption at rest, security headers, rate limiting, and row-level data isolation. Your carbon data is yours — we never share or sell it.`;
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -55,9 +56,9 @@ export default function Security() {
             icon={<EncryptionIcon />}
             title="Encryption"
             items={[
-              'Data in transit: TLS 1.3 for all API and web traffic',
+              `Data in transit: ${renderFact(trustFacts.encryptionInTransitMinimum)} minimum (prefers ${renderFact(trustFacts.preferredTransport)})`,
               'HTTPS enforced across the entire application',
-              'Data stored with our infrastructure providers (Railway, InsForge)',
+              `Data at rest: ${renderFact(trustFacts.encryptionAtRest)}`,
             ]}
           />
           <TrustCard
@@ -85,16 +86,16 @@ export default function Security() {
               'Your data is yours. We never share or sell customer data.',
               'Uploaded files are parsed and emission factors applied; you can delete uploads at any time',
               'Payments processed by Stripe — we never store card details',
-              'GDPR-aligned data processing agreement available',
+              `Account data retained for ${renderFact(trustFacts.postTerminationRetentionDays)} days after termination to allow export, then securely deleted`,
             ]}
           />
           <TrustCard
             icon={<ComplianceIcon />}
             title="Compliance"
             items={[
-              'GDPR-aligned — DPA available on request',
-              'Aligned with the California Consumer Privacy Act (CCPA)',
-              'Carbon accounting methodology follows GHG Protocol',
+              'Privacy and data-processing controls designed to support customers’ GDPR and CCPA obligations. See the Privacy Policy and DPA for scope, roles, subprocessors, retention, and request procedures.',
+              'Carbon accounting methodology follows the GHG Protocol Corporate Standard and Scope 3 Standard',
+              `SOC 2: ${renderFact(trustFacts.soc2Status)}`,
             ]}
           />
         </div>
@@ -112,7 +113,7 @@ export default function Security() {
               { q: 'Document upload and processing', a: 'When you import a CSV of activity data, we apply emission factors to each row. You can delete uploaded data at any time.' },
               { q: 'Data sharing and third parties', a: 'We never share, sell, or license your emissions data to third parties. Data you upload is used exclusively to provide the Service — generating emissions estimates, audit trails, and compliance reports. We do not train AI models on customer data. Integrations with QuickBooks, Xero, or other platforms are read-only where possible and require explicit OAuth authorization.' },
               { q: 'Employee and contractor access', a: 'Production access is restricted to authorized engineering and support staff, requires multi-factor authentication, and is logged and audited monthly. Support staff access customer data only to resolve specific, documented support requests with workspace owner consent.' },
-              { q: 'Data deletion on cancellation', a: 'When you cancel, you can export your data; on request we delete your account data from production systems.' },
+              { q: 'Data deletion on cancellation', a: `When you cancel, you can export your data. Account data is retained for ${renderFact(trustFacts.postTerminationRetentionDays)} days after termination to allow for export, then securely deleted. Backups are deleted within ${renderFact(trustFacts.backupsDeletionWindowDays)} days of termination. Contact us to request earlier deletion of active data.` },
             ].map((item) => (
               <details key={item.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">
@@ -137,7 +138,7 @@ export default function Security() {
             { label: 'Privacy Policy', to: '/privacy', desc: 'How we collect, use, and protect your personal data' },
             { label: 'Terms of Service', to: '/terms', desc: 'Legal terms governing use of the platform' },
             { label: 'Data Processing Addendum', to: '/dpa', desc: 'GDPR-aligned DPA for EU customers' },
-            { label: 'Contact Security Team', to: '/contact', desc: 'Report vulnerabilities or request a security review' },
+            { label: 'Contact Security Team', to: '/contact?topic=security', desc: 'Report vulnerabilities or request a security review' },
           ].map((doc) => (
             <Link key={doc.label} to={doc.to} className="card hover:shadow-md transition-shadow group">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-1 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{doc.label}</h3>

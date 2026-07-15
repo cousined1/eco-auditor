@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useConsent } from '../lib/consent-context';
 
 export default function Footer() {
   const year = new Date().getFullYear();
+  const { resetConsent } = useConsent();
 
   return (
     <footer aria-label="Site footer" className="border-t border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
@@ -54,13 +56,20 @@ export default function Footer() {
         </div>
 
         <div className="mt-6 pt-6 border-t border-surface-200 dark:border-surface-800 flex flex-col md:flex-row items-center justify-between gap-3">
-          <p className="text-2xs text-surface-400">© {year} EcoAuditor. All rights reserved.</p>
+          <p className="text-2xs text-surface-400">© {year} Eco-Auditor, a product operated by Developer312, a subsidiary of NIGHT LITE USA LLC. All rights reserved.</p>
+          <button
+            type="button"
+            onClick={resetConsent}
+            className="text-2xs text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors underline-offset-2 hover:underline"
+          >
+            Cookie preferences
+          </button>
         </div>
 
-        {/* EcoAuditor Suite Interlinking */}
+        {/* Eco-Auditor Suite Interlinking */}
         <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-surface-500">
-            <span className="font-medium text-surface-600 dark:text-surface-400">EcoAuditor suite:</span>
+            <span className="font-medium text-surface-600 dark:text-surface-400">Eco-Auditor suite:</span>
             <a href="https://provenance-os.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">ProvenanceOS</a>
             <span className="text-surface-300">·</span>
             <a href="https://sim-2-real.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a>

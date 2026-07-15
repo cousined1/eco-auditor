@@ -1,16 +1,47 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { insforge, isInsForgeConfigured } from '../lib/insforge';
 
+type TopicValue = 'sales' | 'billing' | 'product' | 'legal' | 'dpa' | 'security' | 'support' | 'other';
+
+const TOPIC_BY_QUERY: Record<string, TopicValue> = {
+  sales: 'sales',
+  billing: 'billing',
+  product: 'product',
+  legal: 'legal',
+  privacy: 'legal',
+  dpa: 'dpa',
+  security: 'security',
+  support: 'support',
+  other: 'other',
+};
+
 export default function ContactUs() {
-  const [form, setForm] = useState({ name: '', company: '', email: '', subject: '', message: '' });
+  const [searchParams] = useSearchParams();
+  const initialSubject = TOPIC_BY_QUERY[searchParams.get('topic') ?? ''] ?? '';
+  const [form, setForm] = useState({ name: '', company: '', email: '', subject: initialSubject, message: '' });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  function validate(): boolean {
+    const errors: Record<string, string> = {};
+    if (!form.name.trim()) errors.name = 'Your name is required.';
+    if (!form.email.trim()) errors.email = 'Email is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Enter a valid email address.';
+    if (!form.subject) errors.subject = 'Select a topic.';
+    if (!form.message.trim()) errors.message = 'Tell us what you need.';
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setSubmitError(null);
+    if (!validate()) return;
+
+    setSubmitting(true);
 
     if (!isInsForgeConfigured) {
       setSubmitError('Our contact form is temporarily unavailable.');
@@ -19,7 +50,7 @@ export default function ContactUs() {
     }
 
     try {
-      await insforge.database.from('contact_submissions').insert([{ ...form }]);
+      await insforge.database.from('contact_submissions').insert([{ ...form, intent: form.subject }]);
       setSubmitted(true);
     } catch {
       setSubmitError('We couldn’t send your message right now.');
@@ -66,7 +97,7 @@ export default function ContactUs() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Company</h3>
-            <p className="text-sm text-surface-600 dark:text-surface-400">EcoAuditor</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Eco-Auditor</p>
           </div>
         </div>
       </div>
@@ -84,36 +115,91 @@ export default function ContactUs() {
                 <p className="text-xs text-surface-500 mt-1">We typically respond within 1–2 business days.</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+                {Object.keys(fieldErrors).length > 0 && (
+                  <div role="alert" aria-live="polite" className="rounded-lg border border-risk-high/30 bg-risk-high/10 px-3 py-2 text-sm text-risk-high" tabIndex={-1}>
+                    <p className="font-semibold mb-1">Please fix the following:</p>
+                    <ul className="list-disc pl-5 text-xs">
+                      {Object.entries(fieldErrors).map(([field, msg]) => (
+                        <li key={field}><a href={`#contact-${field}`} className="underline">{msg}</a></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs text-surface-500 mb-1">Full name</label>
-                    <input className="input" placeholder="Jane Smith" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                    <label htmlFor="contact-name" className="block text-xs text-surface-500 mb-1">Full name *</label>
+                    <input
+                      id="contact-name"
+                      className="input"
+                      placeholder="Jane Smith"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      aria-invalid={!!fieldErrors.name}
+                      aria-describedby={fieldErrors.name ? 'contact-name-error' : undefined}
+                    />
+                    {fieldErrors.name && <p id="contact-name-error" className="text-xs text-risk-high mt-1">{fieldErrors.name}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs text-surface-500 mb-1">Company</label>
-                    <input className="input" placeholder="Acme Corp" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
+                    <label htmlFor="contact-company" className="block text-xs text-surface-500 mb-1">Company</label>
+                    <input
+                      id="contact-company"
+                      className="input"
+                      placeholder="Acme Corp"
+                      value={form.company}
+                      onChange={(e) => setForm({ ...form, company: e.target.value })}
+                    />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-surface-500 mb-1">Email</label>
-                  <input type="email" className="input" placeholder="jane@acme.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+                  <label htmlFor="contact-email" className="block text-xs text-surface-500 mb-1">Email *</label>
+                  <input
+                    id="contact-email"
+                    type="email"
+                    className="input"
+                    placeholder="jane@acme.com"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    aria-invalid={!!fieldErrors.email}
+                    aria-describedby={fieldErrors.email ? 'contact-email-error' : undefined}
+                  />
+                  {fieldErrors.email && <p id="contact-email-error" className="text-xs text-risk-high mt-1">{fieldErrors.email}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs text-surface-500 mb-1">Subject</label>
-                  <select className="input" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} required>
+                  <label htmlFor="contact-subject" className="block text-xs text-surface-500 mb-1">Subject *</label>
+                  <select
+                    id="contact-subject"
+                    className="input"
+                    value={form.subject}
+                    onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                    aria-invalid={!!fieldErrors.subject}
+                    aria-describedby={fieldErrors.subject ? 'contact-subject-error' : undefined}
+                  >
                     <option value="">Select a topic</option>
                     <option value="sales">Sales inquiry</option>
                     <option value="billing">Billing support</option>
                     <option value="product">Product support</option>
                     <option value="legal">Legal / privacy request</option>
                     <option value="dpa">Request DPA / privacy documentation</option>
+                    <option value="security">Security report / security materials request</option>
+                    <option value="support">General support</option>
                     <option value="other">Other</option>
                   </select>
+                  {fieldErrors.subject && <p id="contact-subject-error" className="text-xs text-risk-high mt-1">{fieldErrors.subject}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs text-surface-500 mb-1">Message</label>
-                  <textarea className="input" rows={4} placeholder="How can we help?" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} required />
+                  <label htmlFor="contact-message" className="block text-xs text-surface-500 mb-1">Message *</label>
+                  <textarea
+                    id="contact-message"
+                    className="input"
+                    rows={4}
+                    placeholder="How can we help?"
+                    value={form.message}
+                    onChange={(e) => setForm({ ...form, message: e.target.value })}
+                    aria-invalid={!!fieldErrors.message}
+                    aria-describedby={fieldErrors.message ? 'contact-message-error' : undefined}
+                  />
+                  {fieldErrors.message && <p id="contact-message-error" className="text-xs text-risk-high mt-1">{fieldErrors.message}</p>}
                 </div>
                 <button type="submit" className="btn-primary" disabled={submitting}>{submitting ? 'Sending...' : 'Send message'}</button>
                 {submitError && (
@@ -156,7 +242,7 @@ export default function ContactUs() {
           </div>
 
           <div className="p-4 rounded-lg border border-surface-200 dark:border-surface-700">
-            <p className="text-2xs text-surface-400">© {new Date().getFullYear()} EcoAuditor. All rights reserved.</p>
+            <p className="text-2xs text-surface-400">© {new Date().getFullYear()} Eco-Auditor. All rights reserved.</p>
           </div>
         </div>
       </div>
