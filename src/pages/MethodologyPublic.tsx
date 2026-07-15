@@ -136,7 +136,7 @@ export default function MethodologyPublic() {
           {[
             { name: 'GHG Protocol Corporate Standard', org: 'WRI / WBCSD', desc: 'Scope 1 and 2 accounting, organizational boundary setting (operational control), and base year emissions tracking.' },
             { name: 'GHG Protocol Scope 3 Standard', org: 'WRI / WBCSD', desc: 'Corporate Value Chain (Scope 3) Standard with spend-based estimates for common Scope 3 categories.' },
-            { name: 'California SB 253 / SB 261', org: 'CARB', desc: 'Export your inventory to support California\'s Climate Corporate Data Accountability Act disclosures.' },
+            { name: 'California SB 253 / SB 261', org: 'CARB', desc: 'California\'s first-year Scope 1 and Scope 2 reporting deadline is August 10, 2026, for covered entities (companies doing business in California with over $1B revenue). Smaller suppliers may still receive emissions-data requests from covered customers. Eco-Auditor helps assemble traceable data for both direct reporting and customer-driven requests.' },
           ].map((s) => (
             <div key={s.name} className="card">
               <div className="text-xs font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-wider mb-1">{s.org}</div>
@@ -147,7 +147,7 @@ export default function MethodologyPublic() {
         </div>
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           {[
-            { name: 'EU CBAM', org: 'European Commission', desc: 'Export your inventory to support Carbon Border Adjustment Mechanism reporting for importers of carbon-intensive goods into the EU.' },
+            { name: 'EU CBAM', org: 'European Commission', desc: 'Eco-Auditor can support the collection and organization of emissions inputs used in CBAM-related workflows. It does not replace an authorized declarant, customs filing, legal review, or required verification. Applicability depends on importer status and goods traded.' },
             { name: 'EPA GHG Inventory Guidance', org: 'US EPA', desc: 'Emission factor libraries from the EPA GHG Emission Factors Hub and eGRID.' },
           ].map((s) => (
             <div key={s.name} className="card">
@@ -197,6 +197,11 @@ export default function MethodologyPublic() {
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">Data quality hierarchy</h2>
             <p className="mt-3 text-surface-500 max-w-2xl mx-auto">Not all data is equal. Every entry in your carbon inventory is scored on a 5-level quality scale so you know what is defensible and what needs improvement.</p>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 mb-6 max-w-3xl mx-auto">
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              <strong>Eco-Auditor data-confidence score.</strong> This score is an internal, proprietary decision-support indicator — not an assurance opinion and not a GHG Protocol certification. It combines source type, source recency, coverage, estimation method, factor specificity, and review status. Users can inspect the inputs and override classifications with a recorded reason. Confidence ranges reflect Eco-Auditor’s model and are not externally standardized certainty values.
+            </p>
           </div>
           <div className="space-y-3">
             {QUALITY_TIERS.map((tier) => (
@@ -262,7 +267,7 @@ export default function MethodologyPublic() {
           <div className="space-y-4">
             {[
               { q: 'Which emission factor databases does Eco-Auditor use?', a: 'Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR6 GWP-100 values.' },
-              { q: 'Is Eco-Auditor aligned with the GHG Protocol?', a: 'Yes. Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Our organizational boundary default is operational control, consistent with the Protocol\'s recommended approach.' },
+              { q: 'Is Eco-Auditor aligned with the GHG Protocol?', a: 'Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Eco-Auditor defaults to the operational-control approach for initial setup. The GHG Protocol also permits equity-share and financial-control approaches. Organizations should select and document the boundary method appropriate to their structure and reporting requirements.' },
               { q: 'How does Eco-Auditor handle data quality?', a: 'Every data point receives a confidence score on our 5-level quality hierarchy — from direct measurement (L1) down to default estimates (L5). Entries below L3 are surfaced for human review. This scoring is carried through to reports so reviewers know exactly which numbers are primary and which are estimated.' },
               { q: 'What compliance frameworks does Eco-Auditor support?', a: 'You can export your inventory to support California SB 253 and EU CBAM reporting, as well as customer procurement questionnaires (CDP, EcoVadis-style) and annual GHG inventories.' },
               { q: 'How often are emission factors updated?', a: 'We update factors annually when source agencies release new data (EPA GHG Emission Factors Hub in April, eGRID in January). We also publish change logs so you can assess the impact of factor updates on your baseline.' },

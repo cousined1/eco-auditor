@@ -113,7 +113,7 @@ export default function TermsOfService() {
 
         <Sec id="trials-termination" title="9. Trials, Cancellation, Suspension, and Termination" onScroll={setActiveSection}>
           <ul>
-            <li><strong>Free trials:</strong> We may offer free trials for eligible plans. Trial periods are limited in duration and features. At the end of a trial, you will be charged for the selected plan unless you cancel before the trial expires</li>
+            <li><strong>Free trials:</strong> We may offer 14-day free trials on eligible monthly plans. No payment method is required to start a trial. During the trial, the workspace is fully editable. If you do not add a payment method and select a paid plan before the trial ends, the workspace becomes read-only — no automatic charge occurs. If you add a payment method and choose a paid plan, the selected subscription begins after the trial period and you authorize the charge at that time</li>
             <li><strong>Cancellation:</strong> You may cancel your subscription at any time through your account settings or by contacting us. Cancellation prevents future charges but does not result in a refund for the current billing period</li>
             <li><strong>Suspension:</strong> We may suspend access to the Service for overdue payments, Terms violations, or suspected fraudulent activity</li>
             <li><strong>Termination:</strong> We may terminate your account for material breach of these Terms with notice. Upon termination, your right to access the Service ceases immediately</li>

@@ -69,14 +69,14 @@ export default function Pricing() {
         </p>
       </div>
 
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex items-center justify-center gap-3" aria-live="polite">
         <span className={`text-sm font-medium ${billing === 'monthly' ? 'text-surface-800 dark:text-white' : 'text-surface-400'}`}>Monthly</span>
         <button
           onClick={() => setBilling(billing === 'monthly' ? 'annual' : 'monthly')}
           className="relative w-11 h-6 rounded-full transition-colors bg-surface-300 dark:bg-surface-600"
           role="switch"
           aria-checked={billing === 'annual'}
-          aria-label="Toggle annual billing"
+          aria-label={`Billing: ${billing === 'annual' ? 'annual (save ~17%)' : 'monthly'}`}
         >
           <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${billing === 'annual' ? 'left-[22px]' : 'left-0.5'}`} />
         </button>
@@ -111,9 +111,12 @@ export default function Pricing() {
                     <span className="text-3xl font-bold text-surface-900 dark:text-white">${billing === 'annual' ? annualMonthly : price}</span>
                     <span className="text-sm text-surface-500">/month</span>
                   </div>
+                  {billing === 'monthly' && (
+                    <div className="text-xs text-surface-500 mt-1">${price}/month, billed monthly</div>
+                  )}
                   {billing === 'annual' && (
                     <div className="text-xs text-surface-500 mt-1">
-                      ${plan.annual.toLocaleString()}/year · save ${(plan.monthly * 12 - plan.annual).toLocaleString()}
+                      ${annualMonthly}/month equivalent · ${plan.annual.toLocaleString()}/year billed annually · save ${(plan.monthly * 12 - plan.annual).toLocaleString()} vs monthly
                     </div>
                   )}
                   {billing === 'annual' && plan.trial && (
@@ -125,14 +128,14 @@ export default function Pricing() {
                 <ul className="space-y-2 mb-5">
                   {plan.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300">
-                      <svg className="w-4 h-4 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      {f}
+                      <svg className="w-4 h-4 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <span><span className="sr-only">Included: </span>{f}</span>
                     </li>
                   ))}
                   {plan.locked.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm text-surface-400 dark:text-surface-600">
-                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16"><path d="M5 3h6M5 7h6M5 11h4" strokeLinecap="round"/></svg>
-                      {f}
+                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h6M5 7h6M5 11h4" strokeLinecap="round"/></svg>
+                      <span><span className="sr-only">Not included: </span>{f}</span>
                     </li>
                   ))}
                 </ul>
@@ -148,8 +151,8 @@ export default function Pricing() {
                 >
                   {trialEligible ? 'Start free trial' : 'Get started'}
                 </button>
-                <Link to="/contact" className="block w-full py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-center">
-                  Book demo
+                <Link to="/demo" className="block w-full py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-center">
+                  Book a Demo
                 </Link>
                 <p className="text-2xs text-surface-400 text-center mt-1">
                   By signing up, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
@@ -228,7 +231,7 @@ export default function Pricing() {
         <p className="text-xs text-surface-400 mt-1">EU-facing customers can request a <Link to="/dpa" className="text-accent hover:underline">Data Processing Addendum</Link>.</p>
         <div className="flex items-center justify-center gap-3 mt-4">
           <Link to="/contact" className="btn-primary">Talk to sales</Link>
-          <Link to="/contact" className="btn-secondary">Book a demo</Link>
+          <Link to="/demo" className="btn-secondary">Book a Demo</Link>
         </div>
       </div>
 

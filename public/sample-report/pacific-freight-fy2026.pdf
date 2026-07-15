@@ -1,0 +1,49 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 320 >>
+stream
+BT
+/F1 16 Tf
+72 720 Td
+(Eco-Auditor Sample GHG Inventory Report) Tj
+0 -28 Td
+/F1 11 Tf
+(Pacific Freight Co. - FY 2026) Tj
+0 -20 Td
+(ILLUSTRATIVE FICTIONAL DATA - NOT A REAL CUSTOMER REPORT) Tj
+0 -28 Td
+(Total Scope 1+2+3 emissions: 12,847 tCO2e) Tj
+0 -16 Td
+(Boundary: Operational control. Base year: 2025.) Tj
+0 -16 Td
+(Scope 1: 3,421 tCO2e (27%). Scope 2: 2,156 tCO2e (17%). Scope 3: 7,270 tCO2e (56%).) Tj
+0 -20 Td
+(Data quality: 42% primary source or better. 83% industry-average or better.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000232 00000 n
+0000000603 00000 n
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+680
+%%EOF

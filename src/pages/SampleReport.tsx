@@ -184,15 +184,61 @@ export default function SampleReport() {
       <section className="max-w-5xl mx-auto px-6 py-12 border-t border-surface-200 dark:border-surface-800">
         <div className="text-center mb-10">
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white">Export in the formats your stakeholders need</h2>
-          <p className="mt-3 text-surface-500 max-w-xl mx-auto">No proprietary formats. Download reports in standard tools your team already uses.</p>
+          <p className="mt-3 text-surface-500 max-w-xl mx-auto">No proprietary formats. Download the sample report package and inspect the format your auditor will receive.</p>
         </div>
-        <div className="flex flex-wrap justify-center gap-4">
-          {['PDF (executive summary)', 'CSV (detailed ledger)'].map((fmt) => (
-            <div key={fmt} className="px-5 py-3 rounded-lg bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-sm font-medium text-surface-700 dark:text-surface-300 shadow-sm">
-              {fmt}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
+          <a
+            href="/sample-report/pacific-freight-fy2026.pdf"
+            download
+            className="card flex items-center gap-3 hover:shadow-md transition-shadow group"
+          >
+            <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9-9 0 0 0-9-9" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Sample report (PDF)</h3>
+              <p className="text-2xs text-surface-500">Executive summary · Fictional data · ~3 KB</p>
             </div>
-          ))}
+            <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
+          </a>
+          <a
+            href="/sample-report/pacific-freight-activity-data.csv"
+            download
+            className="card flex items-center gap-3 hover:shadow-md transition-shadow group"
+          >
+            <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9-9 0 0 0-9-9" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Activity data (CSV)</h3>
+              <p className="text-2xs text-surface-500">Detailed ledger · Fictional data · 11 rows</p>
+            </div>
+            <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
+          </a>
+          <a
+            href="/sample-report/pacific-freight-factor-register.csv"
+            download
+            className="card flex items-center gap-3 hover:shadow-md transition-shadow group"
+          >
+            <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6 0v6m-6 0h12M4.5 4.5h15v3h-15v-3z" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Factor register (CSV)</h3>
+              <p className="text-2xs text-surface-500">Source, version, geography, effective period · 5 factors</p>
+            </div>
+            <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
+          </a>
+          <a
+            href="/sample-report/pacific-freight-evidence-index.csv"
+            download
+            className="card flex items-center gap-3 hover:shadow-md transition-shadow group"
+          >
+            <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Evidence index (CSV)</h3>
+              <p className="text-2xs text-surface-500">Source references + data-quality level per entry · 11 entries</p>
+            </div>
+            <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
+          </a>
         </div>
+        <p className="text-center mt-6 text-2xs text-surface-400">
+          All sample data is fictional and clearly labeled as illustrative. No real customer data is represented.
+        </p>
       </section>
 
       {/* ─── CTA ─── */}

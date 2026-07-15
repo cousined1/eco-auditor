@@ -1,0 +1,12 @@
+entry_id,source_type,source_reference,document_id,uploader,upload_date,data_quality_level,override_reason,override_reviewer,notes
+PFC-2026-S1-001,primary,utility_bill_pg&e_jan2026.pdf,UB-2026-001,m.smith,2026-02-10,L1,,,,Direct meter reading
+PFC-2026-S1-002,primary,fuel_card_feb2026.csv,FC-2026-002,m.smith,2026-02-12,L2,,,,Fuel card statement
+PFC-2026-S1-003,primary,hvac_maintenance_log_q1.pdf,HVAC-2026-Q1,j.patel,2026-03-01,L2,,,,Service technician record
+PFC-2026-S1-004,primary,fuel_invoice_propane_q1.csv,PROP-2026-Q1,m.smith,2026-03-05,L2,,,,Supplier invoice
+PFC-2026-S2-001,primary,utility_bill_pg&e_q1.pdf,UB-2026-Q1A,m.smith,2026-02-18,L2,,,,Utility meter reading
+PFC-2026-S2-002,primary,utility_bill_socal_q1.pdf,UB-2026-Q1B,m.smith,2026-03-05,L2,,,,Utility meter reading
+PFC-2026-S3-001,industry_average,procurement_spend_q1.csv,PROC-2026-Q1,j.patel,2026-03-10,L3,,,,Spend-based EEIO estimate
+PFC-2026-S3-002,industry_average,procurement_spend_q1.csv,PROC-2026-Q1,j.patel,2026-03-10,L3,,,,Spend-based EEIO estimate
+PFC-2026-S3-003,industry_average,travel_booking_log_q1.csv,TRAV-2026-Q1,j.patel,2026-03-12,L3,,,,Segment-based estimate
+PFC-2026-S3-004,proxy,waste_hauler_q1_summary.pdf,WASTE-2026-Q1,j.patel,2026-03-12,L4,,,Tonnage provided; factor from EPA waste factors. Improvement target Q3.
+PFC-2026-S3-005,proxy,commute_survey_2026_estimated.xlsx,COMM-2026-Q1,j.patel,2026-03-15,L4,,,42% of employees responded; remaining estimated by regional average. Improvement target Q2.
