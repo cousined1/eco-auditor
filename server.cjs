@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const {
   calculateEntry,
   summarizeEntries,
+  buildTrend,
   toDashboardSummary,
   parseEmissionCsv,
   getComplianceStatus,
@@ -825,24 +826,59 @@ function readLeads() {
     return [];
   }
 }
-function writeLead(lead) {
-  ensureLeadsDir();
-  const leads = readLeads();
-  leads.push({ ...lead, id: crypto.randomUUID(), createdAt: new Date().toISOString() });
-  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+async function writeLead(lead) {
+  const record = { ...lead, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+
+  if (pgPool) {
+    try {
+      await pgPool.query(
+        `INSERT INTO public.leads (type, name, email, company, message, preferred_date, preferred_time, source, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          lead.type || 'general',
+          lead.name,
+          lead.email,
+          lead.company || null,
+          lead.message || null,
+          lead.preferredDate || null,
+          lead.preferredTime || null,
+          lead.source || 'api',
+          record.createdAt,
+        ]
+      );
+      return;
+    } catch (err) {
+      log('error', 'Failed to write lead to Postgres', { error: String(err) });
+    }
+  }
+
+  try {
+    ensureLeadsDir();
+    const leads = readLeads();
+    leads.push(record);
+    fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+  } catch (err) {
+    log('error', 'Failed to write lead to file', { error: String(err) });
+    throw err;
+  }
 }
 
 // The chatbot carries lead fields in client-controlled conversation state, so a
 // forged /api/chat request could persist unvalidated data. Run it through the
 // same sanitizer /api/leads uses (bounds + email validation) before writing.
-function writeChatLead(raw) {
+async function writeChatLead(raw) {
   const sanitized = sanitizeLeadPayload(raw);
   if (!sanitized.ok) {
     log('warn', 'Rejected chatbot lead payload', { error: sanitized.error });
     return false;
   }
-  writeLead({ ...sanitized.value, source: 'chatbot' });
-  return true;
+  try {
+    await writeLead({ ...sanitized.value, source: 'chatbot' });
+    return true;
+  } catch (err) {
+    log('error', 'Failed to write chatbot lead', { error: String(err) });
+    return false;
+  }
 }
 
 // ─── CONSENT AUDIT TRAIL ───
@@ -958,7 +994,7 @@ const ECOAUDITOR_KB = [
   }
 ];
 
-function getBotResponse(message, state = {}) {
+async function getBotResponse(message, state = {}) {
   const lowerMsg = message.toLowerCase().trim();
 
   // Handle multi-step flows
@@ -996,7 +1032,7 @@ function getBotResponse(message, state = {}) {
     }
     if (state.step === 'time') {
       // Save lead (sanitized — state is client-controlled)
-      writeChatLead({
+      await writeChatLead({
         type: 'demo_request',
         name: state.name,
         email: state.email,
@@ -1036,7 +1072,7 @@ function getBotResponse(message, state = {}) {
       };
     }
     if (state.step === 'message') {
-      writeChatLead({
+      await writeChatLead({
         type: 'contact_request',
         name: state.name,
         email: state.email,
@@ -1100,7 +1136,7 @@ app.post('/api/chat', express.json({ limit: '16kb' }), async function (req, res)
 
   // Use salesbot engine first
   // Salesbot engine v2
-  const botResult = getBotResponse(message.trim(), state);
+  const botResult = await getBotResponse(message.trim(), state);
   
   // If we have a specific flow response, return it immediately
   if (botResult.response) {
@@ -1179,9 +1215,13 @@ app.post('/api/leads', express.json({ limit: '8kb' }), async function (req, res)
     return res.status(lead.status).json({ success: false, error: lead.error });
   }
 
-  writeLead(lead.value);
-
-  return res.json({ success: true, message: 'Lead captured successfully' });
+  try {
+    await writeLead(lead.value);
+    return res.json({ success: true, message: 'Lead captured successfully' });
+  } catch (err) {
+    log('error', 'Lead capture failed', { error: String(err) });
+    return res.status(500).json({ success: false, error: 'Failed to capture lead. Please try again.' });
+  }
 });
 
 async function loadEmissionEntries(companyId, period) {
@@ -1318,7 +1358,12 @@ app.get('/api/emissions/summary', apiAuthGuard, requirePlan('starter'), async fu
 
     const entries = await loadEmissionEntries(companyId, period);
     const summary = summarizeEntries(entries, { companyId: companyId, period: period });
-    const response = { success: true, data: toDashboardSummary(summary), methodology: summary.methodology };
+
+    const priorYear = Number(period) - 1;
+    const priorEntries = await loadEmissionEntries(companyId, String(priorYear));
+    const priorSummary = summarizeEntries(priorEntries, { companyId: companyId, period: String(priorYear) });
+
+    const response = { success: true, data: toDashboardSummary(summary, priorSummary), methodology: summary.methodology };
     cacheSet(cacheKey, response, 5 * 60 * 1000);
     return res.json(response);
   } catch (err) {
@@ -1331,41 +1376,14 @@ app.get('/api/emissions/trend', apiAuthGuard, requirePlan('starter'), async func
   const companyId = await requireCompanyAccess(req, res, req.query.company_id);
   if (!companyId) return;
   const period = req.query.period || 'monthly';
+  const year = Number(req.query.year) || new Date().getFullYear();
 
   try {
     const entries = await loadEmissionEntries(companyId);
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
-    const monthly = monthNames.map(function (month, index) {
-      const monthEntries = entries.filter(function (entry) {
-        const date = entry.created_at ? new Date(entry.created_at) : null;
-        return date && date.getMonth() === index;
-      });
-      const summary = summarizeEntries(monthEntries, { companyId: companyId });
-      return {
-        month: month,
-        scope1: summary.by_scope.scope1,
-        scope2: summary.by_scope.scope2,
-        scope3: summary.by_scope.scope3,
-      };
-    });
-
-    if (period === 'quarterly') {
-      const quarterly = [
-        { quarter: 'Q1', rows: monthly.slice(0, 3) },
-        { quarter: 'Q2', rows: monthly.slice(3, 6) },
-        { quarter: 'Q3', rows: monthly.slice(6, 9) },
-      ].map(function (bucket) {
-        return {
-          quarter: bucket.quarter,
-          scope1: bucket.rows.reduce((sum, row) => sum + row.scope1, 0),
-          scope2: bucket.rows.reduce((sum, row) => sum + row.scope2, 0),
-          scope3: bucket.rows.reduce((sum, row) => sum + row.scope3, 0),
-        };
-      });
-      return res.json({ success: true, data: quarterly });
-    }
-
-    return res.json({ success: true, data: monthly });
+    // H5: buildTrend covers all 12 months, filters to a single year, and
+    // isolates per-row calc errors (delegated to summarizeEntries).
+    const data = buildTrend(entries, { companyId: companyId, period: period, year: year });
+    return res.json({ success: true, data: data });
   } catch (err) {
     log('error', 'Emissions trend failed', { error: String(err), companyId: companyId });
     return res.status(500).json({ success: false, error: 'Failed to load emissions trend' });
@@ -1802,7 +1820,7 @@ app.use(express.static(path.join(__dirname, 'static'), {
 // before. /login and /signup are prerendered (noindex) so non-JS clients
 // and crawlers see route-appropriate content instead of the homepage shell.
 var PRERENDERED_ROUTES = [
-  '/pricing', '/methodology', '/sample-report', '/security',
+  '/pricing', '/methodology', '/sample-report', '/security', '/demo',
   '/contact', '/privacy', '/terms', '/dpa',
   '/login', '/signup',
 ];
@@ -1820,10 +1838,31 @@ PRERENDERED_ROUTES.forEach(function (route) {
   });
 });
 
+// Reserved legacy paths that should not soft-404 to the homepage.
+app.get(['/dashboard', '/dashboard/'], function (_req, res) {
+  res.redirect(302, '/login');
+});
+
+// Catch-all for unknown /api routes so they return JSON 404s instead of the
+// SPA HTML shell.
+app.use('/api', function (_req, res) {
+  res.status(404).json({ error: 'Not found' });
+});
+
 // ─── SPA fallback ───
-app.get('*', function (_req, res) {
-  res.setHeader('Cache-Control', 'no-transform');
-  res.sendFile(path.join(__dirname, 'static', 'index.html'));
+// Only serve the SPA shell for known client-side routes. Everything else
+// should return a real 404 so crawlers don't index an infinite duplicate-
+// content space of soft-404 homepages.
+app.get('*', function (req, res) {
+  const spaRoots = ['/app', '/auth'];
+  const isKnownSpa = spaRoots.some(function (root) {
+    return req.path === root || req.path.startsWith(root + '/');
+  });
+  if (isKnownSpa) {
+    res.setHeader('Cache-Control', 'no-transform');
+    return res.sendFile(path.join(__dirname, 'static', 'index.html'));
+  }
+  res.status(404).setHeader('Cache-Control', 'no-cache, no-transform').send('Not found');
 });
 
 // ─── Structured logging ───
