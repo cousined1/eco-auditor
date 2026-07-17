@@ -14,7 +14,7 @@ const FAQ_SCHEMA = {
     { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, CSV-based activity import with confidence scoring, and compliance report generation at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." } },
     { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running quickly. You import a CSV and we apply emission factors, flagging low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." } },
     { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." } },
-    { "@type": "Question", "name": "Do I need a sustainability consultant to use Eco-Auditor?", "acceptedAnswer": { "@type": "Answer", "text": "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." } },
+    { "@type": "Question", "name": "Do I need a sustainability consultant to use Eco-Auditor?", "acceptedAnswer": { "@type": "Answer", "text": "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant on the roadmap to answer questions. That said, you can always engage a consultant to review your final reports." } },
   ]
 };
 
@@ -24,7 +24,7 @@ const FAQS = [
   { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, CSV-based activity import with confidence scoring, and compliance report generation at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." },
   { q: "How long does it take to get started?", a: "Most teams are up and running quickly. You import a CSV and we apply emission factors, flagging low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." },
   { q: "What compliance frameworks does Eco-Auditor support?", a: "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." },
-  { q: "Do I need a sustainability consultant to use Eco-Auditor?", a: "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant to answer questions. That said, you can always engage a consultant to review your final reports." },
+  { q: "Do I need a sustainability consultant to use Eco-Auditor?", a: "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant on the roadmap to answer questions. That said, you can always engage a consultant to review your final reports." },
 ];
 
 export default function LandingPage() {
@@ -263,21 +263,25 @@ export default function LandingPage() {
             title="AI Carbon Assistant"
             description="Ask questions in plain English. Get methodology-backed answers with citations, assumptions, and next actions."
             icon={<AssistantIcon />}
+            comingSoon
           />
           <FeatureCard
             title="Emissions Ledger"
             description="Traceable emissions ledger. Every entry records its source, emission factor, and confidence score."
             icon={<LedgerIcon />}
+            comingSoon
           />
           <FeatureCard
             title="Reporting Center"
             description="Generate California readiness packages, CBAM supplier data, GHG inventories, and customer procurement packets."
             icon={<ReportsIcon />}
+            comingSoon
           />
           <FeatureCard
             title="Supplier Hub"
             description="Track vendor questionnaires, response rates, primary vs estimated data, and follow-up reminders by spend."
             icon={<SuppliersIcon />}
+            comingSoon
           />
         </div>
       </section>
@@ -370,11 +374,18 @@ function ValueCard({ icon, title, description, metric, metricLabel }: { icon: Re
   );
 }
 
-function FeatureCard({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
+function FeatureCard({ title, description, icon, comingSoon }: { title: string; description: string; icon: React.ReactNode; comingSoon?: boolean }) {
   return (
     <div className="card hover:shadow-md transition-shadow group">
-      <div className="w-9 h-9 rounded-lg bg-accent/10 dark:bg-accent/20 flex items-center justify-center text-accent mb-4 group-hover:bg-accent/20 transition-colors">
-        {icon}
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-9 h-9 rounded-lg bg-accent/10 dark:bg-accent/20 flex items-center justify-center text-accent group-hover:bg-accent/20 transition-colors">
+          {icon}
+        </div>
+        {comingSoon && (
+          <span className="inline-flex items-center rounded-full bg-surface-100 dark:bg-surface-800 px-2.5 py-0.5 text-xs font-medium text-surface-500 dark:text-surface-400">
+            Coming soon
+          </span>
+        )}
       </div>
       <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-2">{title}</h3>
       <p className="text-sm text-surface-500 leading-relaxed">{description}</p>
