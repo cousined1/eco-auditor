@@ -145,10 +145,22 @@ function calculateEntry(entry) {
 }
 
 function summarizeEntries(entries, options = {}) {
-  const calculated = entries.map(calculateEntry);
+  // H21: isolate per-row calculation failures so one unsupported entry does
+  // not 500 summary, trend, and reports for the whole company. Bad rows are
+  // skipped from totals and surfaced in `errors` for operator logging.
   const byScope = { scope1: 0, scope2: 0, scope3: 0 };
   const byCategory = {};
   let confidenceTotal = 0;
+  const calculated = [];
+  const errors = [];
+
+  for (const entry of entries) {
+    try {
+      calculated.push(calculateEntry(entry));
+    } catch (err) {
+      errors.push({ error: String(err.message || err) });
+    }
+  }
 
   for (const row of calculated) {
     byScope[row.scope] = round(byScope[row.scope] + row.co2e_tonnes);
@@ -159,7 +171,7 @@ function summarizeEntries(entries, options = {}) {
   const total = round(byScope.scope1 + byScope.scope2 + byScope.scope3);
   const confidence = calculated.length ? Math.round(confidenceTotal / calculated.length) : 100;
 
-  return {
+  const result = {
     company_id: options.companyId || options.company_id || null,
     period: String(options.period || new Date().getFullYear()),
     total_emissions_tCO2e: total,
@@ -169,11 +181,69 @@ function summarizeEntries(entries, options = {}) {
     methodology: 'EPA GHG Protocol + IPCC AR6',
     entries: calculated,
   };
+  if (errors.length) result.errors = errors;
+  return result;
 }
 
-function toDashboardSummary(summary) {
+// H5: build a monthly or quarterly emissions trend for a single year.
+// Previously the trend endpoint used only Jan-Sep and aggregated every year
+// together (date.getMonth() === index with no year filter), so multi-year
+// data collapsed into one year and Q4 was missing.
+function buildTrend(entries, options = {}) {
+  const period = String(options.period || 'monthly');
+  const year = Number(options.year) || new Date().getFullYear();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const monthly = monthNames.map(function (month, index) {
+    const monthEntries = entries.filter(function (entry) {
+      const date = entry.created_at ? new Date(entry.created_at) : null;
+      return date && date.getMonth() === index && date.getFullYear() === year;
+    });
+    const summary = summarizeEntries(monthEntries, { companyId: options.companyId });
+    return {
+      month: month,
+      scope1: summary.by_scope.scope1,
+      scope2: summary.by_scope.scope2,
+      scope3: summary.by_scope.scope3,
+    };
+  });
+
+  if (period === 'quarterly') {
+    return [
+      { quarter: 'Q1', rows: monthly.slice(0, 3) },
+      { quarter: 'Q2', rows: monthly.slice(3, 6) },
+      { quarter: 'Q3', rows: monthly.slice(6, 9) },
+      { quarter: 'Q4', rows: monthly.slice(9, 12) },
+    ].map(function (bucket) {
+      return {
+        quarter: bucket.quarter,
+        scope1: round(bucket.rows.reduce((sum, row) => sum + row.scope1, 0)),
+        scope2: round(bucket.rows.reduce((sum, row) => sum + row.scope2, 0)),
+        scope3: round(bucket.rows.reduce((sum, row) => sum + row.scope3, 0)),
+      };
+    });
+  }
+
+  return monthly;
+}
+
+function toDashboardSummary(summary, priorSummary) {
   const total = summary.total_emissions_tCO2e || 0;
   const pct = (value) => total > 0 ? round((value / total) * 100, 3) : 0;
+
+  const priorByScope = priorSummary?.by_scope;
+  const hasPrior =
+    priorByScope &&
+    (priorByScope.scope1 > 0 ||
+      priorByScope.scope2 > 0 ||
+      priorByScope.scope3 > 0);
+
+  function trend(current, previous) {
+    const prev = Number(previous) || 0;
+    if (prev === 0) return 0;
+    return round(((current - prev) / prev) * 100, 3);
+  }
+
   return {
     total_co2e_tonnes: total,
     scope1_co2e_tonnes: summary.by_scope.scope1,
@@ -183,7 +253,13 @@ function toDashboardSummary(summary) {
     scope2_pct: pct(summary.by_scope.scope2),
     scope3_pct: pct(summary.by_scope.scope3),
     confidence_score: summary.confidence_score,
-    trend_vs_prior_period: { scope1: 0, scope2: 0, scope3: 0 },
+    trend_vs_prior_period: hasPrior
+      ? {
+          scope1: trend(summary.by_scope.scope1, priorByScope.scope1),
+          scope2: trend(summary.by_scope.scope2, priorByScope.scope2),
+          scope3: trend(summary.by_scope.scope3, priorByScope.scope3),
+        }
+      : null,
   };
 }
 
@@ -295,6 +371,7 @@ module.exports = {
   TRANSMISSION_LOSS_RATE,
   calculateEntry,
   summarizeEntries,
+  buildTrend,
   toDashboardSummary,
   parseEmissionCsv,
   getComplianceStatus,

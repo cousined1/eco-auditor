@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   calculateEntry,
   summarizeEntries,
+  buildTrend,
   parseEmissionCsv,
   getComplianceStatus,
   buildFacilityEmissions,
@@ -117,5 +118,69 @@ describe('EPA emissions engine', () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ id: 'hq', scope1_tCO2e: 5.302 });
     expect(result[1].scope2_tCO2e).toBeCloseTo(21.68325, 5);
+  });
+});
+
+describe('H21: per-row fault isolation in summarizeEntries', () => {
+  it("skips an unsupported entry instead of 500-ing the whole company", () => {
+    const entries = [
+      { scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 1000, unit: 'therms' },
+      { scope: '1', category: 'stationary_combustion', source: 'fuel_oil', amount: 10, unit: 'gallons' }, // unsupported source/unit
+      { scope: '2', category: 'purchased_electricity', source: 'CAMX', amount: 100, unit: 'MWh' },
+    ];
+
+    const summary = summarizeEntries(entries, { companyId: "c1" });
+
+    // Good rows are still summed; the bad row is reported, not thrown.
+    expect(summary.total_emissions_tCO2e).toBeGreaterThan(0);
+    expect(summary.entries).toHaveLength(2);
+    expect(summary.errors).toBeDefined();
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0].error).toMatch(/Unsupported Scope 1/);
+  });
+
+  it("returns a clean summary with no errors when every row is valid", () => {
+    const entries = [
+      { scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 1000, unit: 'therms' },
+    ];
+    const summary = summarizeEntries(entries);
+    expect(summary.errors).toBeUndefined();
+    expect(summary.entries).toHaveLength(1);
+  });
+});
+
+describe('H5: buildTrend covers 12 months and filters by year', () => {
+  const entries = [
+    { scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 1000, unit: 'therms', created_at: '2026-01-15T00:00:00.000Z' },
+    { scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 2000, unit: 'therms', created_at: '2026-10-15T00:00:00.000Z' },
+    { scope: '2', category: 'purchased_electricity', source: 'CAMX', amount: 100, unit: 'MWh', created_at: '2026-12-20T00:00:00.000Z' },
+    { scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 5000, unit: 'therms', created_at: '2025-10-15T00:00:00.000Z' }, // prior year, must be excluded
+  ];
+
+  it("returns 12 monthly buckets for the selected year", () => {
+    const monthly = buildTrend(entries, { period: 'monthly', year: 2026 });
+    expect(monthly).toHaveLength(12);
+    expect(monthly[0].month).toBe('Jan');
+    expect(monthly[11].month).toBe('Dec');
+    // Q4 months now exist (previously only Jan-Sep).
+    expect(monthly[9].scope1).toBeGreaterThan(0); // Oct
+    expect(monthly[11].scope2).toBeGreaterThan(0); // Dec
+  });
+
+  it("does not aggregate entries from other years into the selected year", () => {
+    const monthly = buildTrend(entries, { period: 'monthly', year: 2026 });
+    const total2026 = monthly.reduce((sum, m) => sum + m.scope1 + m.scope2 + m.scope3, 0);
+    const monthly2025 = buildTrend(entries, { period: 'monthly', year: 2025 });
+    // The 2025 Oct entry (5000 therms) must show in 2025, not 2026.
+    expect(monthly2025[9].scope1).toBeGreaterThan(0);
+    expect(monthly[9].scope1).toBeLessThan(monthly2025[9].scope1 + monthly[9].scope1);
+    expect(total2026).toBeGreaterThan(0);
+  });
+
+  it("returns 4 quarterly buckets including Q4", () => {
+    const quarterly = buildTrend(entries, { period: 'quarterly', year: 2026 });
+    expect(quarterly).toHaveLength(4);
+    expect(quarterly.map((q) => q.quarter)).toEqual(['Q1', 'Q2', 'Q3', 'Q4']);
+    expect(quarterly[3].scope1).toBeGreaterThan(0); // Q4 contains Oct
   });
 });
