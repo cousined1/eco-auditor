@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   SCOPE_CATEGORIES,
   UNITS,
+  EMISSION_FACTORS,
   calculateEmissions,
   getSourcesForCategory,
   type Scope,
@@ -33,12 +34,26 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
 
   const categories = SCOPE_CATEGORIES[scope];
   const sources = getSourcesForCategory(category);
-  const parsedAmount = parseFloat(amount) || 0;
-  const preview = calculateEmissions(category, source, parsedAmount);
+  const parsedAmount = parseFloat(amount);
+  const isAmountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
+  const preview = isAmountValid ? calculateEmissions(category, source, parsedAmount) : 0;
+
+  const factor = EMISSION_FACTORS[category]?.[source];
+  const hasKnownFactor = factor !== undefined;
+  const isZeroFactor = factor === 0;
+  const isFormValid =
+    category && source && isAmountValid && unit && hasKnownFactor && (preview > 0 || isZeroFactor);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!category || !source || !parsedAmount || !unit) return;
+    if (!category || !source || !isAmountValid || !unit) {
+      setError('Please select a category, source, and unit, and enter a positive amount.');
+      return;
+    }
+    if (!hasKnownFactor || (preview <= 0 && !isZeroFactor)) {
+      setError('Selected source has no usable emission factor. Please choose a supported source and unit.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -72,10 +87,11 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Scope */}
         <div>
-          <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+          <label htmlFor="scope" className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
             Scope
           </label>
           <select
+            id="scope"
             value={scope}
             onChange={(e) => {
               setScope(e.target.value as Scope);
@@ -92,10 +108,11 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
 
         {/* Category */}
         <div>
-          <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+          <label htmlFor="category" className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
             Category
           </label>
           <select
+            id="category"
             value={category}
             onChange={(e) => {
               setCategory(e.target.value);
@@ -112,11 +129,12 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
 
         {/* Source */}
         <div>
-          <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+          <label htmlFor="source" className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
             Source
           </label>
           {sources.length > 0 ? (
             <select
+              id="source"
               value={source}
               onChange={(e) => setSource(e.target.value)}
               className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
@@ -128,6 +146,7 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
             </select>
           ) : (
             <input
+              id="source"
               type="text"
               value={source}
               onChange={(e) => setSource(e.target.value)}
@@ -139,10 +158,11 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
 
         {/* Amount */}
         <div>
-          <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+          <label htmlFor="amount" className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
             Amount
           </label>
           <input
+            id="amount"
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -151,14 +171,18 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
             placeholder="0"
             className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
           />
+          {amount && !isAmountValid && (
+            <p className="text-xs text-risk-high mt-1" role="alert">Amount must be a positive number.</p>
+          )}
         </div>
 
         {/* Unit */}
         <div>
-          <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+          <label htmlFor="unit" className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
             Unit
           </label>
           <select
+            id="unit"
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
             className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
@@ -172,10 +196,11 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
 
         {/* Facility */}
         <div>
-          <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+          <label htmlFor="facility" className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
             Facility
           </label>
           <select
+            id="facility"
             value={facilityId ?? ''}
             onChange={(e) => setFacilityId(e.target.value ? Number(e.target.value) : null)}
             className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
@@ -202,7 +227,7 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
         </div>
         <button
           type="submit"
-          disabled={submitting || !category || !source || !parsedAmount || !unit}
+          disabled={submitting || !isFormValid}
           className="bg-brand-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? 'Saving…' : 'Add Entry'}
