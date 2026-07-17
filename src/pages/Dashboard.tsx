@@ -13,11 +13,11 @@ interface EmissionsSummaryData {
   scope1_pct: number;
   scope2_pct: number;
   scope3_pct: number;
-  trend_vs_prior_period: {
+  trend_vs_prior_period?: {
     scope1: number;
     scope2: number;
     scope3: number;
-  };
+  } | null;
 }
 
 interface TrendDataPoint {
@@ -27,6 +27,14 @@ interface TrendDataPoint {
   scope1: number;
   scope2: number;
   scope3: number;
+}
+
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
 }
 
 export default function Dashboard() {
@@ -63,10 +71,10 @@ export default function Dashboard() {
         }
 
         if (!summaryRes.ok) {
-          throw new Error(`Failed to fetch emissions summary: ${summaryRes.statusText}`);
+          throw new HttpError(summaryRes.status, `Failed to fetch emissions summary: ${summaryRes.statusText}`);
         }
         if (!trendRes.ok) {
-          throw new Error(`Failed to fetch trend data: ${trendRes.statusText}`);
+          throw new HttpError(trendRes.status, `Failed to fetch trend data: ${trendRes.statusText}`);
         }
 
         const summaryData = await summaryRes.json();
@@ -88,7 +96,7 @@ export default function Dashboard() {
         // Any other failure (network error, 5xx, unexpected response) is a real
         // error and gets surfaced with a retry affordance.
         const message = err instanceof Error ? err.message : 'Failed to load emissions data';
-        if (message.includes('400') || message.includes('403') || message.includes('Forbidden') || message.includes('company_id')) {
+        if (err instanceof HttpError && (err.status === 400 || err.status === 403)) {
           setNeedsOnboarding(true);
         } else {
           setError(message);
@@ -201,19 +209,25 @@ export default function Dashboard() {
     value: Math.round(emissions.scope1_co2e_tonnes),
     label: 'Scope 1 — Direct',
     pct: Math.round(emissions.scope1_pct * 10) / 10,
-    trend: Math.round(emissions.trend_vs_prior_period.scope1 * 10) / 10,
+    trend: emissions.trend_vs_prior_period
+      ? Math.round(emissions.trend_vs_prior_period.scope1 * 10) / 10
+      : null,
   };
   const scope2 = {
     value: Math.round(emissions.scope2_co2e_tonnes),
     label: 'Scope 2 — Electricity',
     pct: Math.round(emissions.scope2_pct * 10) / 10,
-    trend: Math.round(emissions.trend_vs_prior_period.scope2 * 10) / 10,
+    trend: emissions.trend_vs_prior_period
+      ? Math.round(emissions.trend_vs_prior_period.scope2 * 10) / 10
+      : null,
   };
   const scope3 = {
     value: Math.round(emissions.scope3_co2e_tonnes),
     label: 'Scope 3 — Value Chain',
     pct: Math.round(emissions.scope3_pct * 10) / 10,
-    trend: Math.round(emissions.trend_vs_prior_period.scope3 * 10) / 10,
+    trend: emissions.trend_vs_prior_period
+      ? Math.round(emissions.trend_vs_prior_period.scope3 * 10) / 10
+      : null,
   };
 
   // Determine which date key the trend data uses (month/quarter/year)
@@ -278,7 +292,7 @@ export default function Dashboard() {
   );
 }
 
-function EmissionsCard({ scope, color }: { scope: { value: number; label: string; pct: number; trend: number }; color: string }) {
+function EmissionsCard({ scope, color }: { scope: { value: number; label: string; pct: number; trend: number | null }; color: string }) {
   const colorMap: Record<string, string> = { brand: 'text-brand-600 dark:text-brand-400', accent: 'text-accent', amber: 'text-amber-600 dark:text-amber-400' };
   const bgMap: Record<string, string> = { brand: 'bg-brand-50 dark:bg-brand-900/20', accent: 'bg-teal-50 dark:bg-teal-900/20', amber: 'bg-amber-50 dark:bg-amber-900/20' };
   return (
@@ -290,9 +304,11 @@ function EmissionsCard({ scope, color }: { scope: { value: number; label: string
         </div>
         <div className="text-right">
           <div className="text-xs text-surface-500">{scope.pct}% of total</div>
-          <div className={`text-xs font-medium ${scope.trend > 0 ? 'text-risk-medium' : 'text-risk-low'}`}>
-            {scope.trend > 0 ? '+' : ''}{scope.trend}% vs prior
-          </div>
+          {scope.trend !== null && (
+            <div className={`text-xs font-medium ${scope.trend > 0 ? 'text-risk-medium' : 'text-risk-low'}`}>
+              {scope.trend > 0 ? '+' : ''}{scope.trend}% vs prior
+            </div>
+          )}
         </div>
       </div>
     </div>
