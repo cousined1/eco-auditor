@@ -42,10 +42,6 @@ export default function DataProcessingAddendum() {
       </nav>
 
       <article className="flex-1 max-w-3xl mx-auto px-6 py-10 lg:px-12">
-        <div className="mb-8 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-          <p className="text-xs text-amber-800 dark:text-amber-300">This Data Processing Addendum is provided as a business draft for review and should be reviewed by qualified legal counsel before publication or signature.</p>
-        </div>
-
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Data Processing Addendum</h1>
         <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
 
