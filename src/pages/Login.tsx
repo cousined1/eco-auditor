@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { insforge, isInsForgeConfigured } from '../lib/insforge';
 import {
   SOCIAL_AUTH_PROVIDERS,
@@ -10,6 +10,16 @@ import { useEffect, useState } from 'react';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirect = searchParams.get('redirect');
+  const plan = searchParams.get('plan');
+  const billing = searchParams.get('billing');
+  const safeRedirect =
+    redirect && redirect.startsWith('/') && !redirect.startsWith('//')
+      ? redirect
+      : plan && billing
+        ? `/app?checkout=${plan}_${billing}`
+        : '/app';
 
   // ponytail: noindex for SPA-navigated auth views (prerendered static HTML covers direct/crawler loads)
   useEffect(() => {
@@ -37,7 +47,7 @@ export default function Login() {
         const { data } = await insforge.auth.getCurrentUser();
         if (cancelled) return;
         if (data?.user) {
-          navigate('/app', { replace: true });
+          navigate(safeRedirect, { replace: true });
         }
       } catch {
         // Not authenticated — stay on the login form.
@@ -52,19 +62,23 @@ export default function Login() {
     setError(null);
     setSubmitting(true);
 
-    const { error: authError } = await insforge.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    try {
+      const { error: authError } = await insforge.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    setSubmitting(false);
+      if (authError) {
+        setError(authError.message || 'Invalid email or password.');
+        return;
+      }
 
-    if (authError) {
-      setError(authError.message || 'Invalid email or password.');
-      return;
+      navigate(safeRedirect, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-in failed. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
-
-    navigate('/app', { replace: true });
   }
 
   async function handleSocialLogin(provider: SocialAuthProvider) {
@@ -201,7 +215,7 @@ export default function Login() {
 
           <p className="mt-6 text-center text-sm text-surface-500">
             Don't have an account?{' '}
-            <Link to="/signup" className="font-medium text-accent hover:underline">
+            <Link to={`/signup${searchParams.toString() ? '?' + searchParams.toString() : ''}`} className="font-medium text-accent hover:underline">
               Sign up
             </Link>
           </p>

@@ -66,32 +66,36 @@ export default function Signup() {
 
     setSubmitting(true);
 
-    const { data, error: authError } = await insforge.auth.signUp({
-      email: email.trim(),
-      password,
-      ...(name.trim() ? { name: name.trim() } : {}),
-      redirectTo: buildOAuthRedirectTo(window.location.origin, '/login'),
-    });
+    try {
+      const { data, error: authError } = await insforge.auth.signUp({
+        email: email.trim(),
+        password,
+        ...(name.trim() ? { name: name.trim() } : {}),
+        redirectTo: buildOAuthRedirectTo(window.location.origin, '/login'),
+      });
 
-    setSubmitting(false);
-
-    if (authError) {
-      setError(authError.message || 'Unable to create account.');
-      return;
-    }
-
-    // signUp returns an accessToken when auto-confirm is on; navigate straight to app.
-    // Without a token, the user must verify their email first.
-    if (data?.accessToken) {
-      const plan = searchParams.get('plan');
-      const billing = searchParams.get('billing') === 'annual' ? 'annual' : 'monthly';
-      if (plan === 'starter' || plan === 'growth' || plan === 'pro') {
-        navigate(`/app?checkout=${plan}_${billing}`, { replace: true });
-      } else {
-        navigate('/app', { replace: true });
+      if (authError) {
+        setError(authError.message || 'Unable to create account.');
+        return;
       }
-    } else {
-      setNeedsVerification(true);
+
+      // signUp returns an accessToken when auto-confirm is on; navigate straight to app.
+      // Without a token, the user must verify their email first.
+      if (data?.accessToken) {
+        const plan = searchParams.get('plan');
+        const billing = searchParams.get('billing') === 'annual' ? 'annual' : 'monthly';
+        if (plan === 'starter' || plan === 'growth' || plan === 'pro') {
+          navigate(`/app?checkout=${plan}_${billing}`, { replace: true });
+        } else {
+          navigate('/app', { replace: true });
+        }
+      } else {
+        setNeedsVerification(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create account. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -273,7 +277,7 @@ export default function Signup() {
 
           <p className="mt-6 text-center text-sm text-surface-500">
             Already have an account?{' '}
-            <Link to="/login" className="font-medium text-accent hover:underline">
+            <Link to={`/login${searchParams.toString() ? '?' + searchParams.toString() : ''}`} className="font-medium text-accent hover:underline">
               Sign in
             </Link>
           </p>
