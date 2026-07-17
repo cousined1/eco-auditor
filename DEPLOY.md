@@ -81,6 +81,26 @@ Configure in Stripe Dashboard:
 railway domain add eco-auditor.developer312.com
 ```
 
+### 8. Cloudflare www Redirect Rule (Required before launch)
+
+The apex domain (`ecoauditor.io`) is served through Cloudflare, but `www.ecoauditor.io` currently returns a Cloudflare 526 error because the origin presents an invalid certificate for the `www` hostname. The apex also sends an HSTS header with `includeSubDomains`, so browsers that have previously visited the apex will refuse to bypass the broken `www` certificate. A redirect rule must be applied **at the Cloudflare edge** so `www` requests never reach the origin.
+
+In the Cloudflare dashboard, select your domain and go to **Rules > Redirect Rules**. Create a single redirect rule:
+
+- **When incoming requests match:**
+  - Field: `http.host`
+  - Operator: `equals`
+  - Value: `www.ecoauditor.io`
+- **Then:**
+  - Type: Dynamic
+  - Expression: `concat("https://", substring(http.host, 4), http.request.uri.path)`
+  - Status code: `301`
+  - Preserve query string: enabled
+
+Example: `https://www.ecoauditor.io/pricing?plan=growth` → `https://ecoauditor.io/pricing?plan=growth`.
+
+This is an infrastructure-only rule; it does not require any application code changes. Deploy it before submitting the domain to the HSTS preload list.
+
 ## Monitoring
 
 - **Logs**: `railway logs` or Railway Dashboard → Deployments → Logs

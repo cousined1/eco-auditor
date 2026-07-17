@@ -35,6 +35,9 @@ COPY --from=builder /app/static ./static
 # Volume mount point for video assets
 RUN mkdir -p /app/videos && chown appuser:appgroup /app/videos
 
+# Runtime file-storage directory (leads/consent audit fallback JSON)
+RUN mkdir -p /app/.data && chown appuser:appgroup /app/.data
+
 USER appuser
 
 EXPOSE 3000
