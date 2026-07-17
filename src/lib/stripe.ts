@@ -15,7 +15,7 @@ const insforge = _insforge as any;
 // checkout, billing portal, plan change, and cancel for every signed-in user.
 // Read the Authorization header the SDK's HTTP client already manages instead
 // (same mechanism as src/lib/api.ts / Dashboard). See audit finding.
-async function getAuthToken(): Promise<string | null> {
+export async function getAuthToken(): Promise<string | null> {
   try {
     const headers = insforge.getHttpClient?.().getHeaders?.() || {};
     const authorization: string = headers.Authorization || headers.authorization || '';

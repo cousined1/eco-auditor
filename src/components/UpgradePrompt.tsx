@@ -29,7 +29,7 @@ export default function UpgradePrompt({ feature, requiredPlan, reason, fullPage 
       <h4 className={(fullPage ? 'text-lg ' : 'text-sm ') + 'font-semibold text-surface-800 dark:text-surface-200'}>{feature}</h4>
       {reason && <p className={(fullPage ? 'text-sm ' : 'text-xs ') + 'text-surface-500 mt-1'}>{reason}</p>}
       <p className="text-2xs text-surface-400 mt-1">Available on the {plan.name} plan and above</p>
-      <Link to="/pricing" className={(fullPage ? 'text-sm ' : 'text-xs ') + 'btn-primary mt-3 inline-flex'}>
+      <Link to="/app/pricing" className={(fullPage ? 'text-sm ' : 'text-xs ') + 'btn-primary mt-3 inline-flex'}>
         Upgrade to {plan.name}
       </Link>
     </div>
