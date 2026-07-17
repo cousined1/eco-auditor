@@ -188,6 +188,47 @@ async function main() {
             (_, p1, p2) => `${p1}${head.description}${p2}`,
           );
         }
+
+        // M33: per-route canonical URL and og:url. The template ships the
+        // homepage canonical. Use trailing-slash canonicals to match the
+        // URLs actually served by the Express static mapping.
+        if (NOINDEX_ROUTES.has(route)) {
+          // Canonical on noindex pages is contradictory; remove them.
+          out = out.replace(/<link rel="canonical" href="[^"]*" \/?>\n? */, '');
+          out = out.replace(/<meta property="og:url" content="[^"]*" \/?>\n? */, '');
+        } else {
+          const canonical = head.canonical || ('https://ecoauditor.io' + (route === '/' ? '' : route) + '/');
+          out = out.replace(
+            /(<link rel="canonical" href=")[^"]*(" \/>)/,
+            (_, p1, p2) => `${p1}${canonical}${p2}`,
+          );
+          out = out.replace(
+            /(<meta property="og:url" content=")[^"]*(" \/>)/,
+            (_, p1, p2) => `${p1}${canonical}${p2}`,
+          );
+        }
+
+        // Sync Open Graph and Twitter title/description to the page meta.
+        if (head.title) {
+          out = out.replace(
+            /<meta property="og:title" content="[^"]*" \/>/,
+            `<meta property="og:title" content="${head.title}" />`,
+          );
+          out = out.replace(
+            /<meta name="twitter:title" content="[^"]*" \/>/,
+            `<meta name="twitter:title" content="${head.title}" />`,
+          );
+        }
+        if (head.description) {
+          out = out.replace(
+            /<meta property="og:description" content="[^"]*" \/>/,
+            `<meta property="og:description" content="${head.description}" />`,
+          );
+          out = out.replace(
+            /<meta name="twitter:description" content="[^"]*" \/>/,
+            `<meta name="twitter:description" content="${head.description}" />`,
+          );
+        }
       }
 
       if (route === '/') {
