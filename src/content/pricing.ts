@@ -23,7 +23,8 @@ export type Plan = {
   popular?: boolean;
   trial: boolean;
   features: string[];
-  locked: string[];
+  locked: string[]; // features not included in this tier (live in higher tiers)
+  roadmap: string[]; // unshipped features planned for this tier
 };
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -43,7 +44,8 @@ export const PLANS: Record<PlanId, Plan> = {
       '1 reporting template',
       'Email support',
     ],
-    locked: ['Scope 3 workflows', 'AI Carbon Assistant', 'Supplier request hub', 'Integrations', 'Audit trail exports'],
+    locked: ['Up to 5 facilities', 'Scope 3 workflows', 'Priority support'],
+    roadmap: ['AI Carbon Assistant', 'Supplier request hub', 'QuickBooks & Xero integrations', 'Audit trail & exports'],
   },
   growth: {
     id: 'growth',
@@ -57,13 +59,12 @@ export const PLANS: Record<PlanId, Plan> = {
     features: [
       'Up to 5 facilities',
       'Scope 1, 2, & key Scope 3 workflows',
-      'QuickBooks & Xero integrations',
-      'AI Carbon Assistant',
-      'Supplier request hub',
-      'Audit trail & report exports',
+      'Unlimited CSV imports',
+      'All standard reporting templates',
       'Priority support',
     ],
-    locked: ['Multi-entity', 'Custom reporting', 'Team permissions', 'API access'],
+    locked: ['Unlimited facilities', 'Premium support & onboarding'],
+    roadmap: ['AI Carbon Assistant', 'Supplier request hub', 'QuickBooks & Xero integrations', 'Audit trail & report exports', 'Team permissions', 'API access'],
   },
   pro: {
     id: 'pro',
@@ -74,15 +75,14 @@ export const PLANS: Record<PlanId, Plan> = {
     badge: 'Best for multi-facility teams',
     trial: false,
     features: [
-      'Multi-entity & advanced workflows',
-      'Advanced audit ledger',
-      'Approval workflows',
-      'Custom reporting templates',
-      'Team permissions & roles',
+      'Unlimited facilities',
+      'Scope 1, 2, & key Scope 3 workflows',
+      'Unlimited CSV imports',
+      'All standard reporting templates',
       'Premium support & onboarding',
-      'API & advanced integrations',
     ],
     locked: [],
+    roadmap: ['Advanced audit ledger', 'Approval workflows', 'Custom reporting templates', 'Team permissions & roles', 'API & advanced integrations'],
   },
 };
 

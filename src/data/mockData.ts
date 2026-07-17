@@ -93,46 +93,6 @@ export const CFO_METRICS = {
   estimatedExposureIncomplete: '$340K',
 };
 
-export const UPLOADED_FILES = [
-  { id: 1, name: 'PG&E_bill_sacramento_Q1.pdf', type: 'utility', status: 'extracted' as const, date: '2026-03-28', fields: 12, confidence: 96 },
-  { id: 2, name: 'SCE_bill_fresno_Q1.pdf', type: 'utility', status: 'extracted' as const, date: '2026-03-27', fields: 11, confidence: 93 },
-  { id: 3, name: 'FedEx_freight_report_Q1.csv', type: 'freight', status: 'review' as const, date: '2026-03-25', fields: 8, confidence: 72 },
-  { id: 4, name: 'UPS_shipment_log_Q1.csv', type: 'freight', status: 'review' as const, date: '2026-03-24', fields: 6, confidence: 68 },
-  { id: 5, name: 'Supplier_emissions_PackCo.xlsx', type: 'supplier', status: 'extracted' as const, date: '2026-03-22', fields: 15, confidence: 85 },
-  { id: 6, name: 'Natural_gas_invoice_Q1.pdf', type: 'utility', status: 'extracted' as const, date: '2026-03-20', fields: 9, confidence: 94 },
-  { id: 7, name: 'Fleet_fuel_card_Q1.csv', type: 'fuel', status: 'extracted' as const, date: '2026-03-18', fields: 7, confidence: 88 },
-  { id: 8, name: 'Ingredient_list_estimates.xlsx', type: 'supplier', status: 'estimate' as const, date: '2026-03-15', fields: 22, confidence: 44 },
-];
-
-export const OCR_PREVIEW = {
-  fileName: 'PG&E_bill_sacramento_Q1.pdf',
-  extractedFields: [
-    { label: 'Account Number', value: 'XXXX-XXXX-4821', confidence: 99 },
-    { label: 'Billing Period', value: 'Jan 1 – Mar 31, 2026', confidence: 98 },
-    { label: 'Total kWh', value: '184,320', confidence: 97 },
-    { label: 'Peak kWh', value: '72,480', confidence: 95 },
-    { label: 'Off-Peak kWh', value: '111,840', confidence: 95 },
-    { label: 'Demand (kW)', value: '412', confidence: 92 },
-    { label: 'Total Amount', value: '$28,147.20', confidence: 98 },
-    { label: 'Rate Schedule', value: 'E-19 Medium Commercial', confidence: 94 },
-    { label: 'Service Address', value: '4210 Industrial Blvd, Sacramento', confidence: 99 },
-    { label: 'Emission Factor Applied', value: '0.212 kgCO2e/kWh (WECC)', confidence: 100 },
-    { label: 'Estimated Emissions', value: '39.1 tCO2e', confidence: 96 },
-    { label: 'Emissions Method', value: `Location-based (${factorLabel('epa-egrid-2023')})`, confidence: 100 },
-  ],
-};
-
-export const LEDGER_ENTRIES = [
-  { id: 'LED-001', date: '2026-03-28', source: 'PG&E_bill_sacramento_Q1.pdf', scope: 'Scope 2', category: 'Electricity', amount: 39.1, unit: 'tCO2e', factor: `WECC ${factorLabel('epa-egrid-2023')}`, method: 'Location-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 96 },
-  { id: 'LED-002', date: '2026-03-27', source: 'SCE_bill_fresno_Q1.pdf', scope: 'Scope 2', category: 'Electricity', amount: 28.4, unit: 'tCO2e', factor: `WECC ${factorLabel('epa-egrid-2023')}`, method: 'Location-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 93 },
-  { id: 'LED-003', date: '2026-03-25', source: 'FedEx_freight_report_Q1.csv', scope: 'Scope 3', category: 'Upstream Freight', amount: 42.8, unit: 'tCO2e', factor: 'GLEC Framework v3', method: 'Distance-based (est.)', extraction: 'CSV Import', reviewer: 'Unassigned', status: 'pending-review' as const, version: 1, confidence: 72 },
-  { id: 'LED-004', date: '2026-03-24', source: 'UPS_shipment_log_Q1.csv', scope: 'Scope 3', category: 'Upstream Freight', amount: 31.2, unit: 'tCO2e', factor: 'GLEC Framework v3', method: 'Shipment-based (est.)', extraction: 'CSV Import', reviewer: 'Unassigned', status: 'pending-review' as const, version: 1, confidence: 68 },
-  { id: 'LED-005', date: '2026-03-20', source: 'Natural_gas_invoice_Q1.pdf', scope: 'Scope 1', category: 'Stationary Combustion', amount: 35.6, unit: 'tCO2e', factor: factorLabel('epa-efh-2025'), method: 'Fuel-based', extraction: 'OCR', reviewer: 'Sarah Chen', status: 'approved' as const, version: 1, confidence: 94 },
-  { id: 'LED-006', date: '2026-03-18', source: 'Fleet_fuel_card_Q1.csv', scope: 'Scope 1', category: 'Mobile Combustion', amount: 24.2, unit: 'tCO2e', factor: factorLabel('epa-efh-2025'), method: 'Fuel-based', extraction: 'CSV Import', reviewer: 'Sarah Chen', status: 'approved' as const, version: 2, confidence: 88 },
-  { id: 'LED-007', date: '2026-03-15', source: 'Expert estimate — ingredient sourcing', scope: 'Scope 3', category: 'Purchased Goods', amount: 18.3, unit: 'tCO2e', factor: 'EXIOBASE 3.8', method: 'Spend-based (est.)', extraction: 'Manual Entry', reviewer: 'Tom Bradley', status: 'conditional' as const, version: 1, confidence: 44 },
-  { id: 'LED-008', date: '2026-03-10', source: 'Refrigerant service log — Fresno', scope: 'Scope 1', category: 'Refrigerant Leakage', amount: 12.7, unit: 'tCO2e', factor: factorLabel('ipcc-ar6-gwp100'), method: 'Screening (3% leak rate)', extraction: 'Manual Entry', reviewer: 'Tom Bradley', status: 'conditional' as const, version: 1, confidence: 71 },
-];
-
 export const REPORTS = [
   { id: 1, title: 'CBAM Supplier Data Package', type: 'CBAM', status: 'draft' as const, lastUpdated: '2026-03-28', completeness: 68, signoff: 'none' as const },
   { id: 2, title: 'California Climate Readiness Package', type: 'CA Readiness', status: 'not-started' as const, lastUpdated: '—', completeness: 0, signoff: 'none' as const },
@@ -223,32 +183,6 @@ export const ADD_ONS = [
   { id: 'implementation', name: 'Guided setup & data mapping', price: 1500, unit: ' one-time' },
 ];
 
-export const BILLING_SUBSCRIPTION = {
-  plan: 'growth' as const,
-  billing: 'annual' as const,
-  status: 'active' as const,
-  currentPeriodEnd: '2027-01-15',
-  trialEnd: null as string | null,
-  monthlyRate: 332.50,
-  annualRate: 3990,
-  nextInvoice: '2027-01-15',
-  amount: 3990,
-};
-
-export const INVOICES = [
-  { id: 'INV-2026-001', date: '2026-01-15', amount: '$3,990.00', status: 'paid' as const, plan: 'Growth (Annual)' },
-  { id: 'INV-2025-004', date: '2025-12-15', amount: '$399.00', status: 'paid' as const, plan: 'Growth (Monthly)' },
-  { id: 'INV-2025-003', date: '2025-11-15', amount: '$399.00', status: 'paid' as const, plan: 'Growth (Monthly)' },
-  { id: 'INV-2025-002', date: '2025-10-15', amount: '$399.00', status: 'paid' as const, plan: 'Growth (Monthly)' },
-  { id: 'INV-2025-001', date: '2025-09-15', amount: '$149.00', status: 'paid' as const, plan: 'Starter (Monthly)' },
-];
-
-export const PAYMENT_METHOD = {
-  brand: 'Visa',
-  last4: '4242',
-  expiry: '12/2028',
-};
-
 export const FEATURE_COMPARISON = [
   { feature: 'Companies', starter: '1', growth: '1', pro: 'Unlimited' },
   { feature: 'Facilities', starter: '1', growth: 'Up to 5', pro: 'Unlimited' },
@@ -256,17 +190,17 @@ export const FEATURE_COMPARISON = [
   { feature: 'Scope 2 tracking', starter: '✓', growth: '✓', pro: '✓' },
   { feature: 'Scope 3 workflows', starter: '—', growth: '✓', pro: '✓' },
   { feature: 'CSV imports', starter: '10/mo', growth: 'Unlimited', pro: 'Unlimited' },
-  { feature: 'Reporting templates', starter: '1', growth: 'All standard', pro: 'Custom + standard' },
-  { feature: 'AI Carbon Assistant', starter: '—', growth: '✓', pro: '✓' },
-  { feature: 'Supplier request hub', starter: '—', growth: '✓', pro: '✓' },
-  { feature: 'QuickBooks / Xero', starter: '—', growth: '✓', pro: '✓' },
-  { feature: 'UPS / FedEx connectors', starter: '—', growth: '✓', pro: '✓' },
-  { feature: 'Audit trail & exports', starter: '—', growth: '✓', pro: '✓ (advanced)' },
-  { feature: 'Approval workflows', starter: '—', growth: '—', pro: '✓' },
-  { feature: 'Team permissions', starter: '—', growth: '—', pro: '✓' },
-  { feature: 'Multi-entity support', starter: '—', growth: '—', pro: '✓' },
-  { feature: 'API access', starter: '—', growth: '—', pro: '✓' },
-  { feature: 'Custom report templates', starter: '—', growth: '—', pro: '✓' },
+  { feature: 'Reporting templates', starter: '1', growth: 'All standard', pro: 'All standard' },
+  { feature: 'AI Carbon Assistant', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },
+  { feature: 'Supplier request hub', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },
+  { feature: 'QuickBooks / Xero', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },
+  { feature: 'UPS / FedEx connectors', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },
+  { feature: 'Audit trail & exports', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },
+  { feature: 'Approval workflows', starter: '—', growth: '—', pro: 'Roadmap' },
+  { feature: 'Team permissions', starter: '—', growth: '—', pro: 'Roadmap' },
+  { feature: 'Multi-entity support', starter: '—', growth: '—', pro: 'Roadmap' },
+  { feature: 'API access', starter: '—', growth: '—', pro: 'Roadmap' },
+  { feature: 'Custom report templates', starter: '—', growth: '—', pro: 'Roadmap' },
   { feature: 'Support', starter: 'Email', growth: 'Priority', pro: 'Premium + onboarding' },
   { feature: 'Free trial', starter: '14 days', growth: '14 days', pro: '—' },
 ];

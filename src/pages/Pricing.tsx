@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PLANS } from '@/content/pricing';
 import { ADD_ONS, FEATURE_COMPARISON } from '../data/mockData';
-import { createCheckoutSession } from '../lib/stripe';
+import { createCheckoutSession, getAuthToken } from '../lib/stripe';
 
 // AF-1: PRICING_SCHEMA is built from pricing.ts so JSON-LD prices always match
 // the UI prices and the salesbot KB. pricing.ts is the single source of truth.
@@ -27,6 +27,7 @@ const PRICING_SCHEMA = {
 type BillingCycle = 'monthly' | 'annual';
 
 export default function Pricing() {
+  const navigate = useNavigate();
   const [billing, setBilling] = useState<BillingCycle>('annual');
   const [showComparison, setShowComparison] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -51,6 +52,11 @@ export default function Pricing() {
 
   const handleCheckout = async (planId: string, billingCycle: BillingCycle, trial: boolean | undefined) => {
     setCheckoutError(null);
+    const token = await getAuthToken();
+    if (!token) {
+      navigate(`/signup?plan=${planId}&billing=${billingCycle}`);
+      return;
+    }
     const result = await createCheckoutSession({ priceId: `${planId}_${billingCycle}`, planId, billing: billingCycle, trial });
     if (result.ok) {
       window.location.assign(result.data.url);
@@ -139,6 +145,19 @@ export default function Pricing() {
                     </li>
                   ))}
                 </ul>
+                {plan.roadmap.length > 0 && (
+                  <div className="mt-1 pt-4 border-t border-surface-200 dark:border-surface-700">
+                    <h4 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">On the roadmap</h4>
+                    <ul className="space-y-2">
+                      {plan.roadmap.map((f) => (
+                        <li key={f} className="flex items-start gap-2 text-sm text-surface-500 dark:text-surface-500">
+                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border border-surface-200 dark:border-surface-700">Soon</span>
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <div className="p-5 pt-0 space-y-2">
                 <button
@@ -254,5 +273,6 @@ export default function Pricing() {
 function formatCell(value: string): React.ReactNode {
   if (value === '✓' || value === '✓ (advanced)') return <span className="text-risk-low font-medium">{value}</span>;
   if (value === '—') return <span className="text-surface-300 dark:text-surface-600">—</span>;
+  if (value === 'Roadmap') return <span className="text-xs text-surface-400">Roadmap</span>;
   return value;
 }
