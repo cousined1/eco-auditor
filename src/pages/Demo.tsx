@@ -63,7 +63,12 @@ export default function Demo() {
     if (!validate()) return;
 
     setSubmitting(true);
-    const payload = { ...form, subject: 'demo', intent: 'demo' };
+    const details = [
+      form.goal ? `Goal: ${form.goal}` : '',
+      form.facilityCount ? `Facilities: ${form.facilityCount}` : '',
+      form.reportingDeadline ? `Deadline: ${form.reportingDeadline}` : '',
+      form.message,
+    ].filter(Boolean).join('\n');
 
     if (!isInsForgeConfigured) {
       setSubmitError('Our demo form is temporarily unavailable. Please email hello@developer312.com to book.');
@@ -72,7 +77,18 @@ export default function Demo() {
     }
 
     try {
-      await insforge.database.from('contact_submissions').insert([{ ...payload }]);
+      const { error } = await insforge.database.from('leads').insert([{
+        type: 'demo',
+        name: form.name,
+        email: form.email,
+        company: form.company,
+        message: details,
+        source: 'demo',
+      }]);
+      if (error) {
+        setSubmitError(error.message || 'We couldn’t send your request right now. You can also email hello@developer312.com.');
+        return;
+      }
       setSubmitted(true);
     } catch {
       setSubmitError('We couldn’t send your request right now. You can also email hello@developer312.com.');
