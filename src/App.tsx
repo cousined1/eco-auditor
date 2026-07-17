@@ -5,6 +5,7 @@ import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
 import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
+import { createCheckoutSession } from './lib/stripe';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
@@ -88,6 +89,7 @@ function AppContent() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [authStatus, setAuthStatus] = useState<'loading' | 'authed' | 'anon'>('loading');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [checkoutBanner, setCheckoutBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Close the mobile nav on navigation. Render-time state adjustment
   // (https://react.dev/learn/you-might-not-need-an-effect) instead of an effect.
@@ -160,6 +162,43 @@ function AppContent() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [isAppPage, authStatus, navigate]);
+
+  useEffect(() => {
+    if (authStatus !== 'authed') return;
+    const params = new URLSearchParams(locationInfo.search);
+    const sessionId = params.get('session_id');
+    const checkout = params.get('checkout');
+    let replaced = false;
+
+    if (sessionId) {
+      params.delete('session_id');
+      replaced = true;
+      setCheckoutBanner({
+        message: 'Welcome back! Your subscription is being finalized. It may take a moment to appear in Settings → Billing.',
+        type: 'success',
+      });
+    }
+
+    if (checkout) {
+      const [planId, billing] = checkout.split('_');
+      if (planId && (billing === 'monthly' || billing === 'annual')) {
+        params.delete('checkout');
+        replaced = true;
+        void (async () => {
+          const result = await createCheckoutSession({ priceId: `${planId}_${billing}`, planId, billing, trial: billing === 'monthly' });
+          if (result.ok) {
+            window.location.assign(result.data.url);
+          } else {
+            setCheckoutBanner({ message: result.error || 'Could not start checkout. Please try again.', type: 'error' });
+          }
+        })();
+      }
+    }
+
+    if (replaced) {
+      navigate({ pathname: locationInfo.pathname, search: params.toString() }, { replace: true });
+    }
+  }, [authStatus, locationInfo.pathname, locationInfo.search, navigate]);
 
   async function handleLogout() {
     // signOut hits /api/auth/logout to kill the server session. Log (don't
@@ -266,6 +305,37 @@ function AppContent() {
             </div>
           </header>
 
+          {checkoutBanner && (
+            <div
+              className={`px-6 py-3 border-b ${
+                checkoutBanner.type === 'success'
+                  ? 'bg-brand-50 border-brand-200 dark:bg-brand-900/20 dark:border-brand-800'
+                  : 'bg-risk-high/10 border-risk-high/20'
+              }`}
+              role="status"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <span
+                  className={`text-sm ${
+                    checkoutBanner.type === 'success'
+                      ? 'text-brand-700 dark:text-brand-300'
+                      : 'text-risk-high'
+                  }`}
+                >
+                  {checkoutBanner.message}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutBanner(null)}
+                  className="text-xs text-surface-500 hover:text-surface-800 dark:hover:text-surface-200"
+                  aria-label="Dismiss"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           <main className="flex-1 overflow-y-auto">
             <Routes>
               <Route path="/app" element={<Dashboard />} />
@@ -290,7 +360,15 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/pricing" element={
+        <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex flex-col">
+          <Header variant="marketing" />
+          <main id="main-content" className="flex-1">
+            <Pricing />
+          </main>
+          <Footer />
+        </div>
+      } />
       <Route path="/methodology" element={<MethodologyPublic />} />
       <Route path="/sample-report" element={<SampleReport />} />
       <Route path="/security" element={<Security />} />
