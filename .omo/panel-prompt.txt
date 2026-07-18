@@ -1,0 +1,155 @@
+You are an independent panelist in a fusion-3 review panel. One of three
+different models is reviewing the SAME task in parallel. None of you see the
+others' work. Your job: produce a grounded, file-by-file fix plan for the 6
+launch-blocking P0 issues described in the brief below.
+
+CONTEXT
+The brief is a self-contained ground-truth map produced from a full read of
+the Eco-Auditor codebase. Stack: Vite 8 + React 19.2.4 + React Router 7.14 +
+TypeScript 6 + Tailwind 3.4 (**LOCKED — do NOT upgrade to v4**) + Express 4 +
+Drizzle ORM 0.45 + pg 8 + InsForge SDK 1.2.4 (auth/db) + Stripe 22 (billing) +
+recharts 3. SSR via src/entry-server.tsx (renderToString + StaticRouter) +
+scripts/prerender.mjs + server.cjs. Tests: vitest. Lint: eslint 9.
+Repo root: C:/Users/embro/.openclaw/workspace/eco-auditor-deploy
+
+INSTRUCTIONS
+1. Read the brief fully (it is inlined below between === BRIEF BEGIN === and
+   === BRIEF END ===). If you have file/bash access, verify the brief's
+   file:line claims against the actual repo and correct any that are wrong.
+2. Produce a grounded file-by-file fix plan following the "Panelist output
+   contract" at the end of the brief. For EACH P0 (01-06) AND each of the 4
+   additional findings, give:
+     - Files: exact paths + line ranges to edit/create
+     - Change: the specific diff (copy replacements for legal/marketing;
+       function signatures for registry/quality-summary/trust-facts)
+     - Risk: what could break (SSR, billing, SEO, a11y)
+     - Failable check: named command/file/test
+     - For P0-05: a Model A vs Model B recommendation with rationale
+3. Give a sequenced implementation order (dependencies first).
+4. List anything in the brief you believe is WRONG or unverified (be specific).
+5. Respect the HARD CONSTRAINTS in §3 STRICTLY:
+     - P0-02: do NOT invent legal terms, operator entity, liability caps,
+       jurisdiction, dispute mechanism, or effective dates.
+     - P0-06: do NOT fabricate subprocessor processingRegion/dpaUrl or hosting
+       provider identity. Unverified fields render "(verify before publication)".
+     - Compliance wording: "supports"/"maps to"/"designed around"/"aligned with"
+       — never "GDPR compliant"/"CCPA compliant"/"audit-ready"/"compliant" until
+       verified. No asserted certifications (SOC 2 "in progress"/"roadmap" only).
+     - P0-04: factor version years must match official EPA/eGRID releases. If you
+       cannot verify the exact latest version, the registry encodes verified:false
+       and the UI labels it "(verify)". Do not hard-code an unverified year as fact.
+     - Tailwind 3.4 LOCKED — no v4, no new CSS framework.
+6. Output as structured markdown. This is your ENTIRE deliverable. Do NOT edit
+   the repository — analyze and plan only. Be concrete and terse; no preamble.
+
+=== BRIEF BEGIN ===
+# Eco-Auditor P0 Fix Orchestration Brief — fusion-3 panel input
+
+Self-contained ground-truth map for the 6 launch-blocking P0 issues from
+`ecoauditor-ui-ux-mvp-audit-2026-07-11.md`. Every P0 is grounded in actual
+`file:line` evidence (codebase read in full this session). Panelists: produce
+a grounded file-by-file fix plan. For each P0 list (a) exact files+lines to
+edit, (b) the specific change, (c) a failable verification check (named
+test/command/file). Respect the hard constraints in §3.
+
+## Stack
+Vite 8 + React 19.2.4 + React Router 7.14 + TypeScript 6 + Tailwind 3.4
+(**LOCKED — do NOT upgrade to v4**) + Express 4 + Drizzle ORM 0.45 + pg 8 +
+InsForge SDK 1.2.4 (auth/db) + Stripe 22 (billing) + recharts 3. SSR via
+`src/entry-server.tsx` (renderToString + StaticRouter) + `scripts/prerender.mjs`
++ `server.cjs` (node start). Tests: vitest. Lint: eslint 9.
+
+## P0-01 — /login and /signup resolve to homepage content for non-JS clients
+**Root cause (two layers):**
+- `scripts/prerender.mjs:37-47` `ROUTES` array = `['/','/pricing','/methodology','/sample-report','/security','/contact','/privacy','/terms','/dpa']` — `/login` and `/signup` are NOT prerendered, so no `static/login/index.html` / `static/signup/index.html` exists. Comment `:34-36` says app routes are intentionally excluded, but /login & /signup are public auth pages, not /app/*.
+- `server.cjs:1542-1545` SPA fallback `app.get('*', (_req,res) => res.sendFile(path.join(__dirname,'static','index.html')))` serves the **homepage** prerender for any unmatched route → non-JS client (curl, crawler) hitting /login or /signup receives homepage HTML.
+- React Router wiring IS correct (`App.tsx:275-276` `/signup`→Signup, `/login`→Login). `Login.tsx` and `Signup.tsx` are real auth screens (email/password + Google/Azure/Apple OAuth). The bug is purely the prerender/server layer.
+
+**Fix:** Add `/login` and `/signup` to `prerender.mjs` ROUTES with a per-route `<meta name="robots" content="noindex,nofollow">` injected into the prerendered HTML head; add them to `server.cjs` `PRERENDERED_ROUTES` (`:1523-1526`) so they map to their own static file before the SPA fallback. Ensure SSR output for these routes is the auth form (the components are self-contained, no InsForge top-level calls, so `render()` works). Keep them OUT of `public/sitemap.xml` and ensure `robots.txt` disallows them. Add plan-aware signup: `Signup.tsx` reads `?plan=starter&billing=annual&source=pricing` from `useSearchParams`, preselects plan, passes through to post-signup checkout redirect. Add `noindex,nofollow` meta to both auth components (also set client-side via useEffect for the hydrated path). Distinct error messages already mostly present (`Login.tsx:32`, `Signup.tsx:36`).
+
+**Failable check:** `node scripts/prerender.mjs` then `grep -l "noindex" static/login/index.html static/signup/index.html` (both match); `curl -s $URL/login | grep -i "sign in"` returns the auth form h1, NOT homepage content; `curl -s $URL/login | grep -i "Start your free trial"` should NOT match homepage hero copy.
+
+## P0-02 — Legal docs publicly labeled drafts with placeholders
+**Confirmed placeholders (all 3 legal pages):**
+- `TermsOfService.tsx:49` "Last updated: [Date to be set upon legal review]"; `:166` "[AMOUNT TO BE SET UPON LEGAL REVIEW]" (liability cap); `:186` "[Jurisdiction to be set upon legal review]"; `:187` "[Dispute resolution mechanism to be set upon legal review — e.g., arbitration, mediation, or courts of specified jurisdiction]"; `:45` "business draft for review" banner.
+- `PrivacyPolicy.tsx:58` "[Date to be set upon legal review]"; `:53` "business draft for review" banner.
+- `DataProcessingAddendum.tsx:50` "[Date to be set upon legal review]"; `:46` "business draft for review" banner; `:281` "shall be completed upon execution".
+- **Operator entity IS already named** ("Developer312, a subsidiary of NIGHT LITE USA LLC", `TermsOfService.tsx:57`; contact hello@developer312.com / (510) 401-1225) — NOT a placeholder.
+- Good qualified compliance language already present: `TermsOfService.tsx:149,182`; `DataProcessingAddendum.tsx:54` "GDPR-aligned".
+
+**Fix (per audit P0-02):** Add a CI guardrail script `scripts/check-legal-placeholders.mjs` that fails the build if any of the banned phrases appear in `src/pages/{TermsOfService,PrivacyPolicy,DataProcessingAddendum}.tsx`: "[Date to be set", "[AMOUNT TO BE SET", "[Jurisdiction to be set", "[Dispute resolution mechanism", "business draft for review", "[PLACEHOLDER]", "TBD", "to be set upon legal review". Wire it into the `build` npm script (before vite build) so a regression blocks launch. **Do NOT invent replacement legal values** — the placeholders stay (they correctly signal "pending legal review") UNTIL counsel provides real values; the guardrail prevents accidentally shipping a half-replaced value. The "draft" banners are intentional pre-launch labeling and may stay until legal sign-off, but the guardrail ensures the explicit bracketed placeholders can never silently ship to prod. Effective/updated dates: leave as placeholder until counsel sets them.
+
+**Failable check:** `node scripts/check-legal-placeholders.mjs` exits 0 now (placeholders are explicit, guardrail recognizes them as intentional? — NO: the guardrail must FAIL on the bracketed phrases to force them to be replaced before launch). Reconcile: the guardrail fails on ANY banned phrase present in shipped HTML. Since placeholders are intentional pre-launch, the guardrail is a **launch gate**: `npm run build` fails until legal replaces them. Document this in the launch-readiness checklist. Test: temporarily remove a placeholder → guardrail still fails on the others; the check is `node scripts/check-legal-placeholders.mjs; echo $?` returns non-zero while any placeholder remains.
+
+## P0-03 — Sample report math bug (83% claim)
+**Confirmed:** `SampleReport.tsx:149` "83% of total emissions backed by primary source data or better. 17% flagged for improvement." `QUALITY_SCORES` (`:20-25`): L1=8%, L2=34%, L3=41%, L4-L5=17%. L1+L2=42% (true primary-or-better); 83% = L1+L2+L3 (includes Industry Average — WRONG); 17% estimated (L4+L5, correct).
+
+**Fix:** Create `src/lib/reports/quality-summary.ts` exporting `summarizeQuality(scores)` that derives: `primaryOrBetter = L1+L2`, `industryAverageOrBetter = L1+L2+L3`, `estimated = L4+L5`. Replace the hand-written "83%" at `SampleReport.tsx:149` with `summarizeQuality(QUALITY_SCORES).primaryOrBetter` → renders "42%". Keep the "17% flagged for improvement" (matches `estimated`). No hand-written summary percentages anywhere. Ponytail: this is a real calculation (branch + sum), so it gets ONE runnable check (a vitest unit test asserting primaryOrBetter=42, estimated=17, industryAverageOrBetter=83).
+
+**Failable check:** `npx vitest run src/lib/reports/quality-summary.test.ts` passes; `grep -n "83%" src/pages/SampleReport.tsx` returns no hand-written 83 (only derived if industryAverageOrBetter is displayed with a correct label).
+
+## P0-04 — Methodology version strings + operational-control wording
+**Confirmed across 2 files:**
+- `mockData.ts:204` `emissionFactorLib: 'EPA GHG Factor Hub 2024'` (`:201-210` METHODOLOGY_SETTINGS); `EMISSIONS_SUMMARY` items `:22-39` use 'EPA eGRID 2024','eGRID WECC 2024','eGRID NWPP 2024'; `LEDGER_ENTRIES:123-132` 'EPA GHG Factor Hub 2024','eGRID WECC 2024'; `OCR_PREVIEW:119` 'Location-based (eGRID 2024)'.
+- `MethodologyPublic.tsx:238-243` factor libraries array: 'EPA GHG Factor Hub 2024', 'eGRID 2024'; `:267` FAQ "operational control, consistent with the Protocol's recommended approach"; `:270` cadence "EPA GHG Factor Hub in April, eGRID in January, GLEC in Q3".
+
+**Fix:** Verify against official EPA/eGRID releases (web). Audit states: GHG Factor Hub 2025 is latest; eGRID 2023 data is latest (eGRID 2024 does not exist as a data release — eGRID releases lag ~2 years, so "eGRID 2024" data is not available; latest published eGRID data is eGRID 2023, released 2024). Build `src/lib/emission-factors/registry.ts` + `versions.ts` exporting an `EmissionFactorVersion` registry interface: `{ id, label, publisher, publishedYear, dataYear, scopes[] }`. Replace hardcoded strings with registry references. Update `MethodologyPublic.tsx:267` FAQ to "Our organizational boundary default is operational control — Eco-Auditor's default. The GHG Protocol also permits equity-share and financial-control consolidation; contact us if you need an alternative." **Do NOT hard-code a version year without verification** — if the panel cannot verify the exact latest version via web, the registry must encode `dataYear` with a `verified: false` flag and the UI must label it "(verify before publication)" rather than asserting an unverified year.
+
+**Failable check:** `npx vitest run` on a registry test asserting every registry entry has `publishedYear` + `dataYear` + `verified` boolean; `grep -rn "2024" src/lib/emission-factors/ src/pages/MethodologyPublic.tsx src/data/mockData.ts` shows only intentional `dataYear: 2024` (eGRID 2023 data released 2024) with verified flags, no bare "eGRID 2024" string.
+
+## P0-05 — "No credit card required" contradicts Terms auto-charge (Model B)
+**Confirmed billing model = Model B (card-backed, auto-charge):**
+- `server.cjs:594-617` `/api/checkout` creates Stripe subscription sessions with `trial_period_days: 14` only when `trial && TRIAL_ELIGIBLE_PLANS.has(priceId)`; `TRIAL_ELIGIBLE_PLANS` (`:589-592`) = starter_monthly + growth_monthly only.
+- `server.cjs:336-337` `ensureCompanyForUser` auto-provisions 14-day trial.
+- `TermsOfService.tsx:116` "At the end of a trial, you will be charged for the selected plan unless you cancel before the trial expires" — auto-charge.
+- Contradicting marketing copy: `LandingPage.tsx:95` "No credit card required · 14-day free trial · Set up in under 10 minutes"; `:327` "no credit card"; `Signup.tsx:125` "No credit card required. 14-day free trial."; `SampleReport.tsx:200` "no credit card required"; `MethodologyPublic.tsx:291` "Start free, no credit card required".
+
+**Fix (pick Model B — least code, matches existing Stripe wiring):** Remove "No credit card required" everywhere; replace with accurate copy: "14-day free trial · Card required to start · Cancel anytime before trial ends" (or "14-day free trial, then $X/mo"). Update: `LandingPage.tsx:95`, `:327`; `Signup.tsx:125`; `SampleReport.tsx:200`; `MethodologyPublic.tsx:291`. Also fix "Set up in under 10 minutes" claim (`LandingPage.tsx:95`, `Signup.tsx:125`, `LandingPage.tsx:15/25` FAQ "under 10 minutes") — keep only if verifiable, else soften to "Most teams are up and running quickly." Replace "audit-ready" claims (`LandingPage.tsx:117,170,325`; `MethodologyPublic.tsx:106`; `SampleReport.tsx:82`; `Security.tsx`) with qualified "reviewable records" / "defensible" wording per P0-06. **Decision point for judge:** Model A (no-card, read-only at trial end) requires changing `server.cjs` billing logic + Stripe config — more code, more risk. Model B (fix copy only) is the ponytail choice. Recommend Model B unless the panel argues convincingly for A.
+
+**Failable check:** `grep -rn "No credit card" src/` returns 0 matches; `grep -rn "audit-ready" src/pages/LandingPage.tsx src/pages/MethodologyPublic.tsx` returns 0 (or only qualified); `npm run build` passes.
+
+## P0-06 — trustFacts + compliance overclaims + "NoNDA" typo
+**Confirmed:**
+- `Security.tsx:147` "NoNDA required" → **typo, fix to "No NDA"**.
+- `Security.tsx:99` "GDPR compliant", `:100` "CCPA compliant", `:91`/`:153` "GDPR-compliant DPA", `:9` "compliance certifications", `:98` "SOC 2 Type II audit in progress" — overclaims. DPA itself correctly says "GDPR-aligned" (`DataProcessingAddendum.tsx:54`).
+- `Security.tsx:58` "TLS 1.3 for all API and web traffic" **inconsistent** with Privacy `:160`/DPA `:99` ("TLS 1.2+").
+- `Security.tsx:68` "Cloud infrastructure on AWS and InsForge" — claims AWS; DPA `:246` says generic "Cloud hosting provider"; actual deploy is Railway. P0-06 wants named Railway/InsForge/Stripe subprocessors with processingRegion + dpaUrl.
+- `Security.tsx:108` "30-day retention" backups vs audit `backupsDeletionWindowDays: 35`.
+- `DataProcessingAddendum.tsx:246-251` Annex III subprocessors: generic "Cloud hosting provider", "Analytics provider", "Email/communications provider", "Customer support platform" — only Stripe named.
+
+**Fix:** Create `src/content/trust-facts.ts` exporting a `trustFacts` object: `{ encryptionInTransitMinimum: 'TLS 1.2', preferredTransport: 'TLS 1.3', encryptionAtRest: 'AES-256', accountDeletionRequestWindowDays: 30, postTerminationRetentionDays: 90, backupsDeletionWindowDays: 35, contentUsedForModelTraining: false, subprocessors: [...] }`. **Hard constraint: do NOT fabricate subprocessor processingRegion/dpaUrl or hosting provider identity.** Mark every field `verified: boolean`. For fields not yet verified (e.g., is it really Railway? is it really AWS?), set `verified: false` and `value: 'VERIFY'` — the UI renders "(verify before publication)" rather than a guessed value. Replace "GDPR compliant"/"CCPA compliant" with "supports GDPR"/"aligned with GDPR"/"designed around CCPA requirements" (qualified). Fix `Security.tsx:108` 30→35 to match trustFacts (or mark VERIFY). Reconcile TLS wording: minimum TLS 1.2, preferred 1.3 (state both). Name subprocessors only where verified (Stripe is named in DPA — keep; Railway/InsForge — mark VERIFY until infra checked). Fix "NoNDA"→"No NDA".
+
+**Failable check:** `grep -rn "NoNDA" src/` returns 0; `grep -rn "GDPR compliant\|CCPA compliant" src/` returns 0; `npx vitest run` on a trust-facts test asserting every `trustFacts` field has `verified` boolean and no field has a fabricated non-VERIFY value when `verified: false`; `npm run build` passes.
+
+## Additional findings (not explicitly in audit, flag for the plan)
+1. **Pricing inconsistency (P0-level trust/SEO):** `Pricing.tsx:12-14` JSON-LD schema says Starter $49 / Growth $149 / Pro $499; `Pricing.tsx:29` meta says "Free tier, Starter $49/mo, Growth $149/mo, Pro $499/mo"; but the UI renders `mockData.ts PLANS` ($149/$399/$999) and `Pricing.tsx:222` says "Growth $3,990/year". `LandingPage.tsx:14` FAQ "$49–$499/month"; `server.cjs:806` salesbot $49/$149/custom. **Search engines see $49/$149/$499; humans see $149/$399/$999 — structured-data mismatch + a "Free tier" that doesn't exist.** Fix: single source of truth `src/content/pricing.ts`; JSON-LD + meta + UI + salesbot all read from it; remove "Free tier" claim. Verify real Stripe price IDs in `server.cjs` `ALLOWED_PRICE_IDS` (`:579-586`) match.
+2. **godmythos /api/health gap:** `server.cjs:155-170` `/health` exists but has NO SHA self-reporting and NO `no-store`. `server.cjs:143-152` `/api/version` HAS SHA + no-store. TO_WEBSITE ship contract (godmythos v10.6.1) requires `/api/health` with SHA self-reporting + `no-store` (Gate 13 F1 SHA match). Fix: add `/api/health` route mirroring `/api/version` SHA logic + `Cache-Control: no-store, max-age=0, must-revalidate`.
+3. **Dead CTAs:** `Pricing.tsx:135,213-214` "Book demo"/"Talk to sales"/"Book a demo" buttons have no onClick/href; no `/demo` route exists (P1-02). Either wire to `/contact` or build `/demo`.
+4. **Per-page meta not in static HTML (P1-07):** `MethodologyPublic.tsx`, `Security.tsx`, `Pricing.tsx`, `SampleReport.tsx` set `document.title`/meta via useEffect → not in prerendered HTML. Fix: inject per-route meta in `prerender.mjs` or via a head-manifest.
+
+## Suggested shared modules (from audit)
+`src/content/{claims,trust-facts,pricing,methodology,legal-metadata}.ts`,
+`src/lib/emission-factors/{registry,versions}.ts`,
+`src/lib/reports/{calculations,quality-summary}.ts`,
+`tests/{routes,auth,pricing,sample-report,legal-placeholders,accessibility}.spec.ts`.
+`src/components/{CanonicalCta,BillingToggle,PlanCard}.tsx` as needed.
+
+## §3 — HARD CONSTRAINTS (do not violate)
+1. **P0-02:** Do NOT invent legal terms, operator entity, liability caps, jurisdiction, dispute mechanism, or effective dates. Placeholders stay until qualified legal review; the CI guardrail is a launch gate, not a filler.
+2. **P0-06 trustFacts:** Do NOT publish guessed values. A field with `verified: false` renders "(verify before publication)" — never a fabricated value. Do NOT fabricate subprocessor processingRegion/dpaUrl or hosting provider identity.
+3. **Compliance wording:** Replace "GDPR compliant"/"CCPA compliant"/"audit-ready"/"compliant" with "supports"/"maps to"/"designed around"/"aligned with" until verified by counsel/evidence. Do not assert certifications (SOC 2) as achieved — "in progress"/"roadmap" only.
+4. **P0-04:** Factor version years must match official EPA/eGRID releases. If a panelist cannot verify the exact latest version, the registry encodes `verified: false` and the UI labels it "(verify)". Do not hard-code an unverified year as fact.
+5. **Tailwind 3.4 LOCKED** — no v4 upgrade, no new CSS framework. Use existing utility classes.
+6. **InsForge:** Before writing any new InsForge integration code, consult InsForge docs (fetch-sdk-docs MCP). The signup plan-aware flow uses existing `insforge.auth.signUp` — no new SDK surface needed unless docs say so.
+7. **Ponytail:** Shortest working diff. No unrequested abstractions. Never simplify away input validation, error handling, security, or accessibility. Non-trivial logic (summarizeQuality, registry, trustFacts, placeholder guardrail) leaves ONE runnable check behind.
+8. **Git:** branch first (currently on master). Atomic commits per P0. End commit messages with `Co-Authored-By: Claude <noreply@anthropic.com>`. Do NOT push or commit unless explicitly instructed.
+
+## Panelist output contract
+For each P0 (01–06) + the 4 additional findings, produce:
+- **Files:** exact paths + line ranges to edit/create
+- **Change:** the specific diff (copy replacements for legal/marketing; function signatures for registry/quality-summary/trust-facts)
+- **Risk:** what could break (SSR, billing, SEO, a11y)
+- **Failable check:** named command/file/test
+- **Model A vs B recommendation** (for P0-05)
+Then: a sequenced implementation order (dependencies first) and a list of anything in this brief you believe is WRONG or unverified.
+=== BRIEF END ===

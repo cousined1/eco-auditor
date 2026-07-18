@@ -1,0 +1,400 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Eco-Auditor" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - img [ref=e7]
+          - generic [ref=e16]: Eco-Auditor
+        - button "Switch to dark mode" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+    - generic [ref=e20]:
+      - navigation [ref=e21]:
+        - heading "On This Page" [level=2] [ref=e22]
+        - list [ref=e23]:
+          - listitem [ref=e24]:
+            - link "Introduction" [ref=e25] [cursor=pointer]:
+              - /url: "#introduction"
+          - listitem [ref=e26]:
+            - link "Who We Are" [ref=e27] [cursor=pointer]:
+              - /url: "#who-we-are"
+          - listitem [ref=e28]:
+            - link "Information We Collect" [ref=e29] [cursor=pointer]:
+              - /url: "#info-collected"
+          - listitem [ref=e30]:
+            - link "Information You Provide" [ref=e31] [cursor=pointer]:
+              - /url: "#info-provided"
+          - listitem [ref=e32]:
+            - link "Information Collected Automatically" [ref=e33] [cursor=pointer]:
+              - /url: "#info-automatic"
+          - listitem [ref=e34]:
+            - link "Information from Integrations" [ref=e35] [cursor=pointer]:
+              - /url: "#info-third-parties"
+          - listitem [ref=e36]:
+            - link "How We Use Information" [ref=e37] [cursor=pointer]:
+              - /url: "#how-we-use"
+          - listitem [ref=e38]:
+            - link "How We Share Information" [ref=e39] [cursor=pointer]:
+              - /url: "#how-we-share"
+          - listitem [ref=e40]:
+            - link "Data Retention" [ref=e41] [cursor=pointer]:
+              - /url: "#data-retention"
+          - listitem [ref=e42]:
+            - link "Data Security" [ref=e43] [cursor=pointer]:
+              - /url: "#data-security"
+          - listitem [ref=e44]:
+            - link "International Data Handling" [ref=e45] [cursor=pointer]:
+              - /url: "#international"
+          - listitem [ref=e46]:
+            - link "Your Privacy Rights" [ref=e47] [cursor=pointer]:
+              - /url: "#privacy-rights"
+          - listitem [ref=e48]:
+            - link "California Privacy Rights" [ref=e49] [cursor=pointer]:
+              - /url: "#california-rights"
+          - listitem [ref=e50]:
+            - link "How to Submit a Privacy Request" [ref=e51] [cursor=pointer]:
+              - /url: "#privacy-request"
+          - listitem [ref=e52]:
+            - link "Cookies & Tracking" [ref=e53] [cursor=pointer]:
+              - /url: "#cookies"
+          - listitem [ref=e54]:
+            - link "Children's Privacy" [ref=e55] [cursor=pointer]:
+              - /url: "#children"
+          - listitem [ref=e56]:
+            - link "Changes to This Policy" [ref=e57] [cursor=pointer]:
+              - /url: "#changes"
+          - listitem [ref=e58]:
+            - link "Contact Information" [ref=e59] [cursor=pointer]:
+              - /url: "#contact"
+      - article [ref=e60]:
+        - paragraph [ref=e62]: This page is provided as a business draft for review and should be reviewed by qualified legal counsel before publication.
+        - heading "Privacy Policy" [level=1] [ref=e63]
+        - paragraph [ref=e64]: "Last updated: [Date to be set upon legal review]"
+        - generic [ref=e65]:
+          - heading "1. Introduction" [level=2] [ref=e66]
+          - generic [ref=e67]:
+            - paragraph [ref=e68]: Developer312 ("we," "us," or "our") operates the Eco-Auditor platform, a carbon accounting and emissions management service. This Privacy Policy describes how we collect, use, disclose, and protect information when you use our service.
+            - paragraph [ref=e69]: By accessing or using Eco-Auditor, you agree to the collection and use of information in accordance with this policy. If you do not agree with the terms of this policy, please do not access the service.
+            - paragraph [ref=e70]: This policy applies to all users of Eco-Auditor, including account holders, team members invited by account holders, and visitors to our website.
+        - generic [ref=e71]:
+          - heading "2. Who We Are" [level=2] [ref=e72]
+          - generic [ref=e73]:
+            - paragraph [ref=e74]: Developer312 is a subsidiary of NIGHT LITE USA LLC. We provide the Eco-Auditor platform from the United States.
+            - paragraph [ref=e75]: "Contact information:"
+            - list [ref=e76]:
+              - listitem [ref=e77]:
+                - text: "Email:"
+                - link "hello@developer312.com" [ref=e78] [cursor=pointer]:
+                  - /url: mailto:hello@developer312.com
+              - listitem [ref=e79]:
+                - text: "Phone:"
+                - link "(510) 401-1225" [ref=e80] [cursor=pointer]:
+                  - /url: tel:+15104011225
+        - generic [ref=e81]:
+          - heading "3. Information We Collect" [level=2] [ref=e82]
+          - paragraph [ref=e84]: "We collect information in several categories to provide and improve our service:"
+        - generic [ref=e85]:
+          - heading "4. Information You Provide Directly" [level=2] [ref=e86]
+          - generic [ref=e87]:
+            - paragraph [ref=e88]: "When you create an account or use our service, you may provide:"
+            - list [ref=e89]:
+              - listitem [ref=e90]:
+                - strong [ref=e91]: "Account details:"
+                - text: Name, email address, password, company name, and role
+              - listitem [ref=e92]:
+                - strong [ref=e93]: "Company information:"
+                - text: Organization name, industry, facility locations, and operational details
+              - listitem [ref=e94]:
+                - strong [ref=e95]: "Billing and contact information:"
+                - text: Payment details, billing address, and designated billing contacts
+              - listitem [ref=e96]:
+                - strong [ref=e97]: "Support communications:"
+                - text: Messages, attachments, and correspondence submitted through our support channels
+              - listitem [ref=e98]:
+                - strong [ref=e99]: "Uploaded documents and data:"
+                - text: Utility bills, invoices, freight records, supplier spreadsheets, and other files you upload for emissions processing
+              - listitem [ref=e100]:
+                - strong [ref=e101]: "Configuration choices:"
+                - text: Organizational boundaries, emission factors, methodology selections, and reporting preferences
+            - paragraph [ref=e102]: We process this information to deliver the service you requested, maintain your account, and communicate with you about our platform.
+        - generic [ref=e103]:
+          - heading "5. Information Collected Automatically" [level=2] [ref=e104]
+          - generic [ref=e105]:
+            - paragraph [ref=e106]: "When you interact with our service, we may automatically collect:"
+            - list [ref=e107]:
+              - listitem [ref=e108]:
+                - strong [ref=e109]: "Usage and log data:"
+                - text: Pages visited, features used, click patterns, session duration, and interaction timestamps
+              - listitem [ref=e110]:
+                - strong [ref=e111]: "Device and connection data:"
+                - text: Browser type, operating system, IP address, screen resolution, and referring URL
+              - listitem [ref=e112]:
+                - strong [ref=e113]: "Performance data:"
+                - text: Load times, error reports, and system performance metrics
+            - paragraph [ref=e114]: We collect this information to ensure platform stability, diagnose issues, and improve user experience. We do not sell this data.
+        - generic [ref=e115]:
+          - heading "6. Information from Integrations and Third Parties" [level=2] [ref=e116]
+          - generic [ref=e117]:
+            - paragraph [ref=e118]: "When you connect third-party services to Eco-Auditor, we may receive:"
+            - list [ref=e119]:
+              - listitem [ref=e120]: Data from accounting integrations (e.g., QuickBooks, Xero) such as transaction records relevant to emissions calculations
+              - listitem [ref=e121]: Data from shipping and logistics providers (e.g., UPS, FedEx) such as shipment records for freight emission estimates
+              - listitem [ref=e122]: Data from cloud service providers for Scope 3 ICT emission calculations
+            - paragraph [ref=e123]: We only access data you explicitly authorize through these integrations, and we process it solely for the purpose of generating emissions estimates within your account.
+        - generic [ref=e124]:
+          - heading "7. How We Use Information" [level=2] [ref=e125]
+          - generic [ref=e126]:
+            - paragraph [ref=e127]: "We use the information we collect to:"
+            - list [ref=e128]:
+              - listitem [ref=e129]: Provide, operate, and maintain the Eco-Auditor platform
+              - listitem [ref=e130]: Process and organize uploaded documents and data into emissions records, estimates, and reports
+              - listitem [ref=e131]: Operate AI-assisted features such as the Carbon Assistant for methodology guidance and classification suggestions
+              - listitem [ref=e132]: Communicate with you about your account, billing, support requests, and product updates
+              - listitem [ref=e133]: Improve our service, develop new features, and conduct internal analytics
+              - listitem [ref=e134]: Detect, prevent, and address technical issues, security threats, and fraud
+              - listitem [ref=e135]: Comply with applicable legal obligations
+            - paragraph [ref=e136]: "Where we process personal data of individuals in the European Economic Area or the United Kingdom, we rely on the following legal bases:"
+            - list [ref=e137]:
+              - listitem [ref=e138]:
+                - strong [ref=e139]: "Contract performance:"
+                - text: Processing necessary to deliver the service you subscribed to
+              - listitem [ref=e140]:
+                - strong [ref=e141]: "Legitimate interests:"
+                - text: Improving our service, preventing fraud, and ensuring security, where those interests are not overridden by your rights
+              - listitem [ref=e142]:
+                - strong [ref=e143]: "Consent:"
+                - text: Where you have provided explicit consent for specific processing activities, such as optional marketing communications
+              - listitem [ref=e144]:
+                - strong [ref=e145]: "Legal obligation:"
+                - text: Processing required to comply with applicable law
+        - generic [ref=e146]:
+          - heading "8. How We Share Information" [level=2] [ref=e147]
+          - generic [ref=e148]:
+            - paragraph [ref=e149]: "We do not sell your personal data. We may share information in the following circumstances:"
+            - heading "Service Providers and Subprocessors" [level=4] [ref=e150]
+            - paragraph [ref=e151]: "We engage third-party service providers who process data on our behalf to deliver our service. These providers are contractually obligated to process data only as instructed and to maintain appropriate security measures. Categories include:"
+            - list [ref=e152]:
+              - listitem [ref=e153]:
+                - strong [ref=e154]: "Cloud hosting:"
+                - text: Infrastructure providers that host our application and data
+              - listitem [ref=e155]:
+                - strong [ref=e156]: "Payments and billing:"
+                - text: Payment processors such as Stripe, Inc. to handle subscription billing
+              - listitem [ref=e157]:
+                - strong [ref=e158]: "Analytics:"
+                - text: Service-level monitoring and aggregated usage analytics
+              - listitem [ref=e159]:
+                - strong [ref=e160]: "Communications:"
+                - text: Email delivery and notification services
+              - listitem [ref=e161]:
+                - strong [ref=e162]: "Support:"
+                - text: Customer support platforms that process support communications
+            - paragraph [ref=e163]: Our current subprocessor list is available upon request. We will notify customers of material changes to our subprocessors.
+            - heading "Compliance and Legal Requirements" [level=4] [ref=e164]
+            - paragraph [ref=e165]: We may disclose information when required by law, regulation, legal process, or governmental request, or when we believe in good faith that disclosure is necessary to protect our rights, your safety, or the safety of others.
+        - generic [ref=e166]:
+          - heading "9. Data Retention" [level=2] [ref=e167]
+          - generic [ref=e168]:
+            - paragraph [ref=e169]: "We retain your information for as long as your account is active or as needed to provide our services. After account termination:"
+            - list [ref=e170]:
+              - listitem [ref=e171]: Account and billing data is retained for up to 90 days to allow reactivation and export
+              - listitem [ref=e172]: Emissions records, reports, and audit trails are retained for the period specified in your subscription agreement, after which they are securely deleted unless you request earlier deletion
+              - listitem [ref=e173]: We may retain anonymized, aggregated usage data indefinitely for service improvement
+              - listitem [ref=e174]: Some data may be retained longer where required by law or for legitimate business purposes such as fraud prevention
+        - generic [ref=e175]:
+          - heading "10. Data Security" [level=2] [ref=e176]
+          - generic [ref=e177]:
+            - paragraph [ref=e178]: "We implement appropriate technical and organizational measures to protect your information, including:"
+            - list [ref=e179]:
+              - listitem [ref=e180]: Encryption of data in transit using TLS 1.2+
+              - listitem [ref=e181]: Encryption of data at rest
+              - listitem [ref=e182]: Role-based access controls and least-privilege principles
+              - listitem [ref=e183]: Regular security assessments and vulnerability management
+              - listitem [ref=e184]: Incident response procedures
+              - listitem [ref=e185]: Employee confidentiality obligations
+            - paragraph [ref=e186]: While we strive to protect your information, no method of transmission over the internet or electronic storage is completely secure. We cannot guarantee absolute security.
+        - generic [ref=e187]:
+          - heading "11. International Data Handling" [level=2] [ref=e188]
+          - generic [ref=e189]:
+            - paragraph [ref=e190]: Eco-Auditor is operated from the United States. If you are accessing our service from the European Economic Area, the United Kingdom, or other regions with data protection laws, please be aware that your information may be transferred to and processed in the United States.
+            - paragraph [ref=e191]: Where required, we implement appropriate safeguards for international transfers, including Standard Contractual Clauses where applicable. EU-facing customers can request a Data Processing Addendum from our legal page.
+        - generic [ref=e192]:
+          - heading "12. Your Privacy Choices and Rights" [level=2] [ref=e193]
+          - generic [ref=e194]:
+            - paragraph [ref=e195]: "Depending on your jurisdiction, you may have the following rights regarding your personal data:"
+            - list [ref=e196]:
+              - listitem [ref=e197]:
+                - strong [ref=e198]: "Access:"
+                - text: Request a copy of the personal data we hold about you
+              - listitem [ref=e199]:
+                - strong [ref=e200]: "Correction:"
+                - text: Request correction of inaccurate or incomplete personal data
+              - listitem [ref=e201]:
+                - strong [ref=e202]: "Deletion:"
+                - text: Request deletion of your personal data, subject to lawful retention requirements
+              - listitem [ref=e203]:
+                - strong [ref=e204]: "Portability:"
+                - text: Request transfer of your data in a structured, commonly used format
+              - listitem [ref=e205]:
+                - strong [ref=e206]: "Restriction:"
+                - text: Request restriction of processing in certain circumstances
+              - listitem [ref=e207]:
+                - strong [ref=e208]: "Objection:"
+                - text: Object to processing based on legitimate interests or for direct marketing
+              - listitem [ref=e209]:
+                - strong [ref=e210]: "Withdrawal of consent:"
+                - text: Withdraw consent you have previously provided, without affecting the lawfulness of processing based on consent before its withdrawal
+            - paragraph [ref=e211]: To exercise any of these rights, please contact us using the information in the Contact section below. We will respond within the timeframe required by applicable law.
+        - generic [ref=e212]:
+          - heading "13. California Privacy Rights" [level=2] [ref=e213]
+          - generic [ref=e214]:
+            - paragraph [ref=e215]: "If you are a California resident, you have additional rights under the California Consumer Privacy Act (CCPA) as amended by the CPRA:"
+            - list [ref=e216]:
+              - listitem [ref=e217]:
+                - strong [ref=e218]: "Right to know:"
+                - text: You can request information about the categories of personal information we have collected, the purposes, and the categories of third parties with whom we share it
+              - listitem [ref=e219]:
+                - strong [ref=e220]: "Right to delete:"
+                - text: You can request deletion of personal information we have collected, subject to certain exceptions
+              - listitem [ref=e221]:
+                - strong [ref=e222]: "Right to correct:"
+                - text: You can request correction of inaccurate personal information
+              - listitem [ref=e223]:
+                - strong [ref=e224]: "Right to opt out of sale or sharing:"
+                - text: We do not sell or share personal information for cross-context behavioral advertising purposes
+              - listitem [ref=e225]:
+                - strong [ref=e226]: "Right to limit use of sensitive personal information:"
+                - text: We do not collect or use sensitive personal information beyond what is necessary to provide our service
+            - paragraph [ref=e227]: We are not a data broker and do not sell personal information. Our service is directed at businesses, and the personal information we process is primarily business-related rather than consumer-oriented.
+            - paragraph [ref=e228]: Authorized agents may submit requests on your behalf, subject to verification.
+        - generic [ref=e229]:
+          - heading "14. How to Submit a Privacy Request" [level=2] [ref=e230]
+          - generic [ref=e231]:
+            - paragraph [ref=e232]: "To submit a privacy request, exercise your rights, or ask questions about this policy, you may contact us through:"
+            - generic [ref=e233]:
+              - paragraph [ref=e234]: Developer312 Privacy Team
+              - paragraph [ref=e235]:
+                - text: "Email:"
+                - link "hello@developer312.com" [ref=e236] [cursor=pointer]:
+                  - /url: mailto:hello@developer312.com
+              - paragraph [ref=e237]:
+                - text: "Phone:"
+                - link "(510) 401-1225" [ref=e238] [cursor=pointer]:
+                  - /url: tel:+15104011225
+            - paragraph [ref=e239]: We will verify your identity before processing your request and respond within the timeframe required by applicable law, typically within 30 days. If more time is needed, we will notify you of the reason and the expected timeline.
+        - generic [ref=e240]:
+          - heading "15. Cookies and Tracking Technologies" [level=2] [ref=e241]
+          - generic [ref=e242]:
+            - paragraph [ref=e243]: "We use cookies and similar tracking technologies to operate our service, maintain session state, and analyze usage patterns. Categories of cookies we use include:"
+            - list [ref=e244]:
+              - listitem [ref=e245]:
+                - strong [ref=e246]: "Essential cookies:"
+                - text: Required for authentication, security, and basic service functionality
+              - listitem [ref=e247]:
+                - strong [ref=e248]: "Analytics cookies:"
+                - text: Help us understand how users interact with our service so we can improve it
+              - listitem [ref=e249]:
+                - strong [ref=e250]: "Preference cookies:"
+                - text: Remember your settings such as theme preferences
+            - paragraph [ref=e251]: We do not use cookies for cross-site tracking or targeted advertising. You can manage cookie preferences through your browser settings. Disabling essential cookies may affect service functionality.
+        - generic [ref=e252]:
+          - heading "16. Children's Privacy" [level=2] [ref=e253]
+          - paragraph [ref=e255]: Our service is intended for business use and is not directed at individuals under the age of 16. We do not knowingly collect personal information from children. If we learn that we have collected personal data from a child under 16, we will take steps to delete it promptly. If you believe we have inadvertently collected such information, please contact us.
+        - generic [ref=e256]:
+          - heading "17. Changes to This Policy" [level=2] [ref=e257]
+          - generic [ref=e258]:
+            - paragraph [ref=e259]: "We may update this Privacy Policy from time to time to reflect changes in our practices, features, vendors, or legal requirements. When we make material changes, we will:"
+            - list [ref=e260]:
+              - listitem [ref=e261]: Update the "Last updated" date at the top of this page
+              - listitem [ref=e262]: Provide notice through our service or by email for significant changes
+              - listitem [ref=e263]: Obtain your consent where required by applicable law
+            - paragraph [ref=e264]: Continued use of the service after changes become effective constitutes acceptance of the updated policy.
+        - generic [ref=e265]:
+          - heading "18. Contact Information" [level=2] [ref=e266]
+          - generic [ref=e267]:
+            - paragraph [ref=e268]: "If you have any questions about this Privacy Policy or our data practices, please contact:"
+            - generic [ref=e269]:
+              - paragraph [ref=e270]: Developer312
+              - paragraph [ref=e271]: Developer312 is a subsidiary of NIGHT LITE USA LLC.
+              - paragraph [ref=e272]:
+                - text: "Email:"
+                - link "hello@developer312.com" [ref=e273] [cursor=pointer]:
+                  - /url: mailto:hello@developer312.com
+              - paragraph [ref=e274]:
+                - text: "Phone:"
+                - link "(510) 401-1225" [ref=e275] [cursor=pointer]:
+                  - /url: tel:+15104011225
+    - contentinfo "Site footer" [ref=e276]:
+      - generic [ref=e277]:
+        - generic [ref=e278]:
+          - generic [ref=e279]:
+            - generic [ref=e280]:
+              - img [ref=e281]
+              - generic [ref=e290]: Eco-Auditor
+            - paragraph [ref=e291]: Carbon accounting for companies that need audit-ready emissions data, not enterprise software.
+          - navigation "Product links" [ref=e292]:
+            - heading "Product" [level=4] [ref=e293]
+            - list [ref=e294]:
+              - listitem [ref=e295]:
+                - link "Dashboard" [ref=e296] [cursor=pointer]:
+                  - /url: /app
+              - listitem [ref=e297]:
+                - link "Pricing" [ref=e298] [cursor=pointer]:
+                  - /url: /app/pricing
+              - listitem [ref=e299]:
+                - link "Data Intake" [ref=e300] [cursor=pointer]:
+                  - /url: /app/intake
+              - listitem [ref=e301]:
+                - link "Reports" [ref=e302] [cursor=pointer]:
+                  - /url: /app/reports
+          - navigation "Legal links" [ref=e303]:
+            - heading "Legal" [level=4] [ref=e304]
+            - list [ref=e305]:
+              - listitem [ref=e306]:
+                - link "Privacy Policy" [ref=e307] [cursor=pointer]:
+                  - /url: /privacy
+              - listitem [ref=e308]:
+                - link "Terms of Service" [ref=e309] [cursor=pointer]:
+                  - /url: /terms
+              - listitem [ref=e310]:
+                - link "Data Processing Addendum" [ref=e311] [cursor=pointer]:
+                  - /url: /dpa
+              - listitem [ref=e312]:
+                - link "Privacy Requests" [ref=e313] [cursor=pointer]:
+                  - /url: /privacy#privacy-request
+          - navigation "Contact links" [ref=e314]:
+            - heading "Contact" [level=4] [ref=e315]
+            - list [ref=e316]:
+              - listitem [ref=e317]:
+                - link "Contact Us" [ref=e318] [cursor=pointer]:
+                  - /url: /contact
+              - listitem [ref=e319]:
+                - link "Email us at hello@developer312.com" [ref=e320] [cursor=pointer]:
+                  - /url: mailto:hello@developer312.com
+                  - text: hello@developer312.com
+              - listitem [ref=e321]:
+                - link "Call us at (510) 401-1225" [ref=e322] [cursor=pointer]:
+                  - /url: tel:+15104011225
+                  - text: (510) 401-1225
+        - generic [ref=e323]:
+          - paragraph [ref=e324]: © 2026 Developer312. All rights reserved.
+          - paragraph [ref=e325]: Developer312 is a subsidiary of NIGHT LITE USA LLC.
+        - generic [ref=e327]:
+          - generic [ref=e328]: "Developer312 suite:"
+          - link "ProvenanceOS" [ref=e329] [cursor=pointer]:
+            - /url: https://provenance-os.com
+          - generic [ref=e330]: ·
+          - link "Sim2Real" [ref=e331] [cursor=pointer]:
+            - /url: https://sim-2-real.com
+  - dialog "Cookie consent preferences" [ref=e332]:
+    - generic [ref=e334]:
+      - generic [ref=e335]:
+        - heading "We value your privacy" [level=2] [ref=e336]
+        - paragraph [ref=e337]:
+          - text: We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+          - link "Learn more" [ref=e338] [cursor=pointer]:
+            - /url: /privacy
+      - generic [ref=e339]:
+        - button "Accept All" [ref=e340] [cursor=pointer]
+        - button "Reject Non-Essential" [ref=e341] [cursor=pointer]
+        - button "Manage Preferences" [ref=e342] [cursor=pointer]

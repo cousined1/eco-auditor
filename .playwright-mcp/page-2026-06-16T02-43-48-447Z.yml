@@ -1,0 +1,14 @@
+- generic [ref=e2]:
+  - status [ref=e4]: Loading…
+  - dialog "Cookie consent preferences" [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - heading "We value your privacy" [level=2] [ref=e9]
+        - paragraph [ref=e10]:
+          - text: We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+          - link "Learn more" [ref=e11] [cursor=pointer]:
+            - /url: /privacy
+      - generic [ref=e12]:
+        - button "Accept All" [ref=e13] [cursor=pointer]
+        - button "Reject Non-Essential" [ref=e14] [cursor=pointer]
+        - button "Manage Preferences" [ref=e15] [cursor=pointer]

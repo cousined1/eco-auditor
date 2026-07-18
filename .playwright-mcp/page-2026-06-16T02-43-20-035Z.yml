@@ -1,0 +1,49 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Eco-Auditor" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - img [ref=e7]
+          - text: Eco-Auditor
+        - link "Pricing" [ref=e16] [cursor=pointer]:
+          - /url: /pricing
+    - main [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - heading "Start your free trial" [level=1] [ref=e20]
+          - paragraph [ref=e21]: No credit card required. 14-day free trial. Set up in under 10 minutes.
+        - generic [ref=e22]:
+          - button "Continue with Google" [ref=e23] [cursor=pointer]:
+            - img [ref=e24]
+            - text: Continue with Google
+          - button "Continue with Microsoft" [ref=e29] [cursor=pointer]:
+            - img [ref=e30]
+            - text: Continue with Microsoft
+          - button "Continue with Apple" [ref=e35] [cursor=pointer]:
+            - img [ref=e36]
+            - text: Continue with Apple
+          - paragraph [ref=e38]:
+            - text: By continuing, you agree to the
+            - link "Terms" [ref=e39] [cursor=pointer]:
+              - /url: /terms
+            - text: and
+            - link "Privacy Policy" [ref=e40] [cursor=pointer]:
+              - /url: /privacy
+            - text: .
+        - paragraph [ref=e41]:
+          - text: Already have an account?
+          - link "Sign in" [ref=e42] [cursor=pointer]:
+            - /url: /login
+  - dialog "Cookie consent preferences" [ref=e43]:
+    - generic [ref=e45]:
+      - generic [ref=e46]:
+        - heading "We value your privacy" [level=2] [ref=e47]
+        - paragraph [ref=e48]:
+          - text: We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+          - link "Learn more" [ref=e49] [cursor=pointer]:
+            - /url: /privacy
+      - generic [ref=e50]:
+        - button "Accept All" [ref=e51] [cursor=pointer]
+        - button "Reject Non-Essential" [ref=e52] [cursor=pointer]
+        - button "Manage Preferences" [ref=e53] [cursor=pointer]
