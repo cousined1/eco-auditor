@@ -27,13 +27,10 @@ export interface FactorCategory {
 
 const CATEGORIES = catalog.categories as readonly FactorCategory[];
 
-export const CATALOG_VERSION: string = catalog.version;
-export const GWP_BASIS: string = catalog.gwpBasis;
-
 // Mirrors normalizeKey() in emission-factors.cjs so a value typed in the form,
 // imported from CSV, or already persisted as a display label all collapse to
 // the same lookup key.
-export function normalizeKey(value: string): string {
+function normalizeKey(value: string): string {
   return String(value ?? '').trim().toLowerCase().replace(/[\s/-]+/g, '_');
 }
 
@@ -50,7 +47,7 @@ for (const category of CATEGORIES) {
   SOURCE_BY_KEY.set(normalizeKey(category.key), sources);
 }
 
-export function getCategory(categoryKey: string): FactorCategory | null {
+function getCategory(categoryKey: string): FactorCategory | null {
   return CATEGORY_BY_KEY.get(normalizeKey(categoryKey)) ?? null;
 }
 

@@ -31,16 +31,16 @@ export const PLAN_LIMITS = planLimitsFile.plans as Record<PlanId, PlanLimits>;
 const countLabel = (value: number | null, singular: string, plural = `${singular}s`) =>
   value === null ? `Unlimited ${plural}` : `${value} ${value === 1 ? singular : plural}`;
 
-export function facilitiesLabel(id: PlanId): string {
+function facilitiesLabel(id: PlanId): string {
   return countLabel(PLAN_LIMITS[id].facilities, 'facility', 'facilities');
 }
 
-export function importsLabel(id: PlanId): string {
+function importsLabel(id: PlanId): string {
   const limit = PLAN_LIMITS[id].csvImportsPerMonth;
   return limit === null ? 'Unlimited CSV imports' : `${limit} CSV imports per month`;
 }
 
-export function scope3Label(id: PlanId): string {
+function scope3Label(id: PlanId): string {
   return PLAN_LIMITS[id].scope3 ? 'Scope 1, 2 & 3 workflows' : 'Scope 1 & 2 workflows';
 }
 
@@ -116,10 +116,6 @@ export const PLANS: Record<PlanId, Plan> = {
     roadmap: ['Advanced audit ledger', 'Approval workflows', 'Custom reporting templates', 'Team permissions & roles', 'API & advanced integrations'],
   },
 };
-
-export function getPlanById(id: string): Plan | undefined {
-  return PLANS[id as PlanId];
-}
 
 // resolvePriceId() was removed: it read process.env in browser code, where Vite
 // does not define `process`, so calling it would have thrown. It had no callers.

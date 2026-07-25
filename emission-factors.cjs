@@ -58,17 +58,11 @@ function factorFor(categoryKey, sourceKey, unit) {
   return match ? match.factor : null;
 }
 
-function unitsFor(categoryKey, sourceKey) {
-  const source = getSource(categoryKey, sourceKey);
-  if (!source) return [];
-  return Object.keys(source.units);
-}
-
+// Only what other modules actually consume. normalizeKey and getCategory stay
+// internal — the client adapter has its own copies, and re-exporting them here
+// just widened the surface without a caller.
 module.exports = {
   CATALOG,
-  normalizeKey,
-  getCategory,
   getSource,
   factorFor,
-  unitsFor,
 };

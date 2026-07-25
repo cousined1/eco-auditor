@@ -189,10 +189,10 @@ function billingStateFromCompany(company, now = new Date()) {
   };
 }
 
+// ACTIVE_SUBSCRIPTION_STATUSES, PLAN_ORDER, and PRICE_ENV_KEYS stay internal —
+// they are implementation detail of the helpers below, and nothing outside this
+// file read them.
 module.exports = {
-  ACTIVE_SUBSCRIPTION_STATUSES,
-  PLAN_ORDER,
-  PRICE_ENV_KEYS,
   billingStateFromCompany,
   hasPlanAccess,
   planFromPriceId,

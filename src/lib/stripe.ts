@@ -69,10 +69,6 @@ async function fetchPriceConfig(): Promise<PriceConfig> {
   return _priceCachePromise;
 }
 
-function clearPriceCache(): void {
-  _priceCache = null;
-  _priceCachePromise = null;
-}
 
 
 
@@ -271,5 +267,4 @@ export function handleWebhookEvent(event: StripeWebhookEvent): void {
   }
 }
 
-export { STRIPE_PK, fetchPriceConfig, clearPriceCache };
 export type { PriceConfig };

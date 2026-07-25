@@ -2,22 +2,16 @@
 // engine. This file previously carried a second, independent table that
 // disagreed with the engine for the same activity, and a calculateEmissions()
 // that took no unit — so the form's Unit selector was decorative.
+// Re-exports trimmed to what the calculator components actually import.
+// Anything else should be imported from @/lib/emission-factors/factors direct.
 export {
   calculateEmissions,
   categoriesForScope,
   sourcesForCategory,
   unitsForSource,
-  factorFor,
   labelForCategory,
   labelForSource,
-  getCategory,
-  getSource,
-  normalizeKey,
-  CATALOG_VERSION,
-  GWP_BASIS,
   type Scope,
-  type FactorCategory,
-  type FactorSource,
 } from '@/lib/emission-factors/factors';
 
 export const SCOPES = ['Scope 1', 'Scope 2', 'Scope 3'] as const;

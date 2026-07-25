@@ -31,9 +31,9 @@ export type ConsentContextType = {
   resetConsent: () => void;
 };
 
-export const CONSENT_STORAGE_KEY = 'eco_consent';
-export const CONSENT_VISITOR_KEY = 'eco_consent_visitor';
-export const POLICY_VERSION = '1.0.0';
+const CONSENT_STORAGE_KEY = 'eco_consent';
+const CONSENT_VISITOR_KEY = 'eco_consent_visitor';
+const POLICY_VERSION = '1.0.0';
 
 const defaultConsent: ConsentCategories = {
   strictlyNecessary: true,

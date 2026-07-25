@@ -6,7 +6,7 @@ type NotFoundProps = {
   readonly homeHref?: string;
 };
 
-export function NotFound({ title, message, homeHref = '/' }: NotFoundProps) {
+function NotFound({ title, message, homeHref = '/' }: NotFoundProps) {
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
       <div className="mx-auto max-w-lg text-center">
