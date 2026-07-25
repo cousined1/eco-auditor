@@ -64,7 +64,10 @@ export default function DataIntake() {
         if (res.status === 402) {
           const up = await getUpgradeRequired(res);
           setUploadUpgrade(up || { requiredPlan: 'starter' });
-          showStatus('error', 'CSV import requires an active plan.');
+          // Prefer the server's reason — "you have used all 10 imports this
+          // month" or "this file contains Scope 3 rows" tells the customer what
+          // to do; a generic "requires an active plan" does not.
+          showStatus('error', up?.message || 'CSV import requires an active plan.');
           continue;
         }
         const data = await res.json();

@@ -1,3 +1,4 @@
+import { PLAN_LIMITS } from '@/content/pricing';
 import { factorLabel } from '@/lib/emission-factors/registry';
 
 export const COMPANY = {
@@ -183,14 +184,37 @@ export const ADD_ONS = [
   { id: 'implementation', name: 'Guided setup & data mapping', price: 1500, unit: ' one-time' },
 ];
 
+// The four rows the server actually enforces are derived from plan-limits.json
+// via pricing.ts, so this table cannot advertise a cap the API does not apply.
+const cell = (value: number | null) => (value === null ? 'Unlimited' : String(value));
+
 export const FEATURE_COMPARISON = [
-  { feature: 'Companies', starter: '1', growth: '1', pro: 'Unlimited' },
-  { feature: 'Facilities', starter: '1', growth: 'Up to 5', pro: 'Unlimited' },
+  // Multi-company does not exist yet — every account has exactly one, on every
+  // plan. Do not restore "Unlimited" for Pro until it is built and enforced.
+  { feature: 'Companies', starter: '1', growth: '1', pro: '1' },
+  {
+    feature: 'Facilities',
+    starter: cell(PLAN_LIMITS.starter.facilities),
+    growth: cell(PLAN_LIMITS.growth.facilities),
+    pro: cell(PLAN_LIMITS.pro.facilities),
+  },
   { feature: 'Scope 1 tracking', starter: '✓', growth: '✓', pro: '✓' },
   { feature: 'Scope 2 tracking', starter: '✓', growth: '✓', pro: '✓' },
-  { feature: 'Scope 3 workflows', starter: '—', growth: '✓', pro: '✓' },
-  { feature: 'CSV imports', starter: '10/mo', growth: 'Unlimited', pro: 'Unlimited' },
-  { feature: 'Reporting templates', starter: '1', growth: 'All standard', pro: 'All standard' },
+  {
+    feature: 'Scope 3 workflows',
+    starter: PLAN_LIMITS.starter.scope3 ? '✓' : '—',
+    growth: PLAN_LIMITS.growth.scope3 ? '✓' : '—',
+    pro: PLAN_LIMITS.pro.scope3 ? '✓' : '—',
+  },
+  {
+    feature: 'CSV imports',
+    starter: PLAN_LIMITS.starter.csvImportsPerMonth === null ? 'Unlimited' : `${PLAN_LIMITS.starter.csvImportsPerMonth}/mo`,
+    growth: PLAN_LIMITS.growth.csvImportsPerMonth === null ? 'Unlimited' : `${PLAN_LIMITS.growth.csvImportsPerMonth}/mo`,
+    pro: PLAN_LIMITS.pro.csvImportsPerMonth === null ? 'Unlimited' : `${PLAN_LIMITS.pro.csvImportsPerMonth}/mo`,
+  },
+  // Exactly one report template exists, for everyone. Tiered templates are
+  // roadmap; see the audit's P0-5 note.
+  { feature: 'Reporting templates', starter: '1', growth: '1', pro: '1' },
   { feature: 'AI Carbon Assistant', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },
   { feature: 'Supplier request hub', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },
   { feature: 'QuickBooks / Xero', starter: '—', growth: 'Roadmap', pro: 'Roadmap' },

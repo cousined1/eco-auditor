@@ -8,6 +8,10 @@ const {
   planFromPriceId,
   resolvePlanPriceId,
   shouldRetryWebhook,
+  planLimits,
+  canAddFacility,
+  canImportCsv,
+  canUseScope3,
   WEBHOOK_RETRY_WINDOW_SECONDS,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
@@ -164,6 +168,48 @@ describe('subscriptionRecordFromStripe', () => {
 
     expect(state.active).toBe(true);
     expect(state.plan).toBe('starter');
+  });
+
+  // Every limit advertised on the pricing page must have a server-side check.
+  // Before this, all three tiers received identical functionality — a $999 Pro
+  // customer got exactly what a $149 Starter customer got, in both directions.
+  describe('plan limit enforcement', () => {
+    it('caps facilities per plan and names the upgrade', () => {
+      expect(canAddFacility('starter', 0).allowed).toBe(true);
+      expect(canAddFacility('starter', 1)).toMatchObject({ allowed: false, limit: 1, requiredPlan: 'growth' });
+      expect(canAddFacility('growth', 4).allowed).toBe(true);
+      expect(canAddFacility('growth', 5)).toMatchObject({ allowed: false, limit: 5, requiredPlan: 'pro' });
+      // Pro is unlimited.
+      expect(canAddFacility('pro', 10_000).allowed).toBe(true);
+    });
+
+    it('caps monthly CSV imports on starter only', () => {
+      expect(canImportCsv('starter', 9).allowed).toBe(true);
+      expect(canImportCsv('starter', 10)).toMatchObject({ allowed: false, limit: 10, requiredPlan: 'growth' });
+      expect(canImportCsv('growth', 10_000).allowed).toBe(true);
+      expect(canImportCsv('pro', 10_000).allowed).toBe(true);
+    });
+
+    it('reserves Scope 3 for growth and above', () => {
+      expect(canUseScope3('starter')).toMatchObject({ allowed: false, requiredPlan: 'growth' });
+      expect(canUseScope3('growth').allowed).toBe(true);
+      expect(canUseScope3('pro').allowed).toBe(true);
+    });
+
+    it('treats an unknown plan as the lowest tier rather than unlimited', () => {
+      // Fail closed: a plan string we do not recognise must not grant more than
+      // starter, or a bad value becomes a free upgrade.
+      expect(canAddFacility('enterprise', 1).allowed).toBe(false);
+      expect(canUseScope3('enterprise').allowed).toBe(false);
+      expect(canImportCsv('enterprise', 10).allowed).toBe(false);
+    });
+
+    it('advertises exactly what it enforces', () => {
+      // The pricing page derives its copy from the same file, so these must agree.
+      expect(planLimits('starter')).toEqual({ facilities: 1, csvImportsPerMonth: 10, scope3: false });
+      expect(planLimits('growth')).toEqual({ facilities: 5, csvImportsPerMonth: null, scope3: true });
+      expect(planLimits('pro')).toEqual({ facilities: null, csvImportsPerMonth: null, scope3: true });
+    });
   });
 
   // A webhook that could not persist must ask Stripe to redeliver — acking 200

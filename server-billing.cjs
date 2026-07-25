@@ -110,6 +110,60 @@ function shouldRetryWebhook(result, eventCreatedAt, nowSeconds) {
   return nowSeconds - eventCreatedAt < WEBHOOK_RETRY_WINDOW_SECONDS;
 }
 
+// Per-plan allowances, shared with the pricing page so an advertised limit and
+// an enforced limit cannot drift. null means unlimited.
+const PLAN_LIMITS = require('./plan-limits.json').plans;
+
+function planLimits(planId) {
+  return PLAN_LIMITS[planId] || PLAN_LIMITS.starter;
+}
+
+/**
+ * Whether `planId` may add one more facility given how many it already has.
+ * Pure so the quota rules are testable without a database.
+ */
+function canAddFacility(planId, currentCount) {
+  const limit = planLimits(planId).facilities;
+  if (limit === null) return { allowed: true };
+  if (currentCount < limit) return { allowed: true };
+  return {
+    allowed: false,
+    limit,
+    requiredPlan: nextPlanAbove(planId, 'facilities'),
+  };
+}
+
+/** Whether `planId` may run one more CSV import this calendar month. */
+function canImportCsv(planId, importsThisMonth) {
+  const limit = planLimits(planId).csvImportsPerMonth;
+  if (limit === null) return { allowed: true };
+  if (importsThisMonth < limit) return { allowed: true };
+  return {
+    allowed: false,
+    limit,
+    requiredPlan: nextPlanAbove(planId, 'csvImportsPerMonth'),
+  };
+}
+
+/** Whether `planId` includes Scope 3 workflows. */
+function canUseScope3(planId) {
+  if (planLimits(planId).scope3) return { allowed: true };
+  return { allowed: false, requiredPlan: nextPlanAbove(planId, 'scope3') };
+}
+
+// The cheapest plan that actually raises the given limit, so the paywall can
+// name a specific upgrade rather than a generic "upgrade required".
+function nextPlanAbove(planId, key) {
+  const start = PLAN_ORDER.indexOf(planId);
+  const current = planLimits(planId)[key];
+  for (let i = start + 1; i < PLAN_ORDER.length; i += 1) {
+    const candidate = planLimits(PLAN_ORDER[i])[key];
+    if (candidate === null) return PLAN_ORDER[i];
+    if (key === 'scope3' ? candidate === true : candidate > current) return PLAN_ORDER[i];
+  }
+  return PLAN_ORDER[PLAN_ORDER.length - 1];
+}
+
 function billingStateFromCompany(company, now = new Date()) {
   const subscriptionStatus = company.subscription_status || null;
   const subscriptionPlan = company.subscription_plan || null;
@@ -143,6 +197,10 @@ module.exports = {
   hasPlanAccess,
   planFromPriceId,
   resolvePlanPriceId,
+  planLimits,
+  canAddFacility,
+  canImportCsv,
+  canUseScope3,
   shouldRetryWebhook,
   WEBHOOK_RETRY_WINDOW_SECONDS,
   subscriptionRecordFromStripe,

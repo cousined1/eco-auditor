@@ -23,6 +23,9 @@ const {
   planFromPriceId,
   resolvePlanPriceId,
   shouldRetryWebhook,
+  canAddFacility,
+  canImportCsv,
+  canUseScope3,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 } = require('./server-billing.cjs');
@@ -1381,6 +1384,43 @@ async function loadEmissionEntries(companyId, period) {
   });
 }
 
+// Scope label normalizer that tolerates junk instead of throwing — used by the
+// plan gate, which runs before per-row validation and must not 500 on bad input.
+function normalizeScopeLabel(value) {
+  const text = String(value == null ? '' : value).trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (text === '1' || text === 'scope1') return 'scope1';
+  if (text === '2' || text === 'scope2') return 'scope2';
+  if (text === '3' || text === 'scope3') return 'scope3';
+  return null;
+}
+
+// Imports accepted this calendar month, for the per-plan quota. Counts from the
+// durable log — the in-memory ingestJobs map resets on deploy and is per
+// instance, so it can't back a billing limit.
+async function countCsvImportsThisMonth(companyId) {
+  if (!pgPool) return 0;
+  const { rows } = await pgPool.query(
+    `SELECT COUNT(*)::int AS used FROM public.csv_import_events
+      WHERE company_id = $1 AND created_at >= date_trunc('month', now())`,
+    [companyId]
+  );
+  return rows.length ? rows[0].used : 0;
+}
+
+async function recordCsvImport(companyId, rowCount) {
+  if (!pgPool) return;
+  try {
+    await queryWithRlsBypass(
+      'INSERT INTO public.csv_import_events (company_id, row_count) VALUES ($1, $2)',
+      [companyId, rowCount]
+    );
+  } catch (err) {
+    // Never fail an accepted import because its meter row didn't write; the
+    // customer's data is already in. Under-counting favours the customer.
+    log('error', 'Failed to record CSV import for quota', { error: String(err), companyId });
+  }
+}
+
 async function loadFacilities(companyId) {
   if (pgPool) {
     try {
@@ -1459,6 +1499,20 @@ app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'),
 
     if (Array.isArray(body.entries) || body.scope) {
       const entries = Array.isArray(body.entries) ? body.entries : [body];
+
+      // Scope 3 is a paid tier feature; calculating it here would hand a
+      // starter account the number the upgrade is meant to buy.
+      const plan = (req.billing && req.billing.plan) || 'starter';
+      const scope3Check = canUseScope3(plan);
+      if (!scope3Check.allowed && entries.some((entry) => normalizeScopeLabel(entry && entry.scope) === 'scope3')) {
+        return res.status(402).json({
+          success: false,
+          code: 'upgrade_required',
+          requiredPlan: scope3Check.requiredPlan,
+          error: `Scope 3 workflows are included from the ${scope3Check.requiredPlan} plan up.`,
+        });
+      }
+
       const summary = summarizeEntries(entries, { companyId: companyId, period: period });
       log('info', 'Calculator API completed', { companyId: companyId, period: period, entries: entries.length });
       return res.json(summary);
@@ -1525,6 +1579,35 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     const rawRows = parseEmissionCsv(csvText);
     if (rawRows.length === 0) {
       return res.status(400).json({ success: false, error: 'CSV file is empty or has no data rows after the header.' });
+    }
+
+    const plan = (req.billing && req.billing.plan) || 'starter';
+
+    // Monthly import quota. Checked before any parsing work so a blocked import
+    // costs nothing, and counted from the durable log rather than the in-memory
+    // job map, which resets on deploy.
+    const usedThisMonth = await countCsvImportsThisMonth(companyId);
+    const quotaCheck = canImportCsv(plan, usedThisMonth);
+    if (!quotaCheck.allowed) {
+      return res.status(402).json({
+        success: false,
+        code: 'upgrade_required',
+        requiredPlan: quotaCheck.requiredPlan,
+        error: `Your ${plan} plan includes ${quotaCheck.limit} CSV imports per month and you have used all of them. Upgrade to ${quotaCheck.requiredPlan} for unlimited imports.`,
+      });
+    }
+
+    // Scope 3 is a paid tier feature. Reject the whole file rather than silently
+    // dropping the Scope 3 rows — a partial import would understate the
+    // inventory without the customer realising it.
+    const scope3Check = canUseScope3(plan);
+    if (!scope3Check.allowed && rawRows.some((row) => normalizeScopeLabel(row.scope) === 'scope3')) {
+      return res.status(402).json({
+        success: false,
+        code: 'upgrade_required',
+        requiredPlan: scope3Check.requiredPlan,
+        error: `This file contains Scope 3 rows. Scope 3 workflows are included from the ${scope3Check.requiredPlan} plan up.`,
+      });
     }
 
     const jobId = crypto.randomUUID();
@@ -1648,6 +1731,12 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     };
     ingestJobs.set(jobId, ingestResult);
 
+    // Meter the import only when something was actually imported, so a file
+    // that failed every row does not burn a customer's monthly allowance.
+    if (entries.length > 0) {
+      await recordCsvImport(companyId, entries.length);
+    }
+
     return res.json({
       success: true,
       job_id: jobId,
@@ -1691,7 +1780,24 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
   if (String(body.name).length > 200) {
     return res.status(400).json({ success: false, error: 'name must be 200 characters or fewer' });
   }
+
   try {
+    // Facility cap. requirePlan has already attached req.billing. This has to
+    // sit inside the try — loadFacilities throws when the data store is
+    // unavailable, and Express 4 does not catch async rejections, so an
+    // uncaught one would hang the request instead of erroring cleanly.
+    const plan = (req.billing && req.billing.plan) || 'starter';
+    const existing = await loadFacilities(companyId);
+    const facilityCheck = canAddFacility(plan, existing.length);
+    if (!facilityCheck.allowed) {
+      return res.status(402).json({
+        success: false,
+        code: 'upgrade_required',
+        requiredPlan: facilityCheck.requiredPlan,
+        error: `Your ${plan} plan includes ${facilityCheck.limit} ${facilityCheck.limit === 1 ? 'facility' : 'facilities'}. Upgrade to ${facilityCheck.requiredPlan} to add more.`,
+      });
+    }
+
     if (pgPool) {
       const result = await queryWithRlsBypass(
         `INSERT INTO public.facilities (company_id, name, type, city)
