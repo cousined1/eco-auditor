@@ -5,7 +5,7 @@ import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
 import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
-import { createCheckoutSession } from './lib/stripe';
+import { createCheckoutSession, verifyCheckoutSession } from './lib/stripe';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
@@ -174,9 +174,24 @@ function AppContent() {
       params.delete('session_id');
       replaced = true;
       setCheckoutBanner({
-        message: 'Welcome back! Your subscription is being finalized. It may take a moment to appear in Settings → Billing.',
+        message: 'Welcome back! Confirming your subscription…',
         type: 'success',
       });
+      // Don't rely on the webhook alone. If it has not landed yet, or failed
+      // and is still being retried, the customer would sit behind the paywall
+      // they just paid to remove. This reconciles against Stripe directly.
+      void (async () => {
+        const result = await verifyCheckoutSession(sessionId);
+        setCheckoutBanner(
+          result.ok && result.data.verified
+            ? { message: 'Your subscription is active. Thanks!', type: 'success' }
+            : {
+                message:
+                  'Payment received. Your subscription is still being finalized — it should appear in Settings → Billing shortly.',
+                type: 'success',
+              },
+        );
+      })();
     }
 
     if (checkout) {

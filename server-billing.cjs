@@ -69,12 +69,21 @@ function subscriptionRecordFromStripe(subscription, env) {
   const periodEndUnix = subscription.current_period_end || (item && item.current_period_end) || null;
   const customer = subscription.customer;
 
+  // An active subscription whose price we cannot recognise — price rotation in
+  // Stripe, or env drift between deploys — used to persist plan = null, and
+  // billingStateFromCompany treats a null plan as inactive. That paywalls a
+  // customer who is paying. Degrade to the lowest tier and surface the price id
+  // so the mismatch gets fixed, rather than cutting off access.
+  const unrecognizedActivePrice =
+    !plan && ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status) ? priceId || 'unknown' : null;
+
   return {
     stripeSubscriptionId: subscription.id || null,
     stripeCustomerId: typeof customer === 'string' ? customer : (customer && customer.id) || null,
     status: subscription.status || null,
-    plan: plan ? plan.planId : null,
+    plan: plan ? plan.planId : unrecognizedActivePrice ? 'starter' : null,
     billingCycle: plan ? plan.billing : null,
+    unrecognizedActivePrice,
     currentPeriodEnd: periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : null,
     cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
   };

@@ -95,6 +95,7 @@ describe('subscriptionRecordFromStripe', () => {
       billingCycle: 'annual',
       currentPeriodEnd: new Date(PERIOD_END_UNIX * 1000).toISOString(),
       cancelAtPeriodEnd: false,
+      unrecognizedActivePrice: null,
     });
   });
 
@@ -136,16 +137,43 @@ describe('subscriptionRecordFromStripe', () => {
     expect(state.plan).toBeNull();
   });
 
-  it('leaves plan null for unrecognized price IDs', () => {
+  // Regression: an unrecognized price used to persist plan = null, which
+  // billingStateFromCompany reads as inactive — so a price rotation in Stripe,
+  // or env drift between deploys, paywalled a customer who was paying.
+  it('grants starter access when an ACTIVE subscription has an unrecognized price', () => {
     const record = subscriptionRecordFromStripe({
       id: 'sub_123',
       customer: 'cus_456',
       status: 'active',
+      current_period_end: PERIOD_END_UNIX,
+      items: { data: [{ id: 'si_1', price: { id: 'price_rotated_2027' } }] },
+    }, STRIPE_ENV);
+
+    expect(record.plan).toBe('starter');
+    expect(record.billingCycle).toBeNull();
+    // Surfaced so the env mismatch can be found and fixed.
+    expect(record.unrecognizedActivePrice).toBe('price_rotated_2027');
+
+    const state = billingStateFromCompany({
+      subscription_status: record.status,
+      subscription_plan: record.plan,
+      subscription_current_period_end: record.currentPeriodEnd,
+    }, new Date('2026-06-01T00:00:00.000Z')); // inside the paid period
+
+    expect(state.active).toBe(true);
+    expect(state.plan).toBe('starter');
+  });
+
+  it('does not grant access when an INACTIVE subscription has an unrecognized price', () => {
+    const record = subscriptionRecordFromStripe({
+      id: 'sub_123',
+      customer: 'cus_456',
+      status: 'canceled',
       items: { data: [{ id: 'si_1', price: { id: 'price_unknown' } }] },
     }, STRIPE_ENV);
 
     expect(record.plan).toBeNull();
-    expect(record.billingCycle).toBeNull();
+    expect(record.unrecognizedActivePrice).toBeNull();
     expect(record.currentPeriodEnd).toBeNull();
   });
 });

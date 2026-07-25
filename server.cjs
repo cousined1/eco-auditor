@@ -483,28 +483,60 @@ async function queryWithRlsBypass(text, params) {
 }
 
 // Persists a subscription snapshot (from a Stripe webhook or API mutation)
-// onto the owning user's company row. Returns true when a row was updated.
-async function syncSubscriptionRecord(record) {
+// onto the owning user's company row.
+//
+// Returns { ok, reason, retryable }. The distinction matters: these used to be
+// bare `return false`, and the webhook acked them with 200, so Stripe never
+// retried and a paying customer silently lost entitlement. Anything that a
+// later delivery could plausibly resolve is marked retryable so the caller can
+// fail the webhook and let Stripe redeliver.
+//
+// `eventCreatedAt` is the Stripe event.created (seconds). When supplied, the
+// write is skipped if the row already reflects a newer event — Stripe does not
+// guarantee ordering, and a stale "active" arriving after "deleted" would
+// otherwise restore access.
+async function syncSubscriptionRecord(record, eventCreatedAt) {
   if (!pgPool) {
-    log('warn', 'Subscription sync skipped: DATABASE_URL not configured');
-    return false;
+    log('warn', 'Subscription sync deferred: DATABASE_URL not configured');
+    return { ok: false, reason: 'no_database', retryable: true };
   }
-  if (!record.stripeCustomerId) return false;
+  // A record with no customer id is malformed; redelivery cannot fix it.
+  if (!record.stripeCustomerId) {
+    log('error', 'Subscription sync failed: record has no Stripe customer id');
+    return { ok: false, reason: 'no_customer_id', retryable: false };
+  }
+
+  if (record.unrecognizedActivePrice) {
+    log('error', 'Active subscription has an unrecognized price id — check STRIPE_PRICE_* env vars. Granting starter access.', {
+      priceId: record.unrecognizedActivePrice,
+      subId: record.stripeSubscriptionId,
+    });
+  }
 
   const { rows } = await pgPool.query(
     'SELECT insforge_user_id FROM users WHERE stripe_customer_id = $1',
     [record.stripeCustomerId]
   );
   if (rows.length === 0) {
-    log('warn', 'Subscription sync skipped: no user for Stripe customer', { customerId: record.stripeCustomerId });
-    return false;
+    // Checkout can complete before the user->customer mapping is written.
+    // Retryable: Stripe redelivers for days, by which time it normally exists.
+    log('warn', 'Subscription sync deferred: no user for Stripe customer', { customerId: record.stripeCustomerId });
+    return { ok: false, reason: 'no_user_mapping', retryable: true };
   }
   const userId = rows[0].insforge_user_id;
 
   // Companies are normally provisioned on first data access; make sure the
   // row exists so a checkout completed before app usage is not dropped.
-  await ensureCompanyForUser({ id: userId });
+  // ensureCompanyForUser swallows its errors and returns null, so check the
+  // result — without this, a failed provision falls through to the UPDATE,
+  // matches nothing, and would be misread below as a harmless stale event.
+  const companyId = await ensureCompanyForUser({ id: userId });
+  if (!companyId) {
+    log('warn', 'Subscription sync deferred: company row unavailable', { userId });
+    return { ok: false, reason: 'no_company', retryable: true };
+  }
 
+  const eventAt = eventCreatedAt ? new Date(eventCreatedAt * 1000).toISOString() : null;
   const result = await queryWithRlsBypass(
     `UPDATE public.companies SET
        stripe_customer_id = $2,
@@ -514,17 +546,24 @@ async function syncSubscriptionRecord(record) {
        subscription_billing_cycle = $6,
        subscription_current_period_end = $7,
        subscription_cancel_at_period_end = $8,
+       subscription_event_at = COALESCE($9::timestamptz, now()),
        updated_at = now()
-     WHERE user_id = $1`,
+     WHERE user_id = $1
+       AND ($9::timestamptz IS NULL
+            OR subscription_event_at IS NULL
+            OR subscription_event_at <= $9::timestamptz)`,
     [userId, record.stripeCustomerId, record.stripeSubscriptionId, record.status,
-     record.plan, record.billingCycle, record.currentPeriodEnd, record.cancelAtPeriodEnd]
+     record.plan, record.billingCycle, record.currentPeriodEnd, record.cancelAtPeriodEnd, eventAt]
   );
   if (result.rowCount === 0) {
-    log('warn', 'Subscription sync found no company row', { userId });
-    return false;
+    // The company row is confirmed to exist above, so the only thing that can
+    // match nothing is the ordering guard rejecting an out-of-order delivery.
+    // That is a correct skip, not a failure — ack it so Stripe stops retrying.
+    log('info', 'Subscription sync skipped: event older than last applied', { userId, eventAt });
+    return { ok: true, reason: 'stale_event', retryable: false };
   }
   log('info', 'Subscription synced to DB', { userId, status: record.status, plan: record.plan });
-  return true;
+  return { ok: true, retryable: false };
 }
 
 // Loads the billing state for a user from their company row. Returns null
@@ -719,6 +758,55 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
   }
 });
 
+// Reconciliation for the return-from-Stripe hop. The webhook is the primary
+// path, but if it has not landed yet (or failed and is still retrying) the
+// customer would sit on the paywall with no way out but support. This lets the
+// app pull the subscription straight from Stripe once, on return from checkout.
+//
+// The session's customer must match the caller's own Stripe customer, so a
+// guessed or borrowed session_id cannot grant anyone else's subscription.
+app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async function (req, res) {
+  const sessionId = String((req.body && req.body.session_id) || '').trim();
+  if (!sessionId.startsWith('cs_')) {
+    return res.status(400).json({ error: 'A Stripe checkout session id is required' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
+    const sessionCustomer = typeof session.customer === 'string'
+      ? session.customer
+      : (session.customer && session.customer.id) || null;
+
+    if (!sessionCustomer || sessionCustomer !== customerId) {
+      log('warn', 'Checkout verify rejected: session belongs to another customer', { userId: req.user.id });
+      return res.status(403).json({ error: 'This checkout session does not belong to your account' });
+    }
+    if (!session.subscription) {
+      return res.json({ verified: false, reason: 'no_subscription_on_session' });
+    }
+
+    const subscription = typeof session.subscription === 'string'
+      ? await stripe.subscriptions.retrieve(session.subscription)
+      : session.subscription;
+
+    // No event.created here: this is a live read of current Stripe state, so it
+    // is at least as fresh as any webhook and should not be ordering-gated.
+    const result = await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+    if (!result.ok) {
+      log('error', 'Checkout verify could not persist subscription', { userId: req.user.id, reason: result.reason });
+      return res.status(503).json({ error: 'Could not confirm your subscription yet', reason: result.reason });
+    }
+
+    const state = await loadBillingState(req.user.id);
+    log('info', 'Checkout verified and subscription reconciled', { userId: req.user.id, subId: subscription.id });
+    return res.json({ verified: true, billing: state });
+  } catch (err) {
+    log('error', 'Checkout verify failed', { error: String(err) });
+    return res.status(500).json({ error: 'Checkout verification failed' });
+  }
+});
+
 app.post('/api/portal', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
     const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
@@ -753,6 +841,11 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
 
   log('info', 'Stripe webhook received', { type: event.type, id: event.id });
 
+  // Set when a sync could not be persisted but a redelivery might succeed. We
+  // answer non-2xx in that case so Stripe retries; acking 200 on a failed sync
+  // is how a paying customer ends up with no entitlement and no recovery path.
+  let retryableFailure = null;
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -762,7 +855,9 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
           const subscription = typeof session.subscription === 'string'
             ? await stripe.subscriptions.retrieve(session.subscription)
             : session.subscription;
-          await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+          const result = await syncSubscriptionRecord(
+            subscriptionRecordFromStripe(subscription, process.env), event.created);
+          if (!result.ok && result.retryable) retryableFailure = result.reason;
         }
         break;
       }
@@ -771,7 +866,9 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
         log('info', 'Subscription lifecycle event', { subId: subscription.id, status: subscription.status });
-        await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+        const result = await syncSubscriptionRecord(
+          subscriptionRecordFromStripe(subscription, process.env), event.created);
+        if (!result.ok && result.retryable) retryableFailure = result.reason;
         break;
       }
       case 'invoice.paid':
@@ -787,6 +884,13 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
     // Return 500 so Stripe retries the delivery — DB sync failures must not be dropped.
     log('error', 'Webhook processing failed', { type: event.type, id: event.id, error: String(err) });
     return res.status(500).json({ error: 'Webhook processing failed' });
+  }
+
+  if (retryableFailure) {
+    log('error', 'Webhook sync did not persist — asking Stripe to retry', {
+      type: event.type, id: event.id, reason: retryableFailure,
+    });
+    return res.status(503).json({ error: 'Subscription sync unavailable', reason: retryableFailure });
   }
 
   return res.json({ received: true });
@@ -1542,7 +1646,12 @@ app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
   return res.json({ success: true, data: job });
 });
 
-app.get('/api/companies/:id/facilities', apiAuthGuard, async function (req, res) {
+// requirePlan added: these reads return the customer's own paid data, so an
+// expired trial or canceled subscription must lose access to them too. The
+// dashboard summary/trend were already gated, but the same figures were
+// reachable per-facility, and report download regenerates a fresh PDF from
+// live data on every call.
+app.get('/api/companies/:id/facilities', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   const facilities = await loadFacilities(companyId);
@@ -1581,7 +1690,7 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
   }
 });
 
-app.get('/api/facilities/:id/emissions', apiAuthGuard, async function (req, res) {
+app.get('/api/facilities/:id/emissions', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const facility = await loadFacilityById(req.params.id);
     if (!facility) return res.status(404).json({ success: false, error: 'Facility not found' });
@@ -1596,7 +1705,7 @@ app.get('/api/facilities/:id/emissions', apiAuthGuard, async function (req, res)
   }
 });
 
-app.get('/api/companies/:id/compliance', apiAuthGuard, async function (req, res) {
+app.get('/api/companies/:id/compliance', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   return res.json({ success: true, data: getComplianceStatus(getCompany(companyId)) });
@@ -1676,7 +1785,7 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, re
   }
 });
 
-app.get('/api/reports/:id/download', apiAuthGuard, async function (req, res) {
+app.get('/api/reports/:id/download', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     let companyId;
     let period = null;
