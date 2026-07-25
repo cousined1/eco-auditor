@@ -17,8 +17,8 @@ const FAQ_SCHEMA = {
   "mainEntity": [
     { "@type": "Question", "name": "Which emission factor databases does Eco-Auditor use?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR5 GWP-100 values." } },
     { "@type": "Question", "name": "Is Eco-Auditor aligned with the GHG Protocol?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard for Scope 1 and 2, and the Corporate Value Chain (Scope 3) Standard for Scope 3 emissions." } },
-    { "@type": "Question", "name": "How does Eco-Auditor handle data quality?", "acceptedAnswer": { "@type": "Answer", "text": "Every data point is scored on a 5-level quality hierarchy: direct measurement > primary source data > industry average > proxy data > default estimate. Low-confidence entries are flagged for human review." } },
-    { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "You can export your inventory to support California SB 253 and EU CBAM reporting, as well as GHG Protocol annual inventories and customer procurement questionnaires." } },
+    { "@type": "Question", "name": "How does Eco-Auditor handle data quality?", "acceptedAnswer": { "@type": "Answer", "text": "Every entry receives a confidence score based on its activity category and the specificity of the emission factor applied — highest for metered electricity and fuel against published EPA and eGRID factors, lowest for spend-based Scope 3 estimates. You can supply your own confidence value in the import file." } },
+    { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor produces a GHG Protocol-aligned Scope 1-3 inventory and a PDF emissions summary you can use as source material for California SB 253, EU CBAM, annual inventories, and customer procurement questionnaires. Framework-specific filing templates are on the roadmap." } },
   ]
 };
 
@@ -29,7 +29,7 @@ const SCOPES = [
     subtitle: 'Sources you own or control',
     color: 'from-red-500 to-orange-500',
     examples: ['Natural gas combustion in boilers and furnaces', 'Company-owned vehicle fuel', 'Refrigerant leakage from HVAC equipment', 'On-site diesel generators', 'Process emissions from manufacturing'],
-    method: 'Activity data (fuel bills, meter readings) × EPA emission factors. Refrigerant leakage calculated via OA replenishment × IPCC AR5 GWP.',
+    method: 'Activity data (fuel bills, meter readings) × EPA emission factors. Refrigerant leakage calculated as refrigerant mass × IPCC AR5 GWP-100.',
     badge: 'GHG Protocol required',
   },
   {
@@ -47,17 +47,23 @@ const SCOPES = [
     subtitle: 'All other indirect emissions in your value chain',
     color: 'from-emerald-500 to-teal-500',
     examples: ['Purchased goods & services (spend-based)', 'Upstream transportation & distribution', 'Business travel (air, rail, hotel)', 'Employee commuting', 'Downstream transportation', 'Waste generated in operations'],
-    method: 'Common Scope 3 categories via spend-based (EXIOBASE-style EEIO) estimates applied to procurement spend data.',
+    method: 'Common Scope 3 categories via spend-based estimates applied to procurement spend data. These category-average factors are Eco-Auditor internal estimates, not a published EEIO dataset.',
     badge: 'Spend-based Scope 3',
   },
 ];
 
-const QUALITY_TIERS = [
-  { level: 1, label: 'Direct Measurement', desc: 'Continuous monitoring or stack testing', confidence: '95–100%' },
-  { level: 2, label: 'Primary Source Data', desc: 'Utility bills, fuel receipts, meter readings', confidence: '80–95%' },
-  { level: 3, label: 'Industry Average Factors', desc: 'EPA, eGRID, and spend-based EEIO factors applied to activity data', confidence: '60–80%' },
-  { level: 4, label: 'Proxy Data', desc: 'Scaled from similar facilities or time periods', confidence: '40–60%' },
-  { level: 5, label: 'Default Estimate', desc: 'Statistical imputation where no source data exists', confidence: '< 40%' },
+// The confidence values the engine actually assigns, per activity category
+// (emissions-engine.cjs CONFIDENCE_BY_CATEGORY). Previously this page described
+// a 5-level L1-L5 quality hierarchy with its own confidence bands; no such
+// scoring exists in the product, so it is documented below as planned work
+// rather than presented as a current capability.
+const CONFIDENCE_BY_ACTIVITY = [
+  { label: 'Purchased electricity', desc: 'Metered kWh against a published eGRID subregion factor', confidence: '97%' },
+  { label: 'Stationary combustion', desc: 'Fuel volume against an EPA Emission Factors Hub factor', confidence: '90%' },
+  { label: 'Mobile combustion', desc: 'Fuel volume against an EPA Emission Factors Hub factor', confidence: '88%' },
+  { label: 'Waste, commuting', desc: 'Activity or spend against a category-average factor', confidence: '75%' },
+  { label: 'Transport, business travel, fuel & energy', desc: 'Activity or spend against a category-average factor', confidence: '72%' },
+  { label: 'Purchased goods, capital goods, leased assets', desc: 'Spend-based estimate against a category-average factor', confidence: '65%' },
 ];
 
 export default function MethodologyPublic() {
@@ -83,7 +89,7 @@ export default function MethodologyPublic() {
 
     return () => {
       document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses defensible GHG emissions data. Import activity data by CSV, connect integrations (roadmap), and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Import activity data by CSV, connect integrations (roadmap), and generate Scope 1-3 reports aligned with the GHG Protocol.';
       elements.forEach((el) => document.head.removeChild(el));
     };
   }, []);
@@ -103,8 +109,8 @@ export default function MethodologyPublic() {
             <span className="text-brand-600 dark:text-brand-400">your carbon footprint</span>
           </h1>
           <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
-            Every number in Eco-Auditor traces back to a methodology, an emission factor, a source document, and a reviewer.
-            No black boxes, no mystery calculations — just transparent, defensible carbon accounting.
+            Every number in Eco-Auditor traces back to the activity data you imported, the emission factor applied, and the published dataset that factor came from.
+            No black boxes, no mystery calculations — just transparent, reviewable carbon accounting.
           </p>
         </div>
       </section>
@@ -195,26 +201,18 @@ export default function MethodologyPublic() {
       <section id="data-quality" className="scroll-mt-16 border-t border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
         <div className="max-w-5xl mx-auto px-6 py-16">
           <div className="text-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">Data quality hierarchy</h2>
-            <p className="mt-3 text-surface-500 max-w-2xl mx-auto">Not all data is equal. Every entry in your carbon inventory is scored on a 5-level quality scale so you know what is defensible and what needs improvement.</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">Data confidence</h2>
+            <p className="mt-3 text-surface-500 max-w-2xl mx-auto">Not all data is equal. Every entry carries a confidence score so you can see which numbers rest on metered activity data and which are spend-based estimates.</p>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 mb-6 max-w-3xl mx-auto">
             <p className="text-xs text-amber-800 dark:text-amber-300">
-              <strong>Eco-Auditor data-confidence score.</strong> This score is an internal, proprietary decision-support indicator — not an assurance opinion and not a GHG Protocol certification. It combines source type, source recency, coverage, estimation method, factor specificity, and review status. Users can inspect the inputs and override classifications with a recorded reason. Confidence ranges reflect Eco-Auditor’s model and are not externally standardized certainty values.
+              <strong>Eco-Auditor data-confidence score.</strong> This score is an internal decision-support indicator — not an assurance opinion and not a GHG Protocol certification. It is assigned from the activity category and the specificity of the factor applied, or taken from a confidence column in your import file when you supply one. It is not externally standardized. A per-entry quality hierarchy, reviewer sign-off, and confidence overrides are planned, not shipped.
             </p>
           </div>
           <div className="space-y-3">
-            {QUALITY_TIERS.map((tier) => (
-              <div key={tier.level} className="card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            {CONFIDENCE_BY_ACTIVITY.map((tier) => (
+              <div key={tier.label} className="card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-start gap-4">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${
-                    tier.level <= 1 ? 'bg-brand-600' :
-                    tier.level <= 2 ? 'bg-brand-500' :
-                    tier.level <= 3 ? 'bg-amber-500' :
-                    tier.level <= 4 ? 'bg-orange-500' : 'bg-risk-high'
-                  }`}>
-                    L{tier.level}
-                  </div>
                   <div>
                     <div className="text-sm font-semibold text-surface-900 dark:text-white">{tier.label}</div>
                     <p className="text-xs text-surface-500 mt-0.5">{tier.desc}</p>
@@ -227,7 +225,7 @@ export default function MethodologyPublic() {
             ))}
           </div>
           <p className="mt-6 text-sm text-surface-500 text-center">
-            Entries below L3 confidence are flagged for review. Your goal: move every material emissions source to L2 or above before filing.
+            Your goal: move every material emissions source off spend-based estimates and onto metered activity data before filing.
           </p>
         </div>
       </section>
@@ -268,9 +266,9 @@ export default function MethodologyPublic() {
             {[
               { q: 'Which emission factor databases does Eco-Auditor use?', a: 'Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR5 GWP-100 values.' },
               { q: 'Is Eco-Auditor aligned with the GHG Protocol?', a: 'Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Eco-Auditor defaults to the operational-control approach for initial setup. The GHG Protocol also permits equity-share and financial-control approaches. Organizations should select and document the boundary method appropriate to their structure and reporting requirements.' },
-              { q: 'How does Eco-Auditor handle data quality?', a: 'Every data point receives a confidence score on our 5-level quality hierarchy — from direct measurement (L1) down to default estimates (L5). Entries below L3 are surfaced for human review. This scoring is carried through to reports so reviewers know exactly which numbers are primary and which are estimated.' },
-              { q: 'What compliance frameworks does Eco-Auditor support?', a: 'You can export your inventory to support California SB 253 and EU CBAM reporting, as well as customer procurement questionnaires (CDP, EcoVadis-style) and annual GHG inventories.' },
-              { q: 'How often are emission factors updated?', a: 'We update factors annually when source agencies release new data (EPA GHG Emission Factors Hub in April, eGRID in January). We also publish change logs so you can assess the impact of factor updates on your baseline.' },
+              { q: 'How does Eco-Auditor handle data quality?', a: 'Every entry receives a confidence score based on its activity category and the specificity of the emission factor applied — highest for metered electricity and fuel against published EPA and eGRID factors, lowest for spend-based Scope 3 estimates. The aggregate score is carried through to the report so reviewers can see how much of an inventory rests on estimates. A per-entry quality hierarchy and a review queue are planned.' },
+              { q: 'What compliance frameworks does Eco-Auditor support?', a: 'Eco-Auditor produces a GHG Protocol-aligned Scope 1-3 inventory and a PDF emissions summary you can use as source material for California SB 253, EU CBAM, annual inventories, and procurement questionnaires. Framework-specific filing templates are on the roadmap.' },
+              { q: 'How often are emission factors updated?', a: 'We update factors when source agencies release new data. Every factor records the publisher, version, and data year it came from, so you can see exactly which vintage produced a number. A published change log is on the roadmap.' },
             ].map((faq) => (
               <details key={faq.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">

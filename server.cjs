@@ -970,19 +970,19 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /scope 1|scope 2|scope 3|ghg|protocol/i,
-    response: "We follow the GHG Protocol for comprehensive emissions accounting:\n\n• **Scope 1**: Direct emissions from owned/controlled sources\n• **Scope 2**: Indirect emissions from purchased energy\n• **Scope 3**: All other indirect emissions in your value chain\n\nOur platform automates data collection and reporting across all three scopes."
+    response: "We follow the GHG Protocol for comprehensive emissions accounting:\n\n• **Scope 1**: Direct emissions from owned/controlled sources\n• **Scope 2**: Indirect emissions from purchased energy\n• **Scope 3**: All other indirect emissions in your value chain\n\nImport your activity data by CSV and we calculate emissions across all three scopes using EPA, eGRID, and IPCC factors."
   },
   {
     pattern: /cbam|carbon border|eu|europe/i,
-    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Track embedded emissions in imports\n• Generate CBAM-aligned reports\n• Monitor compliance deadlines\n• Calculate carbon costs\n\nNeed help preparing for CBAM? Book a demo with our team!"
+    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Build a Scope 1/2/3 emissions inventory from your activity data\n• Stay informed on compliance deadlines\n\nNeed help preparing for CBAM? Book a demo with our team!"
   },
   {
     pattern: /\bsec\b|disclosure|climate rule/i,
-    response: "EcoAuditor helps you build audit-ready GHG disclosures:\n\n• Emissions data collection and validation\n• Scope 1/2/3 inventory with confidence scoring\n• Exportable summaries for voluntary and regulatory reporting\n\nNote: the U.S. SEC climate-disclosure rule was withdrawn in 2025 — we focus on California SB 253/SB 261, EU CBAM, and voluntary GHG reporting."
+    response: "EcoAuditor helps you build audit-ready GHG disclosures:\n\n• CSV activity data import and validation\n• Scope 1/2/3 inventory with confidence scoring\n• PDF summaries for voluntary and regulatory reporting\n\nNote: the U.S. SEC climate-disclosure rule was withdrawn in 2025 — we focus on California SB 253/SB 261, EU CBAM, and voluntary GHG reporting."
   },
   {
     pattern: /california|ab 1305|climate corporate/i,
-    response: "EcoAuditor is built for California's Climate Corporate Data Accountability Act (SB 253):\n\n• Automated emissions reporting\n• Third-party verification support\n• Public disclosure templates\n• Compliance timeline tracking\n\nStay ahead of California's climate reporting requirements with EcoAuditor."
+    response: "EcoAuditor is built for California's Climate Corporate Data Accountability Act (SB 253):\n\n• Scope 1/2/3 emissions inventory from your imported activity data\n• PDF emissions summary reports\n• SB 253 deadline information\n\nStay ahead of California's climate reporting requirements with EcoAuditor."
   },
   {
     pattern: /smb|small business|startup|affordable/i,
@@ -990,7 +990,7 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /integration|api|connect|erp|salesforce/i,
-    response: "EcoAuditor works with your existing tools:\n\n• **CSV import/export** for spreadsheets\n\nMore integrations are on our roadmap. Need a specific integration? Let us know!"
+    response: "EcoAuditor works with your existing tools:\n\n• **CSV import** of activity data from spreadsheets\n\nMore integrations are on our roadmap. Need a specific integration? Let us know!"
   }
 ];
 

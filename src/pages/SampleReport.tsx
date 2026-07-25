@@ -18,11 +18,14 @@ const METRICS = {
   scope3: { value: '7,270', pct: 56, color: 'bg-emerald-500' },
 };
 
+// Illustrative mix of confidence bands. The product scores each entry by
+// activity category (see /methodology); it does not assign L1-L5 quality
+// levels — that hierarchy was described here as if it shipped, and does not.
 const QUALITY_SCORES = [
-  { label: 'Direct Measurement (L1)', score: 8, color: 'bg-brand-500' },
-  { label: 'Primary Source Data (L2)', score: 34, color: 'bg-brand-400' },
-  { label: 'Industry Average (L3)', score: 41, color: 'bg-amber-400' },
-  { label: 'Proxy / Estimated (L4–L5)', score: 17, color: 'bg-orange-400' },
+  { label: 'Metered electricity (97%)', score: 34, color: 'bg-brand-500' },
+  { label: 'Metered fuel (88–90%)', score: 25, color: 'bg-brand-400' },
+  { label: 'Activity-based Scope 3 (72–75%)', score: 24, color: 'bg-amber-400' },
+  { label: 'Spend-based Scope 3 (65%)', score: 17, color: 'bg-orange-400' },
 ];
 
 const YEAR_COMPARISON = [
@@ -64,8 +67,8 @@ export default function SampleReport() {
             <span className="text-brand-600 dark:text-brand-400">your team will actually use</span>
           </h1>
           <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
-            Every carbon inventory generates a suite of reports — from executive summaries to auditor-ready
-            ledgers. Here's what a <strong className="text-surface-700 dark:text-surface-300">mid-market manufacturing company</strong> sees after uploading their data.
+            Here's what a <strong className="text-surface-700 dark:text-surface-300">mid-market manufacturing company</strong> sees after uploading their data,
+            and the report package we're building toward. Every figure on this page is fictional.
           </p>
         </div>
       </section>
@@ -158,12 +161,15 @@ export default function SampleReport() {
 
       {/* ─── What's Included ─── */}
       <section className="max-w-5xl mx-auto px-6 py-12">
-        <h2 className="text-2xl font-bold text-surface-900 dark:text-white text-center mb-10">Every report package includes</h2>
+        <h2 className="text-2xl font-bold text-surface-900 dark:text-white text-center mb-3">What the report package includes</h2>
+        <p className="text-sm text-surface-500 text-center max-w-2xl mx-auto mb-10">
+          The generated PDF is available today. The detail ledger and evidence exports illustrated on this page are on the roadmap — the columns below say which is which.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { title: 'Executive Summary', items: ['Total emissions and scope breakdown', 'Year-over-year trend', 'Data quality score', 'Materiality analysis', 'Flagged items for review'] },
-            { title: 'Detail Ledger', items: ['Every emissions entry with source', 'Emission factors and citations', 'Reviewer and timestamp per entry', 'Confidence score per data point', 'Version history with diffs'] },
-            { title: 'Report Contents', items: ['Emissions summary (PDF)', 'Detailed entry ledger (CSV)', 'Scope 1/2/3 breakdown', 'Confidence scoring'] },
+            { title: 'Generated PDF — available today', items: ['Total emissions across Scope 1, 2, and 3', 'Scope breakdown', 'Overall data-confidence score', 'Methodology and factor basis'] },
+            { title: 'In the app — available today', items: ['Every imported entry with its activity type', 'The emission factor applied and its published dataset', 'Confidence score per entry', 'Timestamp per entry', '12-month emissions trend'] },
+            { title: 'Roadmap', items: ['Ledger export (CSV)', 'Evidence index linking entries to source documents', 'Reviewer sign-off per entry', 'Version history with diffs', 'Framework-specific filing templates'] },
           ].map((cat) => (
             <div key={cat.title} className="card">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-3">{cat.title}</h3>
@@ -184,7 +190,7 @@ export default function SampleReport() {
       <section className="max-w-5xl mx-auto px-6 py-12 border-t border-surface-200 dark:border-surface-800">
         <div className="text-center mb-10">
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white">Export in the formats your stakeholders need</h2>
-          <p className="mt-3 text-surface-500 max-w-xl mx-auto">No proprietary formats. Download the sample report package and inspect the format your auditor will receive.</p>
+          <p className="mt-3 text-surface-500 max-w-xl mx-auto">No proprietary formats. These sample files illustrate the target package — the PDF summary is what Eco-Auditor generates today; the ledger, factor register, and evidence index are on the roadmap.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
           <a
