@@ -121,6 +121,9 @@ export function getPlanById(id: string): Plan | undefined {
   return PLANS[id as PlanId];
 }
 
-export function resolvePriceId(plan: Plan, billing: Billing): string | undefined {
-  return process.env[plan.priceIdEnv[billing]];
-}
+// resolvePriceId() was removed: it read process.env in browser code, where Vite
+// does not define `process`, so calling it would have thrown. It had no callers.
+// Price IDs are resolved server-side and validated against an allowlist —
+// GET /api/config/prices (server.cjs) feeding fetchPriceConfig() in lib/stripe.ts.
+// Do not reintroduce client-side price resolution; it is what lets a client
+// inject an arbitrary price into checkout.
