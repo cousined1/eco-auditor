@@ -31,9 +31,9 @@ The audit below is the snapshot at `6de4e1d`. Two items have since been fixed on
 
 **Still open in P0-1:** Scope 3 spend factors remain untraceable to any published EEIO dataset (now labelled `internal-estimate` / `verified: false` in the catalog rather than "EPA WARM", but the marketing copy still says WARM); wood's biogenic CO2 is still inside Scope 1 rather than a separate biogenic line; T&D losses are no longer in Scope 2 but Scope 3 Cat 3 accounting for them is not built; `Natural Gas Vehicle`, `Coal`, `Hot Water`, and the process-emissions factors are marked `verified: false` pending a source.
 
-**Also still open:** `tests/calculator.test.ts` (P1-9) still defines its own local `calculateEmissions` and tests nothing in the product — it is now doubly misleading, since the real function has a different signature. `tests/factor-parity.test.ts` is its intended replacement; delete it when convenient.
+- **P1-9 (partially)** — `tests/calculator.test.ts` deleted. Its only import was `vitest`; all 24 tests asserted against locally-defined literals, so it reported coverage of a calculator it never called. `tests/factor-parity.test.ts` replaces it with tests that import the real modules. The same pattern remains in `tests/dashboard-integration.test.ts` (re-implements `buildTrend`) and `tests/stripe.test.ts` (tests client-side no-op stubs).
 
-Verification after the fixes: `npm test` **179/179 PASS**, `npm run build` **PASS**, `npx tsc -b` **PASS**, lint unchanged (the same 1 pre-existing error + 1 warning). CSV smoke test through the real engine returns correct values for all three scopes including the vendor-fallback and fugitive paths.
+Verification after the fixes: `npm test` **158/158 PASS**, `npm run build` **PASS**, `npx tsc -b` **PASS**, lint unchanged (the same 1 pre-existing error + 1 warning). CSV smoke test through the real engine returns correct values for all three scopes including the vendor-fallback and fugitive paths.
 
 ---
 
