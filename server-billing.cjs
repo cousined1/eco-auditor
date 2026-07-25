@@ -89,6 +89,27 @@ function subscriptionRecordFromStripe(subscription, env) {
   };
 }
 
+// How long a webhook whose sync did not persist keeps asking Stripe to retry.
+// Stripe redelivers a failing event for ~3 days, then gives up. Most sync
+// failures are transient (a checkout landing before the user->customer mapping
+// is written) and clear within seconds. Some are permanent — a subscription
+// created straight in the Stripe dashboard for a customer this app has never
+// seen will never map. Failing those for the full window makes the endpoint
+// look broken to Stripe, and a sustained failure ratio can get it auto-disabled,
+// which would take down webhook processing for every customer. So: retry hard
+// for a day, then ack and leave an error in the log to be investigated.
+const WEBHOOK_RETRY_WINDOW_SECONDS = 24 * 60 * 60;
+
+/**
+ * Decides whether a webhook whose sync did not persist should ask Stripe to
+ * redeliver. Pure so the policy is testable without a database or Stripe.
+ */
+function shouldRetryWebhook(result, eventCreatedAt, nowSeconds) {
+  if (!result || result.ok || !result.retryable) return false;
+  if (!eventCreatedAt) return true;
+  return nowSeconds - eventCreatedAt < WEBHOOK_RETRY_WINDOW_SECONDS;
+}
+
 function billingStateFromCompany(company, now = new Date()) {
   const subscriptionStatus = company.subscription_status || null;
   const subscriptionPlan = company.subscription_plan || null;
@@ -122,6 +143,8 @@ module.exports = {
   hasPlanAccess,
   planFromPriceId,
   resolvePlanPriceId,
+  shouldRetryWebhook,
+  WEBHOOK_RETRY_WINDOW_SECONDS,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 };

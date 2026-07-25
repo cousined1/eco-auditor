@@ -22,6 +22,7 @@ const {
   hasPlanAccess,
   planFromPriceId,
   resolvePlanPriceId,
+  shouldRetryWebhook,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 } = require('./server-billing.cjs');
@@ -556,9 +557,16 @@ async function syncSubscriptionRecord(record, eventCreatedAt) {
      record.plan, record.billingCycle, record.currentPeriodEnd, record.cancelAtPeriodEnd, eventAt]
   );
   if (result.rowCount === 0) {
-    // The company row is confirmed to exist above, so the only thing that can
-    // match nothing is the ordering guard rejecting an out-of-order delivery.
-    // That is a correct skip, not a failure — ack it so Stripe stops retrying.
+    // With no event timestamp the ordering guard passes trivially, so matching
+    // nothing cannot mean "stale" — the row must have gone missing between the
+    // provision above and this write. Never ack that as success.
+    if (!eventAt) {
+      log('error', 'Subscription sync matched no row with no ordering guard', { userId });
+      return { ok: false, reason: 'company_row_vanished', retryable: true };
+    }
+    // Otherwise the company row is confirmed to exist, so the only thing that
+    // can match nothing is the guard rejecting an out-of-order delivery. That
+    // is a correct skip, not a failure — ack it so Stripe stops retrying.
     log('info', 'Subscription sync skipped: event older than last applied', { userId, eventAt });
     return { ok: true, reason: 'stale_event', retryable: false };
   }
@@ -651,8 +659,13 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
     if (subscription.status === 'trialing' && !TRIAL_ELIGIBLE_PLANS.has(priceId)) {
       updateParams.trial_end = 'now';
     }
+    // Watermark from a time taken BEFORE the mutation. Stamping it with the
+    // post-write now() overshoots by the Stripe round-trip, and a genuine
+    // Stripe event created inside that window would be rejected as stale —
+    // e.g. a proration invoice failing and flipping the sub to past_due.
+    const mutatedAt = Math.floor(Date.now() / 1000);
     const updated = await stripe.subscriptions.update(subscription.id, updateParams);
-    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env));
+    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), mutatedAt);
     log('info', 'Subscription changed', { subId: updated.id, planId, billing, userId: req.user.id });
     return res.json({ success: true, plan: planId, billing });
   } catch (err) {
@@ -668,8 +681,9 @@ app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async fu
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription to cancel' });
     }
+    const canceledAt = Math.floor(Date.now() / 1000);
     const updated = await stripe.subscriptions.update(subscription.id, { cancel_at_period_end: true });
-    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env));
+    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), canceledAt);
     log('info', 'Subscription set to cancel at period end', { subId: updated.id, userId: req.user.id });
     return res.json({ success: true, cancelAtPeriodEnd: true });
   } catch (err) {
@@ -786,13 +800,14 @@ app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async f
       return res.json({ verified: false, reason: 'no_subscription_on_session' });
     }
 
+    // Lower bound taken before the read, so the watermark reflects when this
+    // state was true rather than when we finished writing it.
+    const readAt = Math.floor(Date.now() / 1000);
     const subscription = typeof session.subscription === 'string'
       ? await stripe.subscriptions.retrieve(session.subscription)
       : session.subscription;
 
-    // No event.created here: this is a live read of current Stripe state, so it
-    // is at least as fresh as any webhook and should not be ordering-gated.
-    const result = await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+    const result = await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env), readAt);
     if (!result.ok) {
       log('error', 'Checkout verify could not persist subscription', { userId: req.user.id, reason: result.reason });
       return res.status(503).json({ error: 'Could not confirm your subscription yet', reason: result.reason });
@@ -887,10 +902,18 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
   }
 
   if (retryableFailure) {
-    log('error', 'Webhook sync did not persist — asking Stripe to retry', {
-      type: event.type, id: event.id, reason: retryableFailure,
+    if (shouldRetryWebhook({ ok: false, retryable: true }, event.created, Math.floor(Date.now() / 1000))) {
+      log('error', 'Webhook sync did not persist — asking Stripe to retry', {
+        type: event.type, id: event.id, reason: retryableFailure,
+      });
+      return res.status(503).json({ error: 'Subscription sync unavailable', reason: retryableFailure });
+    }
+    // Past the retry window this failure is not going to resolve itself. Keep
+    // failing it and Stripe may disable the endpoint for every customer, so
+    // ack and leave a loud log for a human to reconcile this one account.
+    log('error', 'Webhook sync abandoned after retry window — needs manual reconciliation', {
+      type: event.type, id: event.id, reason: retryableFailure, eventCreated: event.created,
     });
-    return res.status(503).json({ error: 'Subscription sync unavailable', reason: retryableFailure });
   }
 
   return res.json({ received: true });

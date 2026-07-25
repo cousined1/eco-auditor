@@ -7,6 +7,8 @@ const {
   hasPlanAccess,
   planFromPriceId,
   resolvePlanPriceId,
+  shouldRetryWebhook,
+  WEBHOOK_RETRY_WINDOW_SECONDS,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 } = require('../server-billing.cjs');
@@ -162,6 +164,35 @@ describe('subscriptionRecordFromStripe', () => {
 
     expect(state.active).toBe(true);
     expect(state.plan).toBe('starter');
+  });
+
+  // A webhook that could not persist must ask Stripe to redeliver — acking 200
+  // is how a paying customer silently loses entitlement. But a permanently
+  // unmappable customer failing for the full 3-day window makes the endpoint
+  // look broken to Stripe, which can disable it for everyone.
+  describe('webhook retry policy', () => {
+    const NOW = 1_784_000_000;
+
+    it('retries a recent retryable failure', () => {
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, NOW - 30, NOW)).toBe(true);
+    });
+
+    it('gives up once the failure is older than the retry window', () => {
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, NOW - WEBHOOK_RETRY_WINDOW_SECONDS - 1, NOW)).toBe(false);
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, NOW - WEBHOOK_RETRY_WINDOW_SECONDS + 1, NOW)).toBe(true);
+    });
+
+    it('never retries a successful or terminal outcome', () => {
+      expect(shouldRetryWebhook({ ok: true }, NOW, NOW)).toBe(false);
+      // A stale event is a correct skip, not a failure.
+      expect(shouldRetryWebhook({ ok: true, reason: 'stale_event' }, NOW, NOW)).toBe(false);
+      // A record with no customer id cannot be fixed by redelivery.
+      expect(shouldRetryWebhook({ ok: false, retryable: false, reason: 'no_customer_id' }, NOW, NOW)).toBe(false);
+    });
+
+    it('retries when the event carries no timestamp', () => {
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, null, NOW)).toBe(true);
+    });
   });
 
   it('does not grant access when an INACTIVE subscription has an unrecognized price', () => {
