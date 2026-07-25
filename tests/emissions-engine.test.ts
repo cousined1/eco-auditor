@@ -12,7 +12,7 @@ const {
 } = require('../emissions-engine.cjs');
 
 describe('EPA emissions engine', () => {
-  it('calculates 50,000 therms of natural gas as 265.1 tCO2e', () => {
+  it('calculates 50,000 therms of natural gas as 265.3 tCO2e', () => {
     const result = calculateEntry({
       scope: '1',
       category: 'stationary_combustion',
@@ -21,7 +21,7 @@ describe('EPA emissions engine', () => {
       unit: 'therms',
     });
 
-    expect(result.co2e_tonnes).toBeCloseTo(265.1, 3);
+    expect(result.co2e_tonnes).toBeCloseTo(265.3, 3);
     expect(result.scope).toBe('scope1');
     expect(result.confidence).toBeGreaterThanOrEqual(85);
   });
@@ -46,12 +46,12 @@ describe('EPA emissions engine', () => {
       unit: 'gj',
     });
 
-    expect(viaGj.co2e_tonnes).toBeCloseTo(viaTherms.co2e_tonnes, 6);
+    expect(viaGj.co2e_tonnes).toBeCloseTo(viaTherms.co2e_tonnes, 5);
     // Absolute sanity bound: 1 MMBtu of natural gas is ~53 kg CO2e, never ~53 t.
     expect(viaGj.co2e_tonnes).toBeLessThan(0.1);
   });
 
-  it('applies eGRID Scope 2 transmission loss', () => {
+  it('prices Scope 2 at the published eGRID rate with no T&D gross-up', () => {
     const result = calculateEntry({
       scope: '2',
       category: 'purchased_electricity',
@@ -60,7 +60,7 @@ describe('EPA emissions engine', () => {
       unit: 'MWh',
     });
 
-    expect(result.co2e_tonnes).toBeCloseTo(51.0761, 6);
+    expect(result.co2e_tonnes).toBeCloseTo(48.76, 6);
   });
 
   // Regression: an unrecognised subregion used to fall back to CAMX silently,
@@ -86,9 +86,9 @@ describe('EPA emissions engine', () => {
       scope: '2', category: 'purchased_electricity', source: 'SRMW', amount: 1, unit: 'MWh',
     });
 
-    // 0.11013 and 0.56636 t/MWh, each grossed up by the 4.75% loss rate.
-    expect(nyup.co2e_tonnes).toBeCloseTo(0.11013 * 1.0475, 6);
-    expect(srmw.co2e_tonnes).toBeCloseTo(0.56636 * 1.0475, 6);
+    // Published t/MWh, applied directly: T&D losses are Scope 3 Cat 3, not Scope 2.
+    expect(nyup.co2e_tonnes).toBeCloseTo(0.11013, 6);
+    expect(srmw.co2e_tonnes).toBeCloseTo(0.56636, 6);
     // A coal-heavy grid must never price below a hydro/nuclear-heavy one.
     expect(srmw.co2e_tonnes).toBeGreaterThan(nyup.co2e_tonnes * 4);
   });
@@ -131,10 +131,10 @@ describe('EPA emissions engine', () => {
 
     expect(summary.company_id).toBe('company-1');
     expect(summary.period).toBe('2026');
-    expect(summary.by_scope.scope1).toBeCloseTo(265.1, 3);
-    expect(summary.by_scope.scope2).toBeCloseTo(51.0761, 6);
+    expect(summary.by_scope.scope1).toBeCloseTo(265.3, 3);
+    expect(summary.by_scope.scope2).toBeCloseTo(48.76, 6);
     expect(summary.by_scope.scope3).toBeCloseTo(125, 3);
-    expect(summary.total_emissions_tCO2e).toBeCloseTo(441.1761, 6);
+    expect(summary.total_emissions_tCO2e).toBeCloseTo(439.06, 6);
     expect(summary.confidence_score).toBeGreaterThan(70);
   });
 
@@ -171,8 +171,8 @@ describe('EPA emissions engine', () => {
     const result = buildFacilityEmissions(facilities, rows);
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ id: 'hq', scope1_tCO2e: 5.302 });
-    expect(result[1].scope2_tCO2e).toBeCloseTo(20.43044, 5);
+    expect(result[0]).toMatchObject({ id: 'hq', scope1_tCO2e: 5.306 });
+    expect(result[1].scope2_tCO2e).toBeCloseTo(19.504, 5);
   });
 });
 

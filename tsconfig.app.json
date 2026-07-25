@@ -35,7 +35,11 @@
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* emission-factors.json is the shared factor catalog, read by both the
+       client (src/lib/emission-factors) and the server engine. */
+    "resolveJsonModule": true
   },
-  "include": ["src"]
+  "include": ["src", "emission-factors.json"]
 }

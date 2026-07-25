@@ -29,7 +29,10 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY server.cjs emissions-engine.cjs server-security.cjs server-billing.cjs ./
+# emission-factors.json is the shared factor catalog and emission-factors.cjs
+# its server-side lookup — the engine require()s both at runtime, so they must
+# ship. src/ is not in this image, hence the root-level location.
+COPY server.cjs emissions-engine.cjs server-security.cjs server-billing.cjs emission-factors.cjs emission-factors.json ./
 COPY --from=builder /app/static ./static
 
 # Volume mount point for video assets

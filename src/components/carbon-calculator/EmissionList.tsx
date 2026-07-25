@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { formatCO2e, type EmissionEntry, type Facility } from './utils';
+import { formatCO2e, labelForCategory, labelForSource, type EmissionEntry, type Facility } from './utils';
 
 interface Props {
   entries: EmissionEntry[];
@@ -79,8 +79,11 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
                     {e.scope}
                   </span>
                 </td>
-                <td className="py-2 pr-3 text-surface-700 dark:text-surface-300">{e.category}</td>
-                <td className="py-2 pr-3 text-surface-700 dark:text-surface-300">{e.source}</td>
+                {/* Entries store catalog keys; rows written before the merge
+                    store display labels. Both resolve, and an unknown value
+                    falls back to the raw string rather than rendering blank. */}
+                <td className="py-2 pr-3 text-surface-700 dark:text-surface-300">{labelForCategory(e.category)}</td>
+                <td className="py-2 pr-3 text-surface-700 dark:text-surface-300">{labelForSource(e.category, e.source)}</td>
                 <td className="py-2 pr-3 text-right font-medium text-surface-900 dark:text-white">
                   {formatCO2e(parseFloat(e.amount))}
                 </td>

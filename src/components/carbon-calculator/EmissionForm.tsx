@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
-  SCOPE_CATEGORIES,
-  UNITS,
-  EMISSION_FACTORS,
+  SCOPES,
   calculateEmissions,
-  getSourcesForCategory,
+  categoriesForScope,
+  sourcesForCategory,
+  unitsForSource,
   type Scope,
   type Facility,
 } from './utils';
@@ -32,17 +32,27 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = SCOPE_CATEGORIES[scope];
-  const sources = getSourcesForCategory(category);
+  const categories = categoriesForScope(scope);
+  const sources = sourcesForCategory(category);
+  // Only the units this source is actually defined for. Offering every unit for
+  // every source is what made the selector decorative: the factor was applied
+  // regardless, so 1000 therms of gas was priced with the per-MMBtu factor.
+  const units = unitsForSource(category, source);
   const parsedAmount = parseFloat(amount);
   const isAmountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const preview = isAmountValid ? calculateEmissions(category, source, parsedAmount) : 0;
 
-  const factor = EMISSION_FACTORS[category]?.[source];
-  const hasKnownFactor = factor !== undefined;
-  const isZeroFactor = factor === 0;
-  const isFormValid =
-    category && source && isAmountValid && unit && hasKnownFactor && (preview > 0 || isZeroFactor);
+  // null means the category/source/unit triple has no factor — never zero.
+  const preview = isAmountValid && unit ? calculateEmissions(category, source, parsedAmount, unit) : null;
+  const isFormValid = Boolean(category && source && unit && isAmountValid && preview !== null);
+
+  // Changing the source can invalidate the chosen unit (gallons is meaningless
+  // for a grid subregion), so clear it unless the new source also supports it.
+  function selectSource(nextSource: string) {
+    setSource(nextSource);
+    const nextUnits = unitsForSource(category, nextSource);
+    const onlyUnit = nextUnits.length === 1 ? nextUnits[0] : undefined;
+    setUnit(onlyUnit ?? (nextUnits.includes(unit) ? unit : ''));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,8 +60,8 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
       setError('Please select a category, source, and unit, and enter a positive amount.');
       return;
     }
-    if (!hasKnownFactor || (preview <= 0 && !isZeroFactor)) {
-      setError('Selected source has no usable emission factor. Please choose a supported source and unit.');
+    if (preview === null) {
+      setError(`No emission factor for ${source} measured in ${unit}. Choose a supported unit.`);
       return;
     }
     setSubmitting(true);
@@ -97,10 +107,11 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
               setScope(e.target.value as Scope);
               setCategory('');
               setSource('');
+              setUnit('');
             }}
             className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
           >
-            {Object.keys(SCOPE_CATEGORIES).map((s) => (
+            {SCOPES.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
@@ -117,12 +128,13 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
             onChange={(e) => {
               setCategory(e.target.value);
               setSource('');
+              setUnit('');
             }}
             className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
           >
             <option value="">Select category</option>
             {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c.key} value={c.key}>{c.label}</option>
             ))}
           </select>
         </div>
@@ -132,28 +144,18 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
           <label htmlFor="source" className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
             Source
           </label>
-          {sources.length > 0 ? (
-            <select
-              id="source"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
-            >
-              <option value="">Select source</option>
-              {sources.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              id="source"
-              type="text"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              placeholder="e.g., Natural gas furnace"
-              className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
-            />
-          )}
+          <select
+            id="source"
+            value={source}
+            disabled={!category}
+            onChange={(e) => selectSource(e.target.value)}
+            className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100 disabled:opacity-50"
+          >
+            <option value="">{category ? 'Select source' : 'Select a category first'}</option>
+            {sources.map((s) => (
+              <option key={s.key} value={s.key}>{s.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* Amount */}
@@ -184,11 +186,12 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
           <select
             id="unit"
             value={unit}
+            disabled={!source}
             onChange={(e) => setUnit(e.target.value)}
-            className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100"
+            className="w-full border border-surface-300 dark:border-surface-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100 disabled:opacity-50"
           >
-            <option value="">Select unit</option>
-            {UNITS.map((u) => (
+            <option value="">{source ? 'Select unit' : 'Select a source first'}</option>
+            {units.map((u) => (
               <option key={u} value={u}>{u}</option>
             ))}
           </select>
@@ -222,7 +225,7 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
         <div className="text-sm text-surface-600 dark:text-surface-400">
           Estimated:&nbsp;
           <span className="font-semibold text-surface-900 dark:text-white">
-            {preview > 0 ? `${preview.toFixed(1)} kg CO2e` : '—'}
+            {preview !== null ? `${preview.toFixed(1)} kg CO2e` : '—'}
           </span>
         </div>
         <button

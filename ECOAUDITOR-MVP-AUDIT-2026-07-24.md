@@ -22,9 +22,18 @@ The audit below is the snapshot at `6de4e1d`. Two items have since been fixed on
   - Client electricity factors replaced with eGRID2023 values; "New York" split into the two subregions eGRID actually publishes
   - **GWP basis standardised on AR5** across the code, the registry, the public methodology page, and `llms.txt` — because EPA Hub 2025 and eGRID2023 both use AR5, so the whole inventory now sits on one basis. This is a reversible methodology decision: see "Still open" below.
 
-**Still open in P0-1:** the Scope 3 spend-based factors remain untraceable to any published EEIO dataset and are still labelled "EPA WARM"; T&D losses are still added to Scope 2 rather than Scope 3 Cat 3; wood's biogenic CO2 is still inside Scope 1 rather than a separate biogenic line; `Natural Gas Vehicle` (11.171/gal) matches no published EPA figure and is flagged in-code as UNVERIFIED; `Fuel Oil` (78.80/MMBtu) and `Coal` (95.35/MMBtu) in the client table are unverified. The two factor tables still exist separately — they now agree on overlapping values but have not been merged.
+- **P0-1 (two tables) and P0-2 (unit selector)** — the two tables are now one. `emission-factors.json` at the repo root is the single catalog; `emission-factors.cjs` is the server lookup and `src/lib/emission-factors/factors.ts` the client lookup. Both hardcoded tables are gone.
+  - Every factor now carries explicit units, a `factorSource` registry id, and a `verified` flag. A category/source/unit triple with no factor returns `null` / throws — never a silent zero or another unit's factor.
+  - The form's Unit dropdown is populated from the selected source and clears when the source changes, so `Natural Gas + miles` is no longer selectable. `calculateEmissions()` now takes the unit.
+  - Scope 2 no longer applies the 4.75% T&D gross-up — under GHG Protocol that belongs in Scope 3 Cat 3, and it existed only on the server side, which was a second reason the two paths disagreed.
+  - `tests/factor-parity.test.ts` walks the entire catalog and asserts the client and engine return the same number for every entry, so this class of divergence cannot come back silently.
+  - Two further audit findings fell out of the merge: `RFCW` was missing from the old eGRID table (rows for it were silently priced as California), and process/fugitive categories can now be CSV-imported — previously the form accepted them but the importer rejected them.
 
-Verification after the fixes: `npm test` **169/169 PASS**, `npm run build` **PASS**, `npx tsc -b` **PASS**, lint unchanged (the same 1 pre-existing error + 1 warning).
+**Still open in P0-1:** Scope 3 spend factors remain untraceable to any published EEIO dataset (now labelled `internal-estimate` / `verified: false` in the catalog rather than "EPA WARM", but the marketing copy still says WARM); wood's biogenic CO2 is still inside Scope 1 rather than a separate biogenic line; T&D losses are no longer in Scope 2 but Scope 3 Cat 3 accounting for them is not built; `Natural Gas Vehicle`, `Coal`, `Hot Water`, and the process-emissions factors are marked `verified: false` pending a source.
+
+**Also still open:** `tests/calculator.test.ts` (P1-9) still defines its own local `calculateEmissions` and tests nothing in the product — it is now doubly misleading, since the real function has a different signature. `tests/factor-parity.test.ts` is its intended replacement; delete it when convenient.
+
+Verification after the fixes: `npm test` **179/179 PASS**, `npm run build` **PASS**, `npx tsc -b` **PASS**, lint unchanged (the same 1 pre-existing error + 1 warning). CSV smoke test through the real engine returns correct values for all three scopes including the vendor-fallback and fugitive paths.
 
 ---
 

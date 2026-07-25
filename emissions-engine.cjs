@@ -1,86 +1,14 @@
-const TRANSMISSION_LOSS_RATE = 0.0475;
-
-const SCOPE1_FACTORS = {
-  // ponytail: gj was 50.68 — a kg-scale number in a tonnes table, inflating every
-  // GJ row ~1000x. Derived from the therms basis so the units stay self-consistent:
-  // 0.005302 t/therm x 10 therms/MMBtu = 0.05302 t/MMBtu / 1.055056 GJ/MMBtu.
-  natural_gas: { therms: 0.005302, mcf: 0.05302, gj: 0.050253 },
-  diesel: { gallons: 0.01021, liters: 0.002698 },
-  propane: { gallons: 0.00579, liters: 0.001531 },
-  coal: { short_tons: 2.07, metric_tons: 2.28 },
-  // EPA GHG Emission Factors Hub 2025, Table 1 (Stationary Combustion).
-  // fuel_oil_1 was 0.00975 — that is the kerosene-type JET FUEL factor, not
-  // No. 1 distillate (10.18 kg/gal). kerosene was 0.00968, which matches no
-  // Hub row at all (published: 10.15 kg/gal).
-  fuel_oil_1: { gallons: 0.01018 },
-  fuel_oil_2: { gallons: 0.01021 },
-  fuel_oil_4: { gallons: 0.01069 },
-  fuel_oil_6: { gallons: 0.01110 },
-  kerosene: { gallons: 0.01015 },
-  gasoline: { gallons: 0.00878 },
-  lignite_coal: { short_tons: 1.41 },
-  // Hub 2025: 1.64 t CO2/short ton (was 0.91, -44%). NOTE: under GHG Protocol,
-  // biogenic CO2 from wood belongs OUTSIDE the scopes as a separate line item
-  // (only its CH4/N2O are Scope 1). This engine has no biogenic bucket yet, so
-  // the value is correct but its placement in Scope 1 is not. See audit P0-1.
-  wood: { short_tons: 1.64 },
-};
-
-const MOBILE_FACTORS = {
-  gasoline_passenger: 0.00878,
-  gasoline_light_truck: 0.00878,
-  diesel_heavy_truck: 0.01021,
-  diesel_bus: 0.01021,
-};
-
-// eGRID2023 (Revision 2, released 2025-06-12) Table 1, subregion CO2e total
-// output emission rates. Published in lb CO2e/MWh; stored here as t CO2e/MWh
-// (lb / 2204.62). eGRID2023 CO2e uses IPCC AR5 GWPs (CH4 28, N2O 265).
-// Source: https://www.epa.gov/system/files/documents/2025-06/summary_tables_rev2.pdf
-// Previous table held 9 approximated subregions matching no eGRID vintage
-// (NYUP was +79% against published; NYUP and NEWE were identical placeholders).
-// All 27 subregions are present — do not re-add a fallback for unknown codes.
-const EGRID_FACTORS = {
-  AKGD: 0.41055, // ASCC Alaska Grid
-  AKMS: 0.23696, // ASCC Miscellaneous
-  AZNM: 0.32033, // WECC Southwest
-  CAMX: 0.19504, // WECC California
-  ERCT: 0.33412, // ERCOT All
-  FRCC: 0.35598, // FRCC All
-  HIMS: 0.51406, // HICC Miscellaneous
-  HIOA: 0.67989, // HICC Oahu
-  MROE: 0.63730, // MRO East
-  MROW: 0.42030, // MRO West
-  NEWE: 0.24639, // NPCC New England
-  NWPP: 0.28817, // WECC Northwest
-  NYCW: 0.39268, // NPCC NYC/Westchester
-  NYLI: 0.53946, // NPCC Long Island
-  NYUP: 0.11013, // NPCC Upstate NY
-  PRMS: 0.70239, // Puerto Rico Miscellaneous
-  RFCE: 0.27179, // RFC East
-  RFCM: 0.44271, // RFC Michigan
-  RFCW: 0.41554, // RFC West
-  RMPA: 0.47287, // WECC Rockies
-  SPNO: 0.39358, // SPP North
-  SPSO: 0.39717, // SPP South
-  SRMV: 0.33643, // SERC Mississippi Valley
-  SRMW: 0.56636, // SERC Midwest
-  SRSO: 0.38374, // SERC South
-  SRTV: 0.40973, // SERC Tennessee Valley
-  SRVC: 0.27048, // SERC Virginia/Carolina
-};
-
-const SCOPE3_FACTORS = {
-  purchased_goods: 0.000250,
-  capital_goods: 0.000177,
-  fuel_transport: 0.001060,
-  transport_inbound: 0.000590,
-  transport_outbound: 0.000450,
-  waste: 0.001050,
-  business_travel: 0.000260,
-  employee_commuting: 0.000220,
-  leased_assets: 0.000180,
-};
+// Emission factors now live in emission-factors.json and are resolved through
+// emission-factors.cjs, shared with the client calculator. This file previously
+// carried its own SCOPE1_FACTORS / MOBILE_FACTORS / EGRID_FACTORS / SCOPE3_FACTORS
+// tables that disagreed with the client's for the same activity.
+//
+// Scope 2 no longer applies a transmission-and-distribution gross-up. Under the
+// GHG Protocol Scope 2 Guidance, T&D losses are the end user's Scope 3 Category 3,
+// not Scope 2; location-based Scope 2 is consumption x grid factor. The old
+// 4.75% gross-up also existed only on this side, so it was a second reason the
+// two paths disagreed. Scope 3 Cat 3 accounting for T&D is not built yet.
+const { factorFor, getSource } = require('./emission-factors.cjs');
 
 const CONFIDENCE_BY_CATEGORY = {
   stationary_combustion: 90,
@@ -117,8 +45,6 @@ function round(value, decimals = 6) {
 function factorForEntry(entry) {
   const scope = normalizeScope(entry.scope);
   const category = normalizeKey(entry.category);
-  const sourceKey = normalizeKey(entry.source);
-  const sourceRaw = String(entry.source || '').trim().toUpperCase();
   const unit = normalizeKey(entry.unit);
 
   // Passthrough for entries already expressed in CO2e. The in-app calculator
@@ -132,38 +58,48 @@ function factorForEntry(entry) {
     return { factor: 1, category: category || 'precalculated' };
   }
 
+  // The catalog is kg CO2e per unit; this engine reports tonnes.
+  const kgPerUnit = factorFor(category, entry.source, entry.unit);
+  const known = getSource(category, entry.source);
+  const toTonnes = (kg) => kg / 1000;
+
   if (scope === 'scope1') {
     if (category === 'mobile_combustion') {
-      const factor = MOBILE_FACTORS[sourceKey];
-      if (factor == null) throw new Error(`Unsupported mobile combustion source: ${entry.source}`);
-      return { factor, category: 'mobile_combustion' };
+      if (kgPerUnit == null) {
+        if (!known) throw new Error(`Unsupported mobile combustion source: ${entry.source}`);
+        throw new Error(`Unsupported mobile combustion unit: ${entry.source} ${entry.unit}`);
+      }
+      return { factor: toTonnes(kgPerUnit), category: 'mobile_combustion' };
     }
-    const sourceFactors = SCOPE1_FACTORS[sourceKey];
-    if (!sourceFactors || sourceFactors[unit] == null) {
+    if (kgPerUnit == null) {
       throw new Error(`Unsupported Scope 1 source/unit: ${entry.source} ${entry.unit}`);
     }
-    return { factor: sourceFactors[unit], category: 'stationary_combustion' };
+    // Process and fugitive rows used to be rejected on import even though the
+    // in-app form accepted them; they resolve now, so keep their own category
+    // rather than flattening everything to stationary_combustion.
+    return { factor: toTonnes(kgPerUnit), category: category || 'stationary_combustion' };
   }
 
   if (scope === 'scope2') {
-    // Was: `?? EGRID_FACTORS.CAMX` — an unrecognised region silently got
-    // California's grid factor, one of the cleanest in the country, so a Texas
-    // or Midwest row was understated with no warning. Fail the row instead;
-    // the CSV route already surfaces per-row errors to the user.
-    const factor = EGRID_FACTORS[sourceRaw];
-    if (factor == null) {
-      throw new Error(`Unsupported eGRID subregion: ${entry.source}`);
+    if (kgPerUnit == null) {
+      // Was: `?? EGRID_FACTORS.CAMX` — an unrecognised region silently got
+      // California's grid factor, one of the cleanest in the country, so a
+      // Texas or Midwest row was understated with no warning. Fail the row;
+      // the CSV route already surfaces per-row errors to the user.
+      if (!known && category === 'purchased_electricity') {
+        throw new Error(`Unsupported eGRID subregion: ${entry.source}`);
+      }
+      throw new Error(`Unsupported Scope 2 source/unit: ${entry.source} ${entry.unit}`);
     }
-    const amountMultiplier = unit === 'kwh' ? 0.001 : 1;
-    return {
-      factor: factor * (1 + TRANSMISSION_LOSS_RATE) * amountMultiplier,
-      category: 'purchased_electricity',
-    };
+    return { factor: toTonnes(kgPerUnit), category: category || 'purchased_electricity' };
   }
 
-  const factor = SCOPE3_FACTORS[sourceKey] ?? SCOPE3_FACTORS[category];
-  if (factor == null) throw new Error(`Unsupported Scope 3 category/source: ${entry.category}/${entry.source}`);
-  return { factor, category };
+  if (kgPerUnit == null) {
+    // Spend-based factors are per USD. A row that gives a mass or distance for
+    // one of them used to be priced as if it were dollars; now it fails.
+    throw new Error(`Unsupported Scope 3 category/source: ${entry.category}/${entry.source} ${entry.unit}`);
+  }
+  return { factor: toTonnes(kgPerUnit), category };
 }
 
 function calculateEntry(entry) {
@@ -407,11 +343,8 @@ function buildFacilityEmissions(facilities, entries) {
 }
 
 module.exports = {
-  SCOPE1_FACTORS,
-  MOBILE_FACTORS,
-  EGRID_FACTORS,
-  SCOPE3_FACTORS,
-  TRANSMISSION_LOSS_RATE,
+  // The factor tables that used to be exported from here now live in
+  // emission-factors.json; require('./emission-factors.cjs') for lookups.
   calculateEntry,
   summarizeEntries,
   buildTrend,
