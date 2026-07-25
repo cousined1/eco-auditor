@@ -90,6 +90,10 @@ if (!PORT) {
   process.exit(1);
 }
 
+if (canUseDevAuth(process.env)) {
+  log('warn', 'Dev auth is enabled. This must NEVER be used in production.');
+}
+
 // ─── Trust proxy for correct client IP behind Railway/Cloudflare ───
 // Railway terminates TLS and forwards X-Forwarded-For; without this,
 // req.ip resolves to the proxy IP and rate limiting collapses all users.
@@ -172,6 +176,8 @@ function perRouteRateLimit(max, windowMs) {
   };
 }
 const consentRateLimit = perRouteRateLimit(10, 60_000);
+const leadsRateLimit = perRouteRateLimit(5, 10 * 60 * 1000);
+const chatRateLimit = perRouteRateLimit(10, 60_000);
 
 // ─── Version endpoint (for forced-update watchdog) ───
 app.get('/api/version', function (_req, res) {
@@ -348,7 +354,9 @@ function apiAuthGuard(req, res, next) {
       log('error', 'apiAuthGuard: INSFORGE_BASE_URL not configured');
       return res.status(503).json({ error: 'Authentication backend not configured' });
     }
-    if (req.headers.authorization === 'Bearer invalid-token') {
+    const devSecret = process.env.DEV_AUTH_SECRET;
+    const expected = devSecret ? 'Bearer ' + devSecret : '';
+    if (!devSecret || req.headers.authorization !== expected) {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
     req.user = {
@@ -1252,7 +1260,7 @@ async function getBotResponse(message, state = {}) {
 }
 
 // ─── CHAT API ───
-app.post('/api/chat', express.json({ limit: '16kb' }), async function (req, res) {
+app.post('/api/chat', express.json({ limit: '16kb' }), chatRateLimit, async function (req, res) {
   const startTime = Date.now();
   const { message, sessionId, state = {} } = req.body || {};
 
@@ -1339,7 +1347,12 @@ app.post('/api/chat', express.json({ limit: '16kb' }), async function (req, res)
 });
 
 // ─── LEADS API ───
-app.post('/api/leads', express.json({ limit: '8kb' }), async function (req, res) {
+app.post('/api/leads', express.json({ limit: '8kb' }), leadsRateLimit, async function (req, res) {
+  // Lightweight honeypot: bots often fill hidden fields; legitimate users won't.
+  if (req.body && req.body.website) {
+    return res.status(400).json({ success: false, error: 'Invalid submission' });
+  }
+
   const lead = sanitizeLeadPayload(req.body);
   if (!lead.ok) {
     return res.status(lead.status).json({ success: false, error: lead.error });

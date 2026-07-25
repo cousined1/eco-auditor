@@ -9,8 +9,8 @@
         "@insforge/mcp@latest"
       ],
       "environment": {
-        "API_KEY": "ik_sehrni5g1w9ptlg52cx3sx32nlrvsgmz",
-        "API_BASE_URL": "https://insforge-production-0d5a.up.railway.app"
+        "API_KEY": "${INSFORGE_MCP_API_KEY}",
+        "API_BASE_URL": "${INSFORGE_MCP_API_BASE_URL}"
       }
     }
   }

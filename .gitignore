@@ -47,8 +47,13 @@ godmythos-v10.2/
 .cline
 .github/copilot*
 .kilocode
+.opencode
 .qoder
 .qwen
 .roo
 .trae
 .windsurf
+
+# Local OpenCode MCP configuration (contains secrets)
+opencode.json
+opencode.jsonc
