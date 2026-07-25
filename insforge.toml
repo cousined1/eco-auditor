@@ -28,10 +28,15 @@ reset_password_method = "code"
 disable_signup = false
 
 [auth.password]
-# The signup and reset forms enforce a stricter client-side policy (8+ chars
-# with a letter and a number). Raising these server-side is a separate change:
-# it would invalidate existing shorter passwords at next reset.
-min_length = 6
+# 8 to match what the signup and reset forms have always enforced client-side.
+# Below this the server was the weaker gate, so anything bypassing the UI (a
+# direct API call) could set a 6-character password.
+#
+# The composition rules stay off: the forms also require a letter and a number,
+# so the server remains the looser of the two on composition. Turning
+# require_number on would align them, but it rejects existing-style passwords
+# at next reset, so it is a deliberate separate decision.
+min_length = 8
 require_number = false
 require_lowercase = false
 require_uppercase = false
