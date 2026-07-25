@@ -50,12 +50,17 @@ const ROUTES = [
   '/dpa',
   '/login',
   '/signup',
+  '/forgot-password',
+  // /reset-password is deliberately NOT prerendered: with no token in the URL
+  // it renders the "link isn't valid" state, which would flash before
+  // hydration for someone arriving from a perfectly good email link. The SPA
+  // fallback in server.cjs serves it, and robots.txt keeps crawlers out.
 ];
 
 // P0-01: noindex these routes so search engines don't index auth pages.
 // The static HTML gets a noindex,nofollow robots meta replacing the
 // homepage's index,follow (verified single occurrence — I5 regex risk).
-const NOINDEX_ROUTES = new Set(['/login', '/signup']);
+const NOINDEX_ROUTES = new Set(['/login', '/signup', '/forgot-password']);
 
 // AF-4: per-route <title> and <meta name="description">. The template
 // (static/index.html) has exactly one <title> and one description meta

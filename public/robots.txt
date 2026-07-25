@@ -8,6 +8,8 @@ Sitemap: https://ecoauditor.io/sitemap.xml
 Disallow: /app/
 Disallow: /login
 Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
 Disallow: /auth/
 
 # Allow AI crawlers to access llms.txt and marketing content

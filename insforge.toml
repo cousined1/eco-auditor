@@ -1,8 +1,13 @@
 [auth]
+# The password-reset email links back to /reset-password with a one-time token,
+# so that URL has to be allowlisted alongside the OAuth callbacks — the backend
+# refuses to redirect anywhere not listed here.
 allowedRedirectUrls = [
   "https://ecoauditor.io/auth/callback",
+  "https://ecoauditor.io/reset-password",
   "https://provenance-os.com/auth/callback",
-  "http://localhost:5173/auth/callback"
+  "http://localhost:5173/auth/callback",
+  "http://localhost:5173/reset-password"
 ]
 
 [auth.providers.apple]

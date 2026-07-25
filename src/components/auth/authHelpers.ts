@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { insforge, isInsForgeConfigured } from '../../lib/insforge';
 import { buildOAuthRedirectTo, startSocialSignIn, type SocialAuthProvider } from '../../lib/socialAuth';
+import { saveAuthIntent, type AuthIntent } from '../../lib/authIntent';
 
 /** Shared input styling. One string, so the two forms cannot drift visually. */
 export const authInputClass =
@@ -53,15 +54,27 @@ export function useRedirectIfAuthenticated(target: string): void {
   }, [navigate, target]);
 }
 
-/** Starts an OAuth sign-in, reporting failure through the caller's error state. */
+/**
+ * Starts an OAuth sign-in, reporting failure through the caller's error state.
+ *
+ * The callback URL is fixed (it must match the backend's allowed-redirect
+ * list), so any purchase intent is stashed in sessionStorage first and picked
+ * up by AuthCallback — otherwise choosing a plan and then "Continue with
+ * Google" silently dropped the sale.
+ */
 export async function startProviderSignIn(
   provider: SocialAuthProvider,
   onError: (message: string) => void,
+  intent?: AuthIntent | null,
 ): Promise<void> {
+  saveAuthIntent(intent ?? null);
   const result = await startSocialSignIn({
     provider,
     redirectTo: buildOAuthRedirectTo(window.location.origin, '/auth/callback'),
     auth: insforge.auth,
   });
-  if (!result.ok) onError(result.error);
+  if (!result.ok) {
+    saveAuthIntent(null);
+    onError(result.error);
+  }
 }

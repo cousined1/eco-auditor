@@ -2,6 +2,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
 import { type SocialAuthProvider } from '../lib/socialAuth';
+import { readIntentFromParams } from '../lib/authIntent';
 import {
   AuthError,
   AuthHeading,
@@ -68,10 +69,14 @@ export default function Login() {
   async function handleSocialLogin(provider: SocialAuthProvider) {
     setPendingProvider(provider);
     setError(null);
-    await startProviderSignIn(provider, (message) => {
-      setError(message);
-      setPendingProvider(null);
-    });
+    await startProviderSignIn(
+      provider,
+      (message) => {
+        setError(message);
+        setPendingProvider(null);
+      },
+      readIntentFromParams(searchParams),
+    );
   }
 
   return (
@@ -113,12 +118,12 @@ export default function Login() {
               className={authInputClass}
             />
             <div className="mt-1.5 text-right">
-              <a
-                href="mailto:hello@developer312.com?subject=Password%20reset%20request"
-                className="text-xs text-accent hover:underline"
-              >
+              {/* Was a mailto: to an off-brand domain — a locked-out paying
+                  customer had to wait for a human, and email-driven manual
+                  resets are a standard account-takeover channel. */}
+              <Link to="/forgot-password" className="text-xs text-accent hover:underline">
                 Forgot password?
-              </a>
+              </Link>
             </div>
           </div>
           <button

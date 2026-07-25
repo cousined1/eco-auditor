@@ -2,6 +2,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
 import { buildOAuthRedirectTo, type SocialAuthProvider } from '../lib/socialAuth';
+import { readIntentFromParams } from '../lib/authIntent';
 import {
   AuthError,
   AuthHeading,
@@ -85,10 +86,14 @@ export default function Signup() {
   async function handleSocialSignup(provider: SocialAuthProvider) {
     setPendingProvider(provider);
     setError(null);
-    await startProviderSignIn(provider, (message) => {
-      setError(message);
-      setPendingProvider(null);
-    });
+    await startProviderSignIn(
+      provider,
+      (message) => {
+        setError(message);
+        setPendingProvider(null);
+      },
+      readIntentFromParams(searchParams),
+    );
   }
 
   if (needsVerification) {
