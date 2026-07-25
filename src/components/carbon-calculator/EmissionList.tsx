@@ -92,7 +92,7 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
                   <button
                     onClick={() => handleDelete(e)}
                     disabled={deletingId === e.id}
-                    className="text-surface-400 hover:text-risk-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-surface-600 dark:text-surface-400 hover:text-risk-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label={`Delete entry ${e.source}`}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">

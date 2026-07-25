@@ -65,6 +65,7 @@ export default function LandingPage() {
           </button>
         }
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden">
@@ -92,7 +93,7 @@ export default function LandingPage() {
             Carbon accounting<br className="hidden sm:block" />
             <span className="text-brand-600 dark:text-brand-400">as easy as bookkeeping</span>
           </h1>
-          <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">
             Large-company disclosure rules are cascading through supply chains. Your buyers, lenders, and regulators increasingly want reviewable emissions data. Eco-Auditor gets you there — without enterprise complexity or consultant fees.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -101,7 +102,7 @@ export default function LandingPage() {
             </Link>
             <Link to="/demo" className="btn-secondary !px-8 !py-3 text-base">Book a Demo</Link>
           </div>
-          <p className="mt-4 text-xs text-surface-400">14-day free trial · No card required · Cancel anytime before trial ends</p>
+          <p className="mt-4 text-xs text-surface-600 dark:text-surface-400">14-day free trial · No card required · Cancel anytime before trial ends</p>
         </div>
       </section>
 
@@ -158,22 +159,26 @@ export default function LandingPage() {
             aria-describedby="product-video-description"
           >
             <source src="/api/video" type="video/mp4" />
-            <track kind="captions" src="/video/product-workflow.en.vtt" srcLang="en" label="English captions" default />
+            {/* The captions track pointed at /video/product-workflow.en.vtt,
+                which 404s — public/video/ does not exist. An advertised
+                captions track that fails to load is worse than none, because
+                the control appears available. The text alternative below
+                carries the content until a real .vtt is authored. */}
             <p id="product-video-description">
               Watch the <Link to="/demo">interactive product walkthrough</Link> or read the <Link to="/methodology">methodology overview</Link> for a text-based explanation of how Eco-Auditor turns activity data into a reviewable carbon inventory.
             </p>
           </video>
         </div>
-        <p className="text-center mt-4 text-xs text-surface-400">See how Eco-Auditor turns messy data into reviewable carbon records</p>
+        <p className="text-center mt-4 text-xs text-surface-600 dark:text-surface-400">See how Eco-Auditor turns messy data into reviewable carbon records</p>
       </section>
 
       {/* ─── Social Proof ─── */}
       <section className="border-y border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
-          <p className="text-center text-xs font-medium text-surface-400 uppercase tracking-wider mb-6">
+          <p className="text-center text-xs font-medium text-surface-600 dark:text-surface-400 uppercase tracking-wider mb-6">
             Built for operations and sustainability teams preparing for SB 253, CBAM, and supply-chain disclosure
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-surface-500 dark:text-surface-400">
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-surface-600 dark:text-surface-400">
             <span className="font-medium">GHG Protocol aligned</span>
             <span className="text-surface-300 dark:text-surface-600">•</span>
             <span className="font-medium">Scope 1, 2 &amp; 3 tracking</span>
@@ -291,7 +296,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto px-6 py-20">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">What teams will be able to say</h2>
-            <p className="mt-3 text-xs text-surface-400 uppercase tracking-wider">
+            <p className="mt-3 text-xs text-surface-600 dark:text-surface-400 uppercase tracking-wider">
               Illustrative — composite examples of the workflow we are building, not real customer quotes
             </p>
           </div>
@@ -322,7 +327,7 @@ export default function LandingPage() {
               <details key={faq.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">
                   {faq.q}
-                  <svg className="w-4 h-4 text-surface-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg className="w-4 h-4 text-surface-600 dark:text-surface-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </summary>
                 <div className="px-5 pb-4 text-sm text-surface-600 dark:text-surface-400 leading-relaxed">{faq.a}</div>
               </details>
@@ -349,6 +354,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Footer ─── */}
+      </main>
       <Footer />
     </div>
   );
@@ -368,7 +374,7 @@ function ValueCard({ icon, title, description, metric, metricLabel }: { icon: Re
       <p className="text-sm text-surface-500 leading-relaxed mb-5">{description}</p>
       <div className="pt-4 border-t border-surface-200 dark:border-surface-700">
         <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">{metric}</span>
-        <span className="ml-2 text-xs text-surface-400">{metricLabel}</span>
+        <span className="ml-2 text-xs text-surface-600 dark:text-surface-400">{metricLabel}</span>
       </div>
     </div>
   );
@@ -382,7 +388,7 @@ function FeatureCard({ title, description, icon, comingSoon }: { title: string; 
           {icon}
         </div>
         {comingSoon && (
-          <span className="inline-flex items-center rounded-full bg-surface-100 dark:bg-surface-800 px-2.5 py-0.5 text-xs font-medium text-surface-500 dark:text-surface-400">
+          <span className="inline-flex items-center rounded-full bg-surface-100 dark:bg-surface-800 px-2.5 py-0.5 text-xs font-medium text-surface-600 dark:text-surface-400">
             Coming soon
           </span>
         )}
@@ -402,7 +408,7 @@ function TestimonialCard({ quote, name, role }: { quote: string; name: string; r
       <blockquote className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed mb-5">"{quote}"</blockquote>
       <div>
         <div className="text-sm font-medium text-surface-900 dark:text-white">{name}</div>
-        <div className="text-xs text-surface-400">{role}</div>
+        <div className="text-xs text-surface-600 dark:text-surface-400">{role}</div>
       </div>
     </div>
   );

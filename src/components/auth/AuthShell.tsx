@@ -69,7 +69,7 @@ export function SocialAuthButtons({ pendingProvider, disabled, onSelect }: Socia
     <>
       <div className="flex items-center gap-3 py-1" role="separator" aria-orientation="horizontal">
         <span className="flex-1 border-t border-surface-200 dark:border-surface-700" />
-        <span className="text-xs text-surface-400">or continue with</span>
+        <span className="text-xs text-surface-600 dark:text-surface-400">or continue with</span>
         <span className="flex-1 border-t border-surface-200 dark:border-surface-700" />
       </div>
       {SOCIAL_AUTH_PROVIDERS.map((provider) => (
@@ -99,7 +99,7 @@ export function AuthError({ message }: { readonly message: string | null }) {
 
 export function TermsNotice() {
   return (
-    <p className="pt-2 text-center text-xs text-surface-400">
+    <p className="pt-2 text-center text-xs text-surface-600 dark:text-surface-400">
       By continuing, you agree to the <Link to="/terms" className="text-accent hover:underline">Terms</Link> and{' '}
       <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
     </p>

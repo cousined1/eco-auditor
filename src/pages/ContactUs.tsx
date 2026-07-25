@@ -259,9 +259,9 @@ export default function ContactUs() {
           <div className="card">
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Direct addresses</h3>
             <ul className="space-y-1.5 text-xs">
-              <li><a href="mailto:support@ecoauditor.io" className="text-accent hover:underline">support@ecoauditor.io</a> <span className="text-surface-400">— general help</span></li>
-              <li><a href="mailto:security@ecoauditor.io" className="text-accent hover:underline">security@ecoauditor.io</a> <span className="text-surface-400">— security reports</span></li>
-              <li><a href="mailto:privacy@ecoauditor.io" className="text-accent hover:underline">privacy@ecoauditor.io</a> <span className="text-surface-400">— privacy & DPA</span></li>
+              <li><a href="mailto:support@ecoauditor.io" className="text-accent hover:underline">support@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— general help</span></li>
+              <li><a href="mailto:security@ecoauditor.io" className="text-accent hover:underline">security@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— security reports</span></li>
+              <li><a href="mailto:privacy@ecoauditor.io" className="text-accent hover:underline">privacy@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— privacy & DPA</span></li>
             </ul>
           </div>
         </div>

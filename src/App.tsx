@@ -242,7 +242,7 @@ function AppContent() {
             </button>
           }
         />
-        <main id="main-content">
+        <main id="main-content" tabIndex={-1}>
           <Routes>
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
@@ -378,7 +378,7 @@ function AppContent() {
       <Route path="/pricing" element={
         <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex flex-col">
           <Header variant="marketing" />
-          <main id="main-content" className="flex-1">
+          <main id="main-content" tabIndex={-1} className="flex-1">
             <Pricing />
           </main>
           <Footer />

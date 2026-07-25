@@ -183,8 +183,10 @@ export default function ChatWidget({
       {/* Chat window */}
       {isOpen && (
         <div style={{
-          width: '380px',
-          height: '540px',
+          // Was a fixed 380px, which overflowed a 375px viewport and pushed the
+          // close button off-screen — and covered the cookie banner's buttons.
+          width: 'min(380px, calc(100vw - 32px))',
+          height: 'min(540px, calc(100dvh - 96px))',
           backgroundColor: '#ffffff',
           borderRadius: '16px',
           boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
@@ -250,16 +252,23 @@ export default function ChatWidget({
             </button>
           </div>
 
-          {/* Messages */}
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '16px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            backgroundColor: '#f9fafb',
-          }}>
+          {/* Messages. role="log" + aria-live announces replies as they arrive;
+              without it a screen-reader user never hears the bot answer. */}
+          <div
+            role="log"
+            aria-live="polite"
+            aria-atomic="false"
+            aria-label="Conversation"
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              backgroundColor: '#f9fafb',
+            }}
+          >
             {messages.map((msg) => (
               <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div

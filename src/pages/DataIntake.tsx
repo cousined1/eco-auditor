@@ -143,7 +143,7 @@ export default function DataIntake() {
             <button
               type="button"
               onClick={() => setCsvResult(null)}
-              className="text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 text-lg leading-none"
+              className="text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200 text-lg leading-none"
               aria-label="Dismiss results"
             >
               &times;
@@ -200,8 +200,11 @@ export default function DataIntake() {
         ))}
       </div>
 
+      {/* Each tab's aria-controls pointed at an id that was never rendered, so
+          the relationship was broken for assistive tech. The panels now carry
+          the matching id, role, and label, and are focusable after activation. */}
       {activeTab === 'files' && (
-        <div className="card">
+        <div id="tab-panel-files" role="tabpanel" aria-labelledby="tab-files" tabIndex={0} className="card">
           <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Uploaded Files</h3>
           <p className="text-sm text-surface-600 dark:text-surface-400">
             Only CSV imports are supported today. Document scanning, OCR previews, and the human review queue are coming soon.
@@ -210,11 +213,15 @@ export default function DataIntake() {
       )}
 
       {activeTab === 'integrations' && (
-        <ComingSoon featureName="Integrations" />
+        <div id="tab-panel-integrations" role="tabpanel" aria-labelledby="tab-integrations" tabIndex={0}>
+          <ComingSoon featureName="Integrations" />
+        </div>
       )}
 
       {activeTab === 'review' && (
-        <ComingSoon featureName="Human Review Queue" />
+        <div id="tab-panel-review" role="tabpanel" aria-labelledby="tab-review" tabIndex={0}>
+          <ComingSoon featureName="Human Review Queue" />
+        </div>
       )}
     </div>
   );

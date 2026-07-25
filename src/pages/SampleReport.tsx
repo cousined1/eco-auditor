@@ -55,6 +55,7 @@ export default function SampleReport() {
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       <Header variant="marketing" />
+      <main id="main-content" tabIndex={-1}>
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-brand-50/60 via-surface-50 to-surface-50 dark:from-brand-950/30 dark:via-surface-950 dark:to-surface-950">
         <div className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
@@ -66,7 +67,7 @@ export default function SampleReport() {
             See the reports<br className="hidden sm:block" />
             <span className="text-brand-600 dark:text-brand-400">your team will actually use</span>
           </h1>
-          <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
+          <p className="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
             Here's what a <strong className="text-surface-700 dark:text-surface-300">mid-market manufacturing company</strong> sees after uploading their data,
             and the report package we're building toward. Every figure on this page is fictional.
           </p>
@@ -93,7 +94,7 @@ export default function SampleReport() {
             <p className="text-xs text-surface-500 uppercase tracking-wider mb-1">Total scope 1 + 2 + 3 emissions</p>
             <div className="text-5xl font-bold text-surface-900 dark:text-white">{METRICS.total}</div>
             <div className="text-lg text-surface-500 mt-1">{METRICS.unit}</div>
-            <p className="text-xs text-surface-400 mt-2">Operational control boundary · Base year: 2025</p>
+            <p className="text-xs text-surface-600 dark:text-surface-400 mt-2">Operational control boundary · Base year: 2025</p>
           </div>
 
           {/* Scope breakdown */}
@@ -149,7 +150,7 @@ export default function SampleReport() {
                 </div>
               ))}
             </div>
-            <p className="text-xs text-surface-400 mt-3">
+            <p className="text-xs text-surface-600 dark:text-surface-400 mt-3">
               {(() => {
                 const quality = summarizeQuality(QUALITY_SCORES);
                 return `${quality.primaryOrBetter}% of total emissions backed by primary source data or better. ${quality.estimated}% flagged for improvement.`;
@@ -242,7 +243,7 @@ export default function SampleReport() {
             <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
           </a>
         </div>
-        <p className="text-center mt-6 text-2xs text-surface-400">
+        <p className="text-center mt-6 text-2xs text-surface-600 dark:text-surface-400">
           All sample data is fictional and clearly labeled as illustrative. No real customer data is represented.
         </p>
       </section>
@@ -266,6 +267,7 @@ export default function SampleReport() {
           </div>
         </div>
       </section>
+      </main>
     </div>
   );
 }

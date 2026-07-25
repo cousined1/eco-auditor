@@ -97,6 +97,7 @@ export default function MethodologyPublic() {
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       <Header variant="marketing" />
+      <main id="main-content" tabIndex={-1}>
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-brand-50/60 via-surface-50 to-surface-50 dark:from-brand-950/30 dark:via-surface-950 dark:to-surface-950">
         <div className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
@@ -108,7 +109,7 @@ export default function MethodologyPublic() {
             How we calculate<br className="hidden sm:block" />
             <span className="text-brand-600 dark:text-brand-400">your carbon footprint</span>
           </h1>
-          <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
+          <p className="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
             Every number in Eco-Auditor traces back to the activity data you imported, the emission factor applied, and the published dataset that factor came from.
             No black boxes, no mystery calculations — just transparent, reviewable carbon accounting.
           </p>
@@ -245,7 +246,7 @@ export default function MethodologyPublic() {
             ].map((lib) => (
               <div key={lib.name} className="card">
                 <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-1">{lib.name}</h3>
-                <p className="text-xs text-surface-400 mb-2">{lib.org}</p>
+                <p className="text-xs text-surface-600 dark:text-surface-400 mb-2">{lib.org}</p>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {lib.scopes.map((s) => <span key={s} className="badge-blue text-2xs">{s}</span>)}
                 </div>
@@ -273,7 +274,7 @@ export default function MethodologyPublic() {
               <details key={faq.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">
                   {faq.q}
-                  <svg className="w-4 h-4 text-surface-400 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg className="w-4 h-4 text-surface-600 dark:text-surface-400 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </summary>
                 <div className="px-5 pb-4 text-sm text-surface-600 dark:text-surface-400 leading-relaxed">{faq.a}</div>
               </details>
@@ -296,6 +297,7 @@ export default function MethodologyPublic() {
           </div>
         </div>
       </section>
+      </main>
     </div>
   );
 }

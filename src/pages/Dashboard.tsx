@@ -304,8 +304,10 @@ function EmissionsCard({ scope, color }: { scope: { value: number; label: string
         </div>
         <div className="text-right">
           <div className="text-xs text-surface-500">{scope.pct}% of total</div>
+          {/* risk-medium (#d97706) is only 3.19:1 on white — fails AA for this
+              small text. amber-700/amber-400 keeps the same signal and passes. */}
           {scope.trend !== null && (
-            <div className={`text-xs font-medium ${scope.trend > 0 ? 'text-risk-medium' : 'text-risk-low'}`}>
+            <div className={`text-xs font-medium ${scope.trend > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-risk-low'}`}>
               {scope.trend > 0 ? '+' : ''}{scope.trend}% vs prior
             </div>
           )}

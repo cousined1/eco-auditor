@@ -83,4 +83,16 @@
   .eco-hero-motion {
     display: none;
   }
+
+  /* Previously only the hero video honoured this: spinners, pulses, and the
+     chatbot launcher kept animating for users who asked for reduced motion.
+     Near-instant rather than 0s so animation-driven state still settles. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
