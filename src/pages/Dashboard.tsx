@@ -115,7 +115,7 @@ export default function Dashboard() {
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto mb-4"></div>
             <p className="text-surface-600 dark:text-surface-400">Loading your emissions data...</p>
           </div>
         </div>
@@ -152,7 +152,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => setRetryToken((t) => t + 1)}
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="btn-primary inline-flex"
           >
             Try Again
           </button>
@@ -169,14 +169,18 @@ export default function Dashboard() {
           <div className="text-4xl mb-2">🏢</div>
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Welcome to EcoAuditor</h2>
           <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
-            Your account is ready. Add your first emission entry to start tracking your carbon footprint and building reviewable reports.
+            Your account is ready. Import a CSV of activity data, or add a single entry by hand, to start building your inventory.
           </p>
-          <Link
-            to="/app/calculator"
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Add Entry Now
-          </Link>
+          {/* CSV import is the primary path the marketing promises, so it leads.
+              Both states used to offer manual entry only. */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link to="/app/intake" className="btn-primary inline-flex">
+              Import a CSV
+            </Link>
+            <Link to="/app/calculator" className="btn-secondary inline-flex">
+              Add an entry manually
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -190,14 +194,16 @@ export default function Dashboard() {
           <div className="text-4xl mb-2">📊</div>
           <h2 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">No Emissions Data Yet</h2>
           <p className="text-surface-600 dark:text-surface-400 mb-6 max-w-md mx-auto">
-            Add your first emission entry to get started tracking your carbon footprint.
+            Import a CSV of activity data — utility bills, fuel invoices, freight records — or add a single entry by hand.
           </p>
-          <Link
-            to="/app/calculator"
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Add Entry Now
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link to="/app/intake" className="btn-primary inline-flex">
+              Import a CSV
+            </Link>
+            <Link to="/app/calculator" className="btn-secondary inline-flex">
+              Add an entry manually
+            </Link>
+          </div>
         </div>
       </div>
     );

@@ -200,7 +200,13 @@ export default function Pricing() {
                 <span className="text-lg font-bold text-surface-900 dark:text-white">${addon.price.toLocaleString()}</span>
                 <span className="text-xs text-surface-500">{addon.unit}</span>
               </div>
-              <button className="btn-secondary text-xs mt-2 w-full">Add</button>
+              {/* Was a bare "Add" button with no handler — a purchase-shaped
+                  control in the money path that silently did nothing. These
+                  add-ons have no Stripe products, so route to sales instead of
+                  implying self-serve checkout. */}
+              <Link to="/contact?topic=sales" className="btn-secondary text-xs mt-2 w-full text-center block">
+                Talk to sales
+              </Link>
             </div>
           ))}
         </div>

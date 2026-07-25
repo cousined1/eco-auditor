@@ -35,15 +35,18 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
 
+// `soon` marks destinations that render a ComingSoon stub. Half the sidebar
+// led to placeholders with nothing to distinguish them, so the only way to
+// find out was to click — which reads as a broken app rather than a roadmap.
 const NAV_ITEMS = [
   { to: '/app', label: 'Dashboard', icon: DashboardIcon, end: true },
   { to: '/app/intake', label: 'Data Intake', icon: DataIcon },
   { to: '/app/calculator', label: 'Calculator', icon: CalculatorIcon },
-  { to: '/app/assistant', label: 'AI Assistant', icon: AssistantIcon },
-  { to: '/app/ledger', label: 'Ledger', icon: LedgerIcon },
-  { to: '/app/reports', label: 'Reports', icon: ReportsIcon },
-  { to: '/app/suppliers', label: 'Suppliers', icon: SuppliersIcon },
-  { to: '/app/methodology', label: 'Methodology', icon: MethodologyIcon },
+  { to: '/app/assistant', label: 'AI Assistant', icon: AssistantIcon, soon: true },
+  { to: '/app/ledger', label: 'Ledger', icon: LedgerIcon, soon: true },
+  { to: '/app/reports', label: 'Reports', icon: ReportsIcon, soon: true },
+  { to: '/app/suppliers', label: 'Suppliers', icon: SuppliersIcon, soon: true },
+  { to: '/app/methodology', label: 'Methodology', icon: MethodologyIcon, soon: true },
   { to: '/app/pricing', label: 'Pricing', icon: PricingIcon },
   { to: '/app/settings', label: 'Settings', icon: SettingsIcon },
 ];
@@ -63,6 +66,21 @@ function TrackPageViews() {
   useEffect(() => {
     trackPageView(location.pathname + location.search);
   }, [location, trackPageView]);
+
+  // A SPA keeps the scroll position across navigations, so moving from a
+  // scrolled landing page to /pricing used to land mid-page. Reset scroll and
+  // move focus to the main landmark, which also gives keyboard and screen
+  // reader users a defined starting point instead of leaving focus on the link
+  // they just followed.
+  useEffect(() => {
+    if (location.hash) {
+      // In-page anchor: honour the target rather than jumping to the top.
+      document.getElementById(location.hash.slice(1))?.scrollIntoView();
+      return;
+    }
+    window.scrollTo(0, 0);
+    document.getElementById('main-content')?.focus({ preventScroll: true });
+  }, [location.pathname, location.hash]);
 
   return null;
 }
@@ -420,7 +438,7 @@ function SidebarContent({ user, onLogout, onNavigate }: SidebarContentProps) {
             key={item.to}
             to={item.to}
             end={item.end || false}
-            aria-label={item.label}
+            aria-label={item.soon ? `${item.label} (coming soon)` : item.label}
             onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
@@ -432,6 +450,11 @@ function SidebarContent({ user, onLogout, onNavigate }: SidebarContentProps) {
           >
             <item.icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
             {item.label}
+            {item.soon && (
+              <span className="ml-auto rounded-full bg-surface-100 px-1.5 py-0.5 text-2xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+                Soon
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

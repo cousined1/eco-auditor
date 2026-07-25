@@ -27,10 +27,15 @@ export default function DataIntake() {
     };
   }, []);
 
+  // Only successes auto-dismiss. Errors used to disappear after 4s too, so a
+  // failed import — a skipped file, an expired session, a plan limit — vanished
+  // before it could be read and the upload looked like it had worked.
   const showStatus = useCallback((type: 'success' | 'error', message: string) => {
     setActionStatus({ type, message });
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-    statusTimerRef.current = setTimeout(() => setActionStatus(null), 4000);
+    if (type === 'success') {
+      statusTimerRef.current = setTimeout(() => setActionStatus(null), 4000);
+    }
   }, []);
 
   const handleUpload = async (files: FileList | null) => {
@@ -121,15 +126,25 @@ export default function DataIntake() {
       {/* Action status banner */}
       {actionStatus && (
         <div
-          role="status"
-          aria-live="polite"
-          className={`px-4 py-2.5 rounded-lg text-sm border ${
+          role={actionStatus.type === 'error' ? 'alert' : 'status'}
+          aria-live={actionStatus.type === 'error' ? 'assertive' : 'polite'}
+          className={`flex items-start justify-between gap-3 px-4 py-2.5 rounded-lg text-sm border ${
             actionStatus.type === 'success'
               ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
               : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
           }`}
         >
-          {actionStatus.message}
+          <span>{actionStatus.message}</span>
+          {actionStatus.type === 'error' && (
+            <button
+              type="button"
+              onClick={() => setActionStatus(null)}
+              aria-label="Dismiss error"
+              className="flex-shrink-0 text-lg leading-none hover:opacity-70"
+            >
+              &times;
+            </button>
+          )}
         </div>
       )}
 
