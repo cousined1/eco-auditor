@@ -32,10 +32,17 @@ export const EMISSION_FACTORS: Record<string, Record<string, number>> = {
     'Fuel Oil': 78.80,
     Coal: 95.35,
   },
+  // EPA GHG Emission Factors Hub 2025, Table 2. Previous values came from a
+  // different (older, passenger-vehicle fact sheet) vintage and disagreed with
+  // the server engine for the same activity: gasoline 8.887 vs 8.78, diesel
+  // 10.18 vs 10.21 — so form entry and CSV import produced different numbers.
   'Mobile Combustion': {
-    Gasoline: 8.887,           // per gallon
-    Diesel: 10.18,
-    'Jet Fuel': 9.537,
+    Gasoline: 8.78,            // per gallon
+    Diesel: 10.21,
+    'Jet Fuel': 9.75,
+    // UNVERIFIED: 11.171/gal matches no published EPA figure. Hub 2025 lists
+    // LNG at 4.50 kg/gal and CNG at 0.05444 kg/scf — this entry does not state
+    // which fuel basis it means. Resolve the basis before relying on it.
     'Natural Gas Vehicle': 11.171,
   },
   'Process Emissions': {
@@ -43,16 +50,27 @@ export const EMISSION_FACTORS: Record<string, Record<string, number>> = {
     Steel: 1850,
     Ammonia: 2550,
   },
+  // GWP-100 on an IPCC AR5 basis, matching EPA GHG Emission Factors Hub 2025
+  // and eGRID2023 (both AR5) so the whole inventory sits on one GWP basis.
+  // Previous values (2088 / 1810) were verbatim AR4 while the site claimed AR6.
   'Fugitive Emissions': {
-    'Refrigerant R-410A': 2088, // per kg
-    'Refrigerant R-22': 1810,
-    'Natural Gas Leak': 25.3,  // per MCF
+    'Refrigerant R-410A': 1924, // per kg
+    'Refrigerant R-22': 1760,
+    // Was 25.3 — roughly the AR4 methane GWP used as if it were a per-MCF
+    // factor, ~20x low. 1000 scf x 95% CH4 x 0.0192 kg/scf = 18.3 kg CH4,
+    // x GWP 28 (AR5) = 512 kg CO2e/MCF.
+    'Natural Gas Leak': 512,   // per MCF
   },
+  // eGRID2023 Rev 2 subregion output rates, converted to kg CO2e/kWh. Previous
+  // values were ~18-23% high and matched no published eGRID release. New York
+  // has no single statewide rate — eGRID publishes three NY subregions, so the
+  // two that most users fall into are listed separately rather than averaged.
   'Purchased Electricity': {
-    'US Average': 0.417,       // per kWh (kg CO2e)
-    California: 0.23,
-    Texas: 0.41,
-    'New York': 0.28,
+    'US Average': 0.3497,      // per kWh (kg CO2e)
+    California: 0.19504,       // CAMX
+    Texas: 0.33412,            // ERCT
+    'New York (Upstate)': 0.11013,        // NYUP
+    'New York City / Westchester': 0.39268, // NYCW
     Renewable: 0,
   },
   'Purchased Heat / Steam': {
@@ -96,7 +114,7 @@ export const CATEGORY_SOURCES: Record<string, string[]> = {
   'Mobile Combustion': ['Gasoline', 'Diesel', 'Jet Fuel', 'Natural Gas Vehicle'],
   'Process Emissions': ['Cement', 'Steel', 'Ammonia'],
   'Fugitive Emissions': ['Refrigerant R-410A', 'Refrigerant R-22', 'Natural Gas Leak'],
-  'Purchased Electricity': ['US Average', 'California', 'Texas', 'New York', 'Renewable'],
+  'Purchased Electricity': ['US Average', 'California', 'Texas', 'New York (Upstate)', 'New York City / Westchester', 'Renewable'],
   'Purchased Heat / Steam': ['Steam', 'Hot Water'],
   'Purchased Goods': ['Paper', 'Plastic', 'Steel Product', 'Aluminum', 'Concrete'],
   'Business Travel': ['Air Short Haul', 'Air Long Haul', 'Hotel', 'Rental Car'],

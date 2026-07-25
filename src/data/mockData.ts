@@ -22,7 +22,7 @@ export const EMISSIONS_SUMMARY = {
   unit: 'tCO2e',
   scope1: { value: 1834, label: 'Scope 1 — Direct', pct: 37.6, trend: -3.2, items: [
     { source: 'Natural gas — Sacramento', value: 612, factor: factorLabel('epa-egrid-2023'), confidence: 94 },
-    { source: 'Refrigerant leaks — R-404A', value: 478, factor: factorLabel('ipcc-ar6-gwp100'), confidence: 71 },
+    { source: 'Refrigerant leaks — R-404A', value: 478, factor: factorLabel('ipcc-ar5-gwp100'), confidence: 71 },
     { source: 'Fleet diesel — 14 vehicles', value: 398, factor: factorLabel('epa-efh-2025'), confidence: 88 },
     { source: 'Natural gas — Fresno', value: 289, factor: factorLabel('epa-egrid-2023'), confidence: 91 },
     { source: 'Propane — forklifts', value: 57, factor: factorLabel('epa-efh-2025'), confidence: 95 },

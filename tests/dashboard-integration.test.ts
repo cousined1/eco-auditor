@@ -30,9 +30,9 @@ describe('Dashboard Integration (Slice 2)', () => {
     const summary = summarizeEntries(entries, { companyId: 'test-company-1', period: '2026' });
     const data = toDashboardSummary(summary);
 
-    expect(data.total_co2e_tonnes).toBeCloseTo(444.308125, 6);
+    expect(data.total_co2e_tonnes).toBeCloseTo(441.1761, 6);
     expect(data.scope1_co2e_tonnes).toBeCloseTo(265.1, 3);
-    expect(data.scope2_co2e_tonnes).toBeCloseTo(54.208125, 6);
+    expect(data.scope2_co2e_tonnes).toBeCloseTo(51.0761, 6);
     expect(data.scope3_co2e_tonnes).toBeCloseTo(125, 3);
     expect(data.confidence_score).toBeGreaterThan(70);
   });

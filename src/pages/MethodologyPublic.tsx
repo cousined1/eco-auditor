@@ -7,7 +7,7 @@ const METHODOLOGY_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "Article",
   "headline": "Eco-Auditor Methodology — GHG Protocol Carbon Accounting",
-  "description": "How Eco-Auditor calculates Scope 1, 2, and 3 emissions using EPA, eGRID, and IPCC AR6 emission factors, aligned with the GHG Protocol Corporate Standard.",
+  "description": "How Eco-Auditor calculates Scope 1, 2, and 3 emissions using EPA, eGRID, and IPCC AR5 emission factors, aligned with the GHG Protocol Corporate Standard.",
   "datePublished": "2026-05-21",
 };
 
@@ -15,7 +15,7 @@ const FAQ_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "Which emission factor databases does Eco-Auditor use?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR6 GWP-100 values." } },
+    { "@type": "Question", "name": "Which emission factor databases does Eco-Auditor use?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR5 GWP-100 values." } },
     { "@type": "Question", "name": "Is Eco-Auditor aligned with the GHG Protocol?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard for Scope 1 and 2, and the Corporate Value Chain (Scope 3) Standard for Scope 3 emissions." } },
     { "@type": "Question", "name": "How does Eco-Auditor handle data quality?", "acceptedAnswer": { "@type": "Answer", "text": "Every data point is scored on a 5-level quality hierarchy: direct measurement > primary source data > industry average > proxy data > default estimate. Low-confidence entries are flagged for human review." } },
     { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "You can export your inventory to support California SB 253 and EU CBAM reporting, as well as GHG Protocol annual inventories and customer procurement questionnaires." } },
@@ -29,7 +29,7 @@ const SCOPES = [
     subtitle: 'Sources you own or control',
     color: 'from-red-500 to-orange-500',
     examples: ['Natural gas combustion in boilers and furnaces', 'Company-owned vehicle fuel', 'Refrigerant leakage from HVAC equipment', 'On-site diesel generators', 'Process emissions from manufacturing'],
-    method: 'Activity data (fuel bills, meter readings) × EPA emission factors. Refrigerant leakage calculated via OA replenishment × IPCC AR6 GWP.',
+    method: 'Activity data (fuel bills, meter readings) × EPA emission factors. Refrigerant leakage calculated via OA replenishment × IPCC AR5 GWP.',
     badge: 'GHG Protocol required',
   },
   {
@@ -65,7 +65,7 @@ export default function MethodologyPublic() {
     document.title = 'Carbon Accounting Methodology — Eco-Auditor | GHG Protocol Alignment';
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, and IPCC AR6 factors. Transparent, reviewable carbon accounting methodology.';
+    if (desc) desc.content = 'Eco-Auditor follows the GHG Protocol Corporate Standard for Scope 1-3 emissions. EPA, eGRID, and IPCC AR5 factors. Transparent, reviewable carbon accounting methodology.';
 
     // Structured data
     const scripts = [
@@ -243,7 +243,7 @@ export default function MethodologyPublic() {
             {[
               { name: factorLabel('epa-efh-2025'), org: 'US EPA', scopes: ['Scope 1', 'Scope 2'], coverage: 'Stationary combustion, mobile, fugitive, electricity' },
               { name: factorLabel('epa-egrid-2023'), org: 'US EPA', scopes: ['Scope 2'], coverage: 'Subregion-level grid emission factors (lbs/MWh), location-based' },
-              { name: factorLabel('ipcc-ar6-gwp100'), org: 'IPCC', scopes: ['Scope 1'], coverage: 'Global warming potentials for methane (CH₄) and refrigerants (F-gases)' },
+              { name: factorLabel('ipcc-ar5-gwp100'), org: 'IPCC', scopes: ['Scope 1'], coverage: 'Global warming potentials for methane (CH₄) and refrigerants (F-gases)' },
             ].map((lib) => (
               <div key={lib.name} className="card">
                 <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-1">{lib.name}</h3>
@@ -266,7 +266,7 @@ export default function MethodologyPublic() {
           </div>
           <div className="space-y-4">
             {[
-              { q: 'Which emission factor databases does Eco-Auditor use?', a: 'Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR6 GWP-100 values.' },
+              { q: 'Which emission factor databases does Eco-Auditor use?', a: 'Eco-Auditor uses the EPA GHG Emission Factors Hub, eGRID (location-based electricity), and IPCC AR5 GWP-100 values.' },
               { q: 'Is Eco-Auditor aligned with the GHG Protocol?', a: 'Eco-Auditor follows the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Eco-Auditor defaults to the operational-control approach for initial setup. The GHG Protocol also permits equity-share and financial-control approaches. Organizations should select and document the boundary method appropriate to their structure and reporting requirements.' },
               { q: 'How does Eco-Auditor handle data quality?', a: 'Every data point receives a confidence score on our 5-level quality hierarchy — from direct measurement (L1) down to default estimates (L5). Entries below L3 are surfaced for human review. This scoring is carried through to reports so reviewers know exactly which numbers are primary and which are estimated.' },
               { q: 'What compliance frameworks does Eco-Auditor support?', a: 'You can export your inventory to support California SB 253 and EU CBAM reporting, as well as customer procurement questionnaires (CDP, EcoVadis-style) and annual GHG inventories.' },

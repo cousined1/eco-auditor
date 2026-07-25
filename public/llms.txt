@@ -26,7 +26,7 @@ EcoAuditor helps small and mid-size businesses measure, track, and report their 
 - **Core features:** Emissions ledger, facility tracking, supplier scope-3 ingestion, CSV activity data import, compliance report generation, DPA support
 - **Pricing:** 14-day free trial (no card required); Starter $149/mo, Growth $399/mo, Pro $999/mo (annual discounts ~17%)
 - **Auth:** Google and Apple sign-in supported
-- **Emission factor libraries:** EPA GHG Factor Hub, eGRID, IPCC AR6 GWP-100, EPA WARM/EEIO
+- **Emission factor libraries:** EPA GHG Factor Hub, eGRID, IPCC AR5 GWP-100, EPA WARM/EEIO
 - **Compliance frameworks:** GHG Protocol (Scope 1, 2, 3), SB 253, EU CBAM
 - **Privacy:** Data Processing Addendum available at https://ecoauditor.io/dpa
 

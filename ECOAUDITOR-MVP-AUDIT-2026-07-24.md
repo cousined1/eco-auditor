@@ -8,6 +8,26 @@
 
 ---
 
+## Fixed in this branch
+
+The audit below is the snapshot at `6de4e1d`. Two items have since been fixed on this branch:
+
+- **P0-4 (mock methodology page)** — `/app/methodology` now renders `ComingSoon` instead of fictional facilities. `src/pages/Methodology.tsx`.
+- **P0-1 (factor errors)** — corrected in `emissions-engine.cjs` and `src/components/carbon-calculator/utils.ts`:
+  - `natural_gas.gj` 50.68 → 0.050253 (the 1000× unit bug)
+  - eGRID table replaced with all 27 eGRID2023 Rev 2 subregions; the silent CAMX fallback now throws
+  - Fugitive natural-gas leak 25.3 → 512 kg CO2e/MCF (~20× correction)
+  - Fuel Oil No. 1 → 10.18, kerosene → 10.15, wood → 1.64 (EPA Hub 2025)
+  - Client mobile factors aligned to the server and to Hub 2025 (gasoline 8.887 → 8.78, diesel 10.18 → 10.21, jet fuel 9.537 → 9.75)
+  - Client electricity factors replaced with eGRID2023 values; "New York" split into the two subregions eGRID actually publishes
+  - **GWP basis standardised on AR5** across the code, the registry, the public methodology page, and `llms.txt` — because EPA Hub 2025 and eGRID2023 both use AR5, so the whole inventory now sits on one basis. This is a reversible methodology decision: see "Still open" below.
+
+**Still open in P0-1:** the Scope 3 spend-based factors remain untraceable to any published EEIO dataset and are still labelled "EPA WARM"; T&D losses are still added to Scope 2 rather than Scope 3 Cat 3; wood's biogenic CO2 is still inside Scope 1 rather than a separate biogenic line; `Natural Gas Vehicle` (11.171/gal) matches no published EPA figure and is flagged in-code as UNVERIFIED; `Fuel Oil` (78.80/MMBtu) and `Coal` (95.35/MMBtu) in the client table are unverified. The two factor tables still exist separately — they now agree on overlapping values but have not been merged.
+
+Verification after the fixes: `npm test` **169/169 PASS**, `npm run build` **PASS**, `npx tsc -b` **PASS**, lint unchanged (the same 1 pre-existing error + 1 warning).
+
+---
+
 ## 0. Verification evidence
 
 | Check | Command / probe | Result |
