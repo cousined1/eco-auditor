@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <h1 className="text-xl font-semibold text-surface-900 dark:text-white">
             Something went wrong
           </h1>
-          <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+          <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
             An unexpected error occurred while rendering this page. Try reloading — if the problem
             persists, contact support.
           </p>

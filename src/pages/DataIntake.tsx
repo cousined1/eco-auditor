@@ -27,10 +27,15 @@ export default function DataIntake() {
     };
   }, []);
 
+  // Only successes auto-dismiss. Errors used to disappear after 4s too, so a
+  // failed import — a skipped file, an expired session, a plan limit — vanished
+  // before it could be read and the upload looked like it had worked.
   const showStatus = useCallback((type: 'success' | 'error', message: string) => {
     setActionStatus({ type, message });
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-    statusTimerRef.current = setTimeout(() => setActionStatus(null), 4000);
+    if (type === 'success') {
+      statusTimerRef.current = setTimeout(() => setActionStatus(null), 4000);
+    }
   }, []);
 
   const handleUpload = async (files: FileList | null) => {
@@ -64,7 +69,10 @@ export default function DataIntake() {
         if (res.status === 402) {
           const up = await getUpgradeRequired(res);
           setUploadUpgrade(up || { requiredPlan: 'starter' });
-          showStatus('error', 'CSV import requires an active plan.');
+          // Prefer the server's reason — "you have used all 10 imports this
+          // month" or "this file contains Scope 3 rows" tells the customer what
+          // to do; a generic "requires an active plan" does not.
+          showStatus('error', up?.message || 'CSV import requires an active plan.');
           continue;
         }
         const data = await res.json();
@@ -118,15 +126,25 @@ export default function DataIntake() {
       {/* Action status banner */}
       {actionStatus && (
         <div
-          role="status"
-          aria-live="polite"
-          className={`px-4 py-2.5 rounded-lg text-sm border ${
+          role={actionStatus.type === 'error' ? 'alert' : 'status'}
+          aria-live={actionStatus.type === 'error' ? 'assertive' : 'polite'}
+          className={`flex items-start justify-between gap-3 px-4 py-2.5 rounded-lg text-sm border ${
             actionStatus.type === 'success'
               ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
               : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
           }`}
         >
-          {actionStatus.message}
+          <span>{actionStatus.message}</span>
+          {actionStatus.type === 'error' && (
+            <button
+              type="button"
+              onClick={() => setActionStatus(null)}
+              aria-label="Dismiss error"
+              className="flex-shrink-0 text-lg leading-none hover:opacity-70"
+            >
+              &times;
+            </button>
+          )}
         </div>
       )}
 
@@ -140,7 +158,7 @@ export default function DataIntake() {
             <button
               type="button"
               onClick={() => setCsvResult(null)}
-              className="text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 text-lg leading-none"
+              className="text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200 text-lg leading-none"
               aria-label="Dismiss results"
             >
               &times;
@@ -197,8 +215,11 @@ export default function DataIntake() {
         ))}
       </div>
 
+      {/* Each tab's aria-controls pointed at an id that was never rendered, so
+          the relationship was broken for assistive tech. The panels now carry
+          the matching id, role, and label, and are focusable after activation. */}
       {activeTab === 'files' && (
-        <div className="card">
+        <div id="tab-panel-files" role="tabpanel" aria-labelledby="tab-files" tabIndex={0} className="card">
           <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Uploaded Files</h3>
           <p className="text-sm text-surface-600 dark:text-surface-400">
             Only CSV imports are supported today. Document scanning, OCR previews, and the human review queue are coming soon.
@@ -207,11 +228,15 @@ export default function DataIntake() {
       )}
 
       {activeTab === 'integrations' && (
-        <ComingSoon featureName="Integrations" />
+        <div id="tab-panel-integrations" role="tabpanel" aria-labelledby="tab-integrations" tabIndex={0}>
+          <ComingSoon featureName="Integrations" />
+        </div>
       )}
 
       {activeTab === 'review' && (
-        <ComingSoon featureName="Human Review Queue" />
+        <div id="tab-panel-review" role="tabpanel" aria-labelledby="tab-review" tabIndex={0}>
+          <ComingSoon featureName="Human Review Queue" />
+        </div>
       )}
     </div>
   );

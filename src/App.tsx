@@ -5,7 +5,7 @@ import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
 import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
-import { createCheckoutSession } from './lib/stripe';
+import { createCheckoutSession, verifyCheckoutSession } from './lib/stripe';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
@@ -26,6 +26,7 @@ import Demo from './pages/Demo';
 import DataProcessingAddendum from './pages/DataProcessingAddendum';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
 import AuthCallback from './pages/AuthCallback';
 import NotFound from './pages/NotFound';
 import CarbonCalculator from './components/carbon-calculator';
@@ -35,15 +36,18 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
 
+// `soon` marks destinations that render a ComingSoon stub. Half the sidebar
+// led to placeholders with nothing to distinguish them, so the only way to
+// find out was to click — which reads as a broken app rather than a roadmap.
 const NAV_ITEMS = [
   { to: '/app', label: 'Dashboard', icon: DashboardIcon, end: true },
   { to: '/app/intake', label: 'Data Intake', icon: DataIcon },
   { to: '/app/calculator', label: 'Calculator', icon: CalculatorIcon },
-  { to: '/app/assistant', label: 'AI Assistant', icon: AssistantIcon },
-  { to: '/app/ledger', label: 'Ledger', icon: LedgerIcon },
-  { to: '/app/reports', label: 'Reports', icon: ReportsIcon },
-  { to: '/app/suppliers', label: 'Suppliers', icon: SuppliersIcon },
-  { to: '/app/methodology', label: 'Methodology', icon: MethodologyIcon },
+  { to: '/app/assistant', label: 'AI Assistant', icon: AssistantIcon, soon: true },
+  { to: '/app/ledger', label: 'Ledger', icon: LedgerIcon, soon: true },
+  { to: '/app/reports', label: 'Reports', icon: ReportsIcon, soon: true },
+  { to: '/app/suppliers', label: 'Suppliers', icon: SuppliersIcon, soon: true },
+  { to: '/app/methodology', label: 'Methodology', icon: MethodologyIcon, soon: true },
   { to: '/app/pricing', label: 'Pricing', icon: PricingIcon },
   { to: '/app/settings', label: 'Settings', icon: SettingsIcon },
 ];
@@ -63,6 +67,21 @@ function TrackPageViews() {
   useEffect(() => {
     trackPageView(location.pathname + location.search);
   }, [location, trackPageView]);
+
+  // A SPA keeps the scroll position across navigations, so moving from a
+  // scrolled landing page to /pricing used to land mid-page. Reset scroll and
+  // move focus to the main landmark, which also gives keyboard and screen
+  // reader users a defined starting point instead of leaving focus on the link
+  // they just followed.
+  useEffect(() => {
+    if (location.hash) {
+      // In-page anchor: honour the target rather than jumping to the top.
+      document.getElementById(location.hash.slice(1))?.scrollIntoView();
+      return;
+    }
+    window.scrollTo(0, 0);
+    document.getElementById('main-content')?.focus({ preventScroll: true });
+  }, [location.pathname, location.hash]);
 
   return null;
 }
@@ -174,9 +193,24 @@ function AppContent() {
       params.delete('session_id');
       replaced = true;
       setCheckoutBanner({
-        message: 'Welcome back! Your subscription is being finalized. It may take a moment to appear in Settings → Billing.',
+        message: 'Welcome back! Confirming your subscription…',
         type: 'success',
       });
+      // Don't rely on the webhook alone. If it has not landed yet, or failed
+      // and is still being retried, the customer would sit behind the paywall
+      // they just paid to remove. This reconciles against Stripe directly.
+      void (async () => {
+        const result = await verifyCheckoutSession(sessionId);
+        setCheckoutBanner(
+          result.ok && result.data.verified
+            ? { message: 'Your subscription is active. Thanks!', type: 'success' }
+            : {
+                message:
+                  'Payment received. Your subscription is still being finalized — it should appear in Settings → Billing shortly.',
+                type: 'success',
+              },
+        );
+      })();
     }
 
     if (checkout) {
@@ -227,7 +261,7 @@ function AppContent() {
             </button>
           }
         />
-        <main id="main-content">
+        <main id="main-content" tabIndex={-1}>
           <Routes>
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
@@ -363,7 +397,7 @@ function AppContent() {
       <Route path="/pricing" element={
         <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex flex-col">
           <Header variant="marketing" />
-          <main id="main-content" className="flex-1">
+          <main id="main-content" tabIndex={-1} className="flex-1">
             <Pricing />
           </main>
           <Footer />
@@ -375,6 +409,7 @@ function AppContent() {
       <Route path="/demo" element={<Demo />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -405,7 +440,7 @@ function SidebarContent({ user, onLogout, onNavigate }: SidebarContentProps) {
             key={item.to}
             to={item.to}
             end={item.end || false}
-            aria-label={item.label}
+            aria-label={item.soon ? `${item.label} (coming soon)` : item.label}
             onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
@@ -417,6 +452,11 @@ function SidebarContent({ user, onLogout, onNavigate }: SidebarContentProps) {
           >
             <item.icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
             {item.label}
+            {item.soon && (
+              <span className="ml-auto rounded-full bg-surface-100 px-1.5 py-0.5 text-2xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+                Soon
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

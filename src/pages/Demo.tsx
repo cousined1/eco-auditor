@@ -102,6 +102,7 @@ export default function Demo() {
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       <Header variant="marketing" />
+      <main id="main-content" tabIndex={-1}>
 
       <section className="relative overflow-hidden bg-gradient-to-b from-brand-50/60 via-surface-50 to-surface-50 dark:from-brand-950/30 dark:via-surface-950 dark:to-surface-950">
         <div className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
@@ -112,7 +113,7 @@ export default function Demo() {
           <h1 className="text-4xl md:text-5xl font-bold text-surface-900 dark:text-white leading-tight tracking-tight">
             Book a demo
           </h1>
-          <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">
             A focused walkthrough of Eco-Auditor against your reporting objective. Tell us what you need and we’ll show you the path — not a generic pitch.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-surface-500">
@@ -266,7 +267,7 @@ export default function Demo() {
                       <a href={mailtoHref} className="text-accent hover:underline">hello@developer312.com</a>.
                     </p>
                   )}
-                  <p className="text-2xs text-surface-400 text-center">
+                  <p className="text-2xs text-surface-600 dark:text-surface-400 text-center">
                     By submitting, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
                   </p>
                 </form>
@@ -276,6 +277,7 @@ export default function Demo() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );

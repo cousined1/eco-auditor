@@ -11,8 +11,8 @@ const FAQ_SCHEMA = {
   "mainEntity": [
     { "@type": "Question", "name": "What is Scope 1, 2, and 3 emissions?", "acceptedAnswer": { "@type": "Answer", "text": "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." } },
     { "@type": "Question", "name": "What is SB 253 and who does it affect?", "acceptedAnswer": { "@type": "Answer", "text": "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." } },
-    { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, CSV-based activity import with confidence scoring, and compliance report generation at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." } },
-    { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running quickly. You import a CSV and we apply emission factors, flagging low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." } },
+    { "@type": "Question", "name": "How is Eco-Auditor different from enterprise ESG platforms?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, CSV-based activity import with confidence scoring, and a PDF emissions summary at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." } },
+    { "@type": "Question", "name": "How long does it take to get started?", "acceptedAnswer": { "@type": "Answer", "text": "Most teams are up and running quickly. You import a CSV and we apply published emission factors, scoring each entry for confidence. A basic carbon inventory can be built in weeks, not months." } },
     { "@type": "Question", "name": "What compliance frameworks does Eco-Auditor support?", "acceptedAnswer": { "@type": "Answer", "text": "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." } },
     { "@type": "Question", "name": "Do I need a sustainability consultant to use Eco-Auditor?", "acceptedAnswer": { "@type": "Answer", "text": "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant on the roadmap to answer questions. That said, you can always engage a consultant to review your final reports." } },
   ]
@@ -21,8 +21,8 @@ const FAQ_SCHEMA = {
 const FAQS = [
   { q: "What is Scope 1, 2, and 3 emissions?", a: "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste." },
   { q: "What is SB 253 and who does it affect?", a: "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies." },
-  { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, CSV-based activity import with confidence scoring, and compliance report generation at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." },
-  { q: "How long does it take to get started?", a: "Most teams are up and running quickly. You import a CSV and we apply emission factors, flagging low-confidence entries for review. A basic carbon inventory can be built in weeks, not months." },
+  { q: "How is Eco-Auditor different from enterprise ESG platforms?", a: "Eco-Auditor is purpose-built for companies in the $10M–$500M revenue range. It provides reviewable emissions tracking, CSV-based activity import with confidence scoring, and a PDF emissions summary at a fraction of enterprise platform costs — typically $149–$999/month versus six-figure annual licenses." },
+  { q: "How long does it take to get started?", a: "Most teams are up and running quickly. You import a CSV and we apply published emission factors, scoring each entry for confidence. A basic carbon inventory can be built in weeks, not months." },
   { q: "What compliance frameworks does Eco-Auditor support?", a: "Eco-Auditor aligns with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It supports reporting packages for California SB 253, EU CBAM (Carbon Border Adjustment Mechanism), customer procurement requirements, and annual GHG inventories." },
   { q: "Do I need a sustainability consultant to use Eco-Auditor?", a: "No. Eco-Auditor is designed for operations, finance, and sustainability teams to use independently. The platform provides methodology guidance, emission factor libraries, and an AI assistant on the roadmap to answer questions. That said, you can always engage a consultant to review your final reports." },
 ];
@@ -35,7 +35,7 @@ export default function LandingPage() {
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
     const originalDesc = desc?.content ?? '';
-    if (desc) desc.content = 'Eco-Auditor is carbon accounting for SMBs facing SB 253, CBAM, and supply-chain carbon disclosure. Import activity data by CSV, get reviewable Scope 1-3 emissions records with data-quality scoring. 14-day free trial, no card required.';
+    if (desc) desc.content = 'Eco-Auditor is carbon accounting for SMBs facing SB 253, CBAM, and supply-chain carbon disclosure. Import activity data by CSV, get reviewable Scope 1-3 emissions records with per-entry confidence scoring. 14-day free trial, no card required.';
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -65,6 +65,7 @@ export default function LandingPage() {
           </button>
         }
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden">
@@ -92,7 +93,7 @@ export default function LandingPage() {
             Carbon accounting<br className="hidden sm:block" />
             <span className="text-brand-600 dark:text-brand-400">as easy as bookkeeping</span>
           </h1>
-          <p className="mt-6 text-lg text-surface-500 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">
             Large-company disclosure rules are cascading through supply chains. Your buyers, lenders, and regulators increasingly want reviewable emissions data. Eco-Auditor gets you there — without enterprise complexity or consultant fees.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -101,7 +102,7 @@ export default function LandingPage() {
             </Link>
             <Link to="/demo" className="btn-secondary !px-8 !py-3 text-base">Book a Demo</Link>
           </div>
-          <p className="mt-4 text-xs text-surface-400">14-day free trial · No card required · Cancel anytime before trial ends</p>
+          <p className="mt-4 text-xs text-surface-600 dark:text-surface-400">14-day free trial · No card required · Cancel anytime before trial ends</p>
         </div>
       </section>
 
@@ -118,13 +119,13 @@ export default function LandingPage() {
             {
               step: '2',
               title: 'Import & calculate',
-              desc: 'Import activity data by CSV; we apply EPA/eGRID emission factors and flag low-confidence entries for review.',
+              desc: 'Import activity data by CSV; we apply EPA, eGRID, and IPCC factors and score every entry for confidence.',
               icon: <AIIcon />,
             },
             {
               step: '3',
               title: 'Get reviewable records',
-              desc: 'Generate compliance packages for SB 253, CBAM, or customer procurement. Every number traces to source — your auditor sees a ledger, not a spreadsheet.',
+              desc: 'Export a PDF emissions summary for SB 253, CBAM, or customer procurement conversations. Every number traces to the factor and published dataset behind it.',
               icon: <ReportIcon />,
             },
           ].map((item) => (
@@ -158,22 +159,26 @@ export default function LandingPage() {
             aria-describedby="product-video-description"
           >
             <source src="/api/video" type="video/mp4" />
-            <track kind="captions" src="/video/product-workflow.en.vtt" srcLang="en" label="English captions" default />
+            {/* The captions track pointed at /video/product-workflow.en.vtt,
+                which 404s — public/video/ does not exist. An advertised
+                captions track that fails to load is worse than none, because
+                the control appears available. The text alternative below
+                carries the content until a real .vtt is authored. */}
             <p id="product-video-description">
               Watch the <Link to="/demo">interactive product walkthrough</Link> or read the <Link to="/methodology">methodology overview</Link> for a text-based explanation of how Eco-Auditor turns activity data into a reviewable carbon inventory.
             </p>
           </video>
         </div>
-        <p className="text-center mt-4 text-xs text-surface-400">See how Eco-Auditor turns messy data into reviewable carbon records</p>
+        <p className="text-center mt-4 text-xs text-surface-600 dark:text-surface-400">See how Eco-Auditor turns messy data into reviewable carbon records</p>
       </section>
 
       {/* ─── Social Proof ─── */}
       <section className="border-y border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
-          <p className="text-center text-xs font-medium text-surface-400 uppercase tracking-wider mb-6">
+          <p className="text-center text-xs font-medium text-surface-600 dark:text-surface-400 uppercase tracking-wider mb-6">
             Built for operations and sustainability teams preparing for SB 253, CBAM, and supply-chain disclosure
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-surface-500 dark:text-surface-400">
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-surface-600 dark:text-surface-400">
             <span className="font-medium">GHG Protocol aligned</span>
             <span className="text-surface-300 dark:text-surface-600">•</span>
             <span className="font-medium">Scope 1, 2 &amp; 3 tracking</span>
@@ -209,9 +214,9 @@ export default function LandingPage() {
           <ValueCard
             icon={<AuditIcon />}
             title="Audit Defensibility"
-            description="Every number traces back to a source document, emission factor, reviewer, and timestamp. Your auditor sees a ledger, not a mystery spreadsheet."
+            description="Every number traces back to the activity data you imported, the emission factor applied, its published dataset, and a timestamp."
             metric="Traceable"
-            metricLabel="source → factor → reviewer → timestamp"
+            metricLabel="activity → factor → published dataset"
           />
         </div>
       </section>
@@ -226,9 +231,9 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {[
               { step: '01', title: 'Import Data', desc: 'Import activity data by CSV — utility bills, invoices, and freight docs. Connect QuickBooks and Xero (roadmap).' },
-              { step: '02', title: 'Import & Map', desc: 'Import CSV activity data; we apply emission factors and flag low-confidence rows for your review.' },
-              { step: '03', title: 'Review & Verify', desc: 'Your team reviews flagged items, confirms assumptions, and builds a reviewable emissions ledger.' },
-              { step: '04', title: 'Export Reports', desc: 'Generate compliance-ready packages for California, CBAM, customer procurement, and annual inventory.' },
+              { step: '02', title: 'Import & Map', desc: 'Import CSV activity data; we apply published emission factors and score each row for confidence.' },
+              { step: '03', title: 'Review & Verify', desc: 'Your team checks the imported rows and confidence scores, and corrects anything that looks wrong.' },
+              { step: '04', title: 'Export Reports', desc: 'Export a PDF emissions summary to support California, CBAM, procurement, and annual inventory work.' },
             ].map((item) => (
               <div key={item.step} className="text-center md:text-left">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-sm font-bold mb-4">
@@ -251,12 +256,12 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <FeatureCard
             title="Executive Dashboard"
-            description="Total emissions, scope breakdown, readiness scores, missing data alerts, and compliance tasks — all at a glance."
+            description="Total emissions, Scope 1/2/3 breakdown, 12-month trend, and an overall data-confidence score — all at a glance."
             icon={<DashboardIcon />}
           />
           <FeatureCard
             title="Data Intake"
-            description="Upload CSV activity data with confidence scores and a human review queue."
+            description="Upload CSV activity data and get a per-entry confidence score, with row-level errors surfaced on import."
             icon={<DataIcon />}
           />
           <FeatureCard
@@ -291,7 +296,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto px-6 py-20">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">What teams will be able to say</h2>
-            <p className="mt-3 text-xs text-surface-400 uppercase tracking-wider">
+            <p className="mt-3 text-xs text-surface-600 dark:text-surface-400 uppercase tracking-wider">
               Illustrative — composite examples of the workflow we are building, not real customer quotes
             </p>
           </div>
@@ -322,7 +327,7 @@ export default function LandingPage() {
               <details key={faq.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">
                   {faq.q}
-                  <svg className="w-4 h-4 text-surface-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg className="w-4 h-4 text-surface-600 dark:text-surface-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </summary>
                 <div className="px-5 pb-4 text-sm text-surface-600 dark:text-surface-400 leading-relaxed">{faq.a}</div>
               </details>
@@ -349,6 +354,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Footer ─── */}
+      </main>
       <Footer />
     </div>
   );
@@ -368,7 +374,7 @@ function ValueCard({ icon, title, description, metric, metricLabel }: { icon: Re
       <p className="text-sm text-surface-500 leading-relaxed mb-5">{description}</p>
       <div className="pt-4 border-t border-surface-200 dark:border-surface-700">
         <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">{metric}</span>
-        <span className="ml-2 text-xs text-surface-400">{metricLabel}</span>
+        <span className="ml-2 text-xs text-surface-600 dark:text-surface-400">{metricLabel}</span>
       </div>
     </div>
   );
@@ -382,7 +388,7 @@ function FeatureCard({ title, description, icon, comingSoon }: { title: string; 
           {icon}
         </div>
         {comingSoon && (
-          <span className="inline-flex items-center rounded-full bg-surface-100 dark:bg-surface-800 px-2.5 py-0.5 text-xs font-medium text-surface-500 dark:text-surface-400">
+          <span className="inline-flex items-center rounded-full bg-surface-100 dark:bg-surface-800 px-2.5 py-0.5 text-xs font-medium text-surface-600 dark:text-surface-400">
             Coming soon
           </span>
         )}
@@ -402,7 +408,7 @@ function TestimonialCard({ quote, name, role }: { quote: string; name: string; r
       <blockquote className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed mb-5">"{quote}"</blockquote>
       <div>
         <div className="text-sm font-medium text-surface-900 dark:text-white">{name}</div>
-        <div className="text-xs text-surface-400">{role}</div>
+        <div className="text-xs text-surface-600 dark:text-surface-400">{role}</div>
       </div>
     </div>
   );

@@ -36,14 +36,32 @@ export default function Onboarding({ userId, onComplete }: Props) {
     setError(null);
 
     try {
-      const { data: company, error: companyError } = await insforge.database
+      // The server auto-provisions a company on first authenticated API call
+      // (ensureCompanyForUser), and companies has UNIQUE (user_id). A blind
+      // insert therefore fails with a constraint violation whenever the server
+      // got there first — which it does as soon as the user opens the
+      // dashboard. Adopt the existing row and name it instead of competing.
+      const { data: existing } = await insforge.database
         .from('companies')
-        .insert([{ user_id: userId, name: trimmedName, industry: industry || null }])
-        .select()
-        .single();
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const { data: company, error: companyError } = existing
+        ? await insforge.database
+            .from('companies')
+            .update({ name: trimmedName, industry: industry || null })
+            .eq('id', (existing as Company).id)
+            .select()
+            .single()
+        : await insforge.database
+            .from('companies')
+            .insert([{ user_id: userId, name: trimmedName, industry: industry || null }])
+            .select()
+            .single();
 
       if (companyError || !company) {
-        throw new Error(companyError?.message || 'Failed to create company');
+        throw new Error(companyError?.message || 'Failed to save company');
       }
 
       let facilities: Facility[] = [];

@@ -7,6 +7,12 @@ const {
   hasPlanAccess,
   planFromPriceId,
   resolvePlanPriceId,
+  shouldRetryWebhook,
+  planLimits,
+  canAddFacility,
+  canImportCsv,
+  canUseScope3,
+  WEBHOOK_RETRY_WINDOW_SECONDS,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 } = require('../server-billing.cjs');
@@ -95,6 +101,7 @@ describe('subscriptionRecordFromStripe', () => {
       billingCycle: 'annual',
       currentPeriodEnd: new Date(PERIOD_END_UNIX * 1000).toISOString(),
       cancelAtPeriodEnd: false,
+      unrecognizedActivePrice: null,
     });
   });
 
@@ -136,16 +143,114 @@ describe('subscriptionRecordFromStripe', () => {
     expect(state.plan).toBeNull();
   });
 
-  it('leaves plan null for unrecognized price IDs', () => {
+  // Regression: an unrecognized price used to persist plan = null, which
+  // billingStateFromCompany reads as inactive — so a price rotation in Stripe,
+  // or env drift between deploys, paywalled a customer who was paying.
+  it('grants starter access when an ACTIVE subscription has an unrecognized price', () => {
     const record = subscriptionRecordFromStripe({
       id: 'sub_123',
       customer: 'cus_456',
       status: 'active',
+      current_period_end: PERIOD_END_UNIX,
+      items: { data: [{ id: 'si_1', price: { id: 'price_rotated_2027' } }] },
+    }, STRIPE_ENV);
+
+    expect(record.plan).toBe('starter');
+    expect(record.billingCycle).toBeNull();
+    // Surfaced so the env mismatch can be found and fixed.
+    expect(record.unrecognizedActivePrice).toBe('price_rotated_2027');
+
+    const state = billingStateFromCompany({
+      subscription_status: record.status,
+      subscription_plan: record.plan,
+      subscription_current_period_end: record.currentPeriodEnd,
+    }, new Date('2026-06-01T00:00:00.000Z')); // inside the paid period
+
+    expect(state.active).toBe(true);
+    expect(state.plan).toBe('starter');
+  });
+
+  // Every limit advertised on the pricing page must have a server-side check.
+  // Before this, all three tiers received identical functionality — a $999 Pro
+  // customer got exactly what a $149 Starter customer got, in both directions.
+  describe('plan limit enforcement', () => {
+    it('caps facilities per plan and names the upgrade', () => {
+      expect(canAddFacility('starter', 0).allowed).toBe(true);
+      expect(canAddFacility('starter', 1)).toMatchObject({ allowed: false, limit: 1, requiredPlan: 'growth' });
+      expect(canAddFacility('growth', 4).allowed).toBe(true);
+      expect(canAddFacility('growth', 5)).toMatchObject({ allowed: false, limit: 5, requiredPlan: 'pro' });
+      // Pro is unlimited.
+      expect(canAddFacility('pro', 10_000).allowed).toBe(true);
+    });
+
+    it('caps monthly CSV imports on starter only', () => {
+      expect(canImportCsv('starter', 9).allowed).toBe(true);
+      expect(canImportCsv('starter', 10)).toMatchObject({ allowed: false, limit: 10, requiredPlan: 'growth' });
+      expect(canImportCsv('growth', 10_000).allowed).toBe(true);
+      expect(canImportCsv('pro', 10_000).allowed).toBe(true);
+    });
+
+    it('reserves Scope 3 for growth and above', () => {
+      expect(canUseScope3('starter')).toMatchObject({ allowed: false, requiredPlan: 'growth' });
+      expect(canUseScope3('growth').allowed).toBe(true);
+      expect(canUseScope3('pro').allowed).toBe(true);
+    });
+
+    it('treats an unknown plan as the lowest tier rather than unlimited', () => {
+      // Fail closed: a plan string we do not recognise must not grant more than
+      // starter, or a bad value becomes a free upgrade.
+      expect(canAddFacility('enterprise', 1).allowed).toBe(false);
+      expect(canUseScope3('enterprise').allowed).toBe(false);
+      expect(canImportCsv('enterprise', 10).allowed).toBe(false);
+    });
+
+    it('advertises exactly what it enforces', () => {
+      // The pricing page derives its copy from the same file, so these must agree.
+      expect(planLimits('starter')).toEqual({ facilities: 1, csvImportsPerMonth: 10, scope3: false });
+      expect(planLimits('growth')).toEqual({ facilities: 5, csvImportsPerMonth: null, scope3: true });
+      expect(planLimits('pro')).toEqual({ facilities: null, csvImportsPerMonth: null, scope3: true });
+    });
+  });
+
+  // A webhook that could not persist must ask Stripe to redeliver — acking 200
+  // is how a paying customer silently loses entitlement. But a permanently
+  // unmappable customer failing for the full 3-day window makes the endpoint
+  // look broken to Stripe, which can disable it for everyone.
+  describe('webhook retry policy', () => {
+    const NOW = 1_784_000_000;
+
+    it('retries a recent retryable failure', () => {
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, NOW - 30, NOW)).toBe(true);
+    });
+
+    it('gives up once the failure is older than the retry window', () => {
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, NOW - WEBHOOK_RETRY_WINDOW_SECONDS - 1, NOW)).toBe(false);
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, NOW - WEBHOOK_RETRY_WINDOW_SECONDS + 1, NOW)).toBe(true);
+    });
+
+    it('never retries a successful or terminal outcome', () => {
+      expect(shouldRetryWebhook({ ok: true }, NOW, NOW)).toBe(false);
+      // A stale event is a correct skip, not a failure.
+      expect(shouldRetryWebhook({ ok: true, reason: 'stale_event' }, NOW, NOW)).toBe(false);
+      // A record with no customer id cannot be fixed by redelivery.
+      expect(shouldRetryWebhook({ ok: false, retryable: false, reason: 'no_customer_id' }, NOW, NOW)).toBe(false);
+    });
+
+    it('retries when the event carries no timestamp', () => {
+      expect(shouldRetryWebhook({ ok: false, retryable: true }, null, NOW)).toBe(true);
+    });
+  });
+
+  it('does not grant access when an INACTIVE subscription has an unrecognized price', () => {
+    const record = subscriptionRecordFromStripe({
+      id: 'sub_123',
+      customer: 'cus_456',
+      status: 'canceled',
       items: { data: [{ id: 'si_1', price: { id: 'price_unknown' } }] },
     }, STRIPE_ENV);
 
     expect(record.plan).toBeNull();
-    expect(record.billingCycle).toBeNull();
+    expect(record.unrecognizedActivePrice).toBeNull();
     expect(record.currentPeriodEnd).toBeNull();
   });
 });

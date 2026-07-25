@@ -62,11 +62,17 @@ export const EMISSION_FACTOR_REGISTRY: EmissionFactorVersion[] = [
     note: 'Roadmap — not wired into the calculator. Published Nov 2020; latest is v3.9.6 (Jun 2025). Data year unverified.',
   },
   {
-    id: 'ipcc-ar6-gwp100',
-    label: 'IPCC AR6 GWP-100',
+    // ponytail: was 'ipcc-ar6-gwp100' / verified:true while the coded GWPs were
+    // verbatim AR4 values. Standardised on AR5 rather than AR6 because the two
+    // datasets this product actually depends on — EPA GHG Emission Factors Hub
+    // 2025 and eGRID2023 — both use AR5 GWPs, so an AR5 basis keeps the whole
+    // inventory internally consistent. Changing basis means changing the coded
+    // GWPs in utils.ts AND every public label together.
+    id: 'ipcc-ar5-gwp100',
+    label: 'IPCC AR5 GWP-100',
     publisher: 'IPCC',
-    publishedYear: 2021,
-    dataYear: 2021,
+    publishedYear: 2014,
+    dataYear: 2014,
     scopes: ['Scope 1'],
     verified: true,
   },

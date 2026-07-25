@@ -1,121 +1,20 @@
-export type Scope = 'Scope 1' | 'Scope 2' | 'Scope 3';
+// Emission factors moved to emission-factors.json, shared with the server
+// engine. This file previously carried a second, independent table that
+// disagreed with the engine for the same activity, and a calculateEmissions()
+// that took no unit — so the form's Unit selector was decorative.
+// Re-exports trimmed to what the calculator components actually import.
+// Anything else should be imported from @/lib/emission-factors/factors direct.
+export {
+  calculateEmissions,
+  categoriesForScope,
+  sourcesForCategory,
+  unitsForSource,
+  labelForCategory,
+  labelForSource,
+  type Scope,
+} from '@/lib/emission-factors/factors';
 
-export type CategoryMap = Record<Scope, string[]>;
-
-export const SCOPE_CATEGORIES: CategoryMap = {
-  'Scope 1': [
-    'Stationary Combustion',
-    'Mobile Combustion',
-    'Process Emissions',
-    'Fugitive Emissions',
-  ],
-  'Scope 2': ['Purchased Electricity', 'Purchased Heat / Steam'],
-  'Scope 3': [
-    'Purchased Goods',
-    'Business Travel',
-    'Employee Commuting',
-    'Waste',
-    'Transportation',
-  ],
-};
-
-export const UNITS = ['kWh', 'therms', 'gallons', 'miles', 'kg', 'tons', 'MMBtu', 'room-nights'] as const;
-
-export type Unit = (typeof UNITS)[number];
-
-// EPA emission factors — kg CO2e per unit
-export const EMISSION_FACTORS: Record<string, Record<string, number>> = {
-  'Stationary Combustion': {
-    'Natural Gas': 53.06,      // per MMBtu
-    Propane: 62.87,
-    Diesel: 73.96,
-    'Fuel Oil': 78.80,
-    Coal: 95.35,
-  },
-  'Mobile Combustion': {
-    Gasoline: 8.887,           // per gallon
-    Diesel: 10.18,
-    'Jet Fuel': 9.537,
-    'Natural Gas Vehicle': 11.171,
-  },
-  'Process Emissions': {
-    Cement: 507,               // per ton
-    Steel: 1850,
-    Ammonia: 2550,
-  },
-  'Fugitive Emissions': {
-    'Refrigerant R-410A': 2088, // per kg
-    'Refrigerant R-22': 1810,
-    'Natural Gas Leak': 25.3,  // per MCF
-  },
-  'Purchased Electricity': {
-    'US Average': 0.417,       // per kWh (kg CO2e)
-    California: 0.23,
-    Texas: 0.41,
-    'New York': 0.28,
-    Renewable: 0,
-  },
-  'Purchased Heat / Steam': {
-    Steam: 0.066,              // per lb
-    'Hot Water': 0.052,
-  },
-  'Purchased Goods': {
-    Paper: 0.94,               // per kg
-    Plastic: 2.0,
-    'Steel Product': 1.35,
-    Aluminum: 11.2,
-    Concrete: 0.107,
-  },
-  'Business Travel': {
-    'Air Short Haul': 0.255,   // per passenger mile
-    'Air Long Haul': 0.195,
-    Hotel: 20.6,               // per room night
-    'Rental Car': 0.404,       // per mile
-  },
-  'Employee Commuting': {
-    'Car Alone': 0.404,        // per mile
-    'Car Pool': 0.202,
-    'Public Transit': 0.164,
-    Remote: 0,
-  },
-  Waste: {
-    Landfill: 0.586,           // per kg
-    Recycling: 0.02,
-    Composting: 0.01,
-  },
-  Transportation: {
-    'Heavy Duty Diesel': 1.018, // per mile
-    'Medium Duty Gasoline': 0.65,
-    'Light Duty Gasoline': 0.404,
-    Rail: 0.021,
-  },
-};
-
-export const CATEGORY_SOURCES: Record<string, string[]> = {
-  'Stationary Combustion': ['Natural Gas', 'Propane', 'Diesel', 'Fuel Oil', 'Coal'],
-  'Mobile Combustion': ['Gasoline', 'Diesel', 'Jet Fuel', 'Natural Gas Vehicle'],
-  'Process Emissions': ['Cement', 'Steel', 'Ammonia'],
-  'Fugitive Emissions': ['Refrigerant R-410A', 'Refrigerant R-22', 'Natural Gas Leak'],
-  'Purchased Electricity': ['US Average', 'California', 'Texas', 'New York', 'Renewable'],
-  'Purchased Heat / Steam': ['Steam', 'Hot Water'],
-  'Purchased Goods': ['Paper', 'Plastic', 'Steel Product', 'Aluminum', 'Concrete'],
-  'Business Travel': ['Air Short Haul', 'Air Long Haul', 'Hotel', 'Rental Car'],
-  'Employee Commuting': ['Car Alone', 'Car Pool', 'Public Transit', 'Remote'],
-  Waste: ['Landfill', 'Recycling', 'Composting'],
-  Transportation: ['Heavy Duty Diesel', 'Medium Duty Gasoline', 'Light Duty Gasoline', 'Rail'],
-};
-
-export function calculateEmissions(category: string, source: string, amount: number): number {
-  const factors = EMISSION_FACTORS[category];
-  if (!factors) return 0;
-  const factor = factors[source];
-  if (factor === undefined) return 0;
-  return amount * factor;
-}
-
-export function getSourcesForCategory(category: string): string[] {
-  return CATEGORY_SOURCES[category] ?? [];
-}
+export const SCOPES = ['Scope 1', 'Scope 2', 'Scope 3'] as const;
 
 export interface EmissionEntry {
   id: number;

@@ -12,7 +12,7 @@ export function ComingSoon({ featureName }: ComingSoonProps) {
           Coming soon
         </span>
         <h1 className="text-2xl font-semibold text-surface-900 dark:text-white">{featureName}</h1>
-        <p className="mt-3 max-w-lg text-sm leading-relaxed text-surface-500 dark:text-surface-400">
+        <p className="mt-3 max-w-lg text-sm leading-relaxed text-surface-600 dark:text-surface-400">
           This feature is not connected to production data yet. We are keeping it gated until the live workflow is ready, so you do not see sample records or placeholder controls.
         </p>
         <Link to="/app" className="btn-primary mt-6">

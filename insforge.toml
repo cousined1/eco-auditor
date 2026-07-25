@@ -1,12 +1,61 @@
-[auth]
-allowedRedirectUrls = [
-  "https://ecoauditor.io/auth/callback",
-  "https://provenance-os.com/auth/callback",
-  "http://localhost:5173/auth/callback"
-]
+# Declarative InsForge project config. Apply with:
+#   npx @insforge/cli config plan     # review the diff first
+#   npx @insforge/cli config apply
+#
+# Keys are snake_case and must match the managed schema exactly — this file
+# previously used camelCase (allowedRedirectUrls), which the CLI silently
+# ignored, so `config plan` reported no changes no matter what was edited.
+# Verify with `config export --out <scratch>` before adding a key.
+#
+# NOTE: OAuth provider apps (Apple, Google) are NOT managed here. This file
+# used to carry an [auth.providers.apple] block whose privateKey was the
+# literal string "REDACTED_STORE_SECURELY_OUTSIDE_REPO" — a placeholder that
+# `config apply` could have written over the real key. Provider credentials
+# live in the InsForge dashboard; never commit a private key.
 
-[auth.providers.apple]
-clientId = "io.ecoauditor.web"
-teamId = "NL5DY394T8"
-keyId = "DYL3BPARM6"
-privateKey = "REDACTED_STORE_SECURELY_OUTSIDE_REPO"
+[auth]
+allowed_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://localhost:5173/auth/callback",
+  "https://ecoauditor.io/auth/callback",
+]
+require_email_verification = true
+# Password reset and email verification both use emailed codes, not magic
+# links. The reset UI (src/pages/ForgotPassword.tsx) implements the code
+# exchange; switching either to "link" means changing that flow too.
+verify_email_method = "code"
+reset_password_method = "code"
+disable_signup = false
+
+[auth.password]
+# Mirrors what the signup and reset forms enforce: 8+ characters including a
+# number. Below this the server was the weaker gate, so anything bypassing the
+# UI — a direct API call to the auth endpoint — could set a weaker password.
+#
+# require_lowercase / require_uppercase stay off deliberately. The forms accept
+# a letter of either case (/[a-zA-Z]/), so switching either on would make the
+# SERVER stricter than the client: a password the form accepts would be
+# rejected after submit. The client must remain the tighter of the two.
+min_length = 8
+require_number = true
+require_lowercase = false
+require_uppercase = false
+require_special_char = false
+
+[auth.smtp]
+enabled = false
+host = ""
+port = 465
+username = ""
+sender_email = ""
+sender_name = ""
+min_interval_seconds = 60
+
+[storage]
+max_file_size_mb = 50
+
+[realtime]
+retention_days = 0
+
+[schedules]
+retention_days = 7

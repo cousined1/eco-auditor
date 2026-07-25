@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { insforge } from '../lib/insforge';
+import { destinationFor, takeAuthIntent } from '../lib/authIntent';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -30,7 +31,11 @@ export default function AuthCallback() {
       // Navigate to /app — the first API call there (e.g. /api/emissions/summary)
       // triggers ensureCompanyForUser on the server, which auto-provisions a
       // company with a 14-day trial_ends_at for first-time users.
-      navigate('/app', { replace: true });
+      //
+      // If the visitor picked a plan before choosing an OAuth provider, resume
+      // that checkout instead of dropping them on an empty dashboard. This
+      // hardcoded '/app' was where the purchase intent used to die.
+      navigate(destinationFor(takeAuthIntent()), { replace: true });
     }
 
     void finishOAuth();

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useConsent } from '@/lib/consent-context';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export function CookieConsentBanner() {
   const { consentState, acceptAll, rejectAll } = useConsent();
@@ -63,6 +64,9 @@ export function CookieConsentBanner() {
 function CookiePreferencesModal({ onClose }: { onClose: () => void }) {
   const { consentState, updateConsent } = useConsent();
   const [localConsent, setLocalConsent] = useState(consentState.consent);
+  // aria-modal alone does not contain the keyboard — Tab used to walk straight
+  // out of this dialog into the page behind it.
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
 
   const handleSave = () => {
     updateConsent(localConsent);
@@ -72,6 +76,8 @@ function CookiePreferencesModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="cookie-preferences-title"

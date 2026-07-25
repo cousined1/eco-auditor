@@ -10,8 +10,39 @@
 //   3. Reconcile `monthly`/`annual` here against the live Stripe price amounts.
 // `priceIdEnv` holds env var NAMES (strings), never the secret price ID values.
 // Do NOT fabricate Stripe price IDs — they are resolved at runtime from env.
+import planLimitsFile from '../../plan-limits.json';
+
 export type Billing = 'monthly' | 'annual';
 export type PlanId = 'starter' | 'growth' | 'pro';
+
+export type PlanLimits = {
+  facilities: number | null; // null = unlimited
+  csvImportsPerMonth: number | null;
+  scope3: boolean;
+};
+
+/**
+ * The same limits the server enforces (server-billing.cjs reads this file too).
+ * Every limit advertised below is derived from here, so the pricing page cannot
+ * promise a cap the API does not apply — which is exactly what it used to do.
+ */
+export const PLAN_LIMITS = planLimitsFile.plans as Record<PlanId, PlanLimits>;
+
+const countLabel = (value: number | null, singular: string, plural = `${singular}s`) =>
+  value === null ? `Unlimited ${plural}` : `${value} ${value === 1 ? singular : plural}`;
+
+function facilitiesLabel(id: PlanId): string {
+  return countLabel(PLAN_LIMITS[id].facilities, 'facility', 'facilities');
+}
+
+function importsLabel(id: PlanId): string {
+  const limit = PLAN_LIMITS[id].csvImportsPerMonth;
+  return limit === null ? 'Unlimited CSV imports' : `${limit} CSV imports per month`;
+}
+
+function scope3Label(id: PlanId): string {
+  return PLAN_LIMITS[id].scope3 ? 'Scope 1, 2 & 3 workflows' : 'Scope 1 & 2 workflows';
+}
 
 export type Plan = {
   id: PlanId;
@@ -38,13 +69,13 @@ export const PLANS: Record<PlanId, Plan> = {
     trial: true,
     features: [
       '1 company',
-      '1 facility',
-      'Baseline Scope 1 & 2 tracking',
-      'Limited CSV imports (10/month)',
-      '1 reporting template',
+      facilitiesLabel('starter'),
+      scope3Label('starter'),
+      importsLabel('starter'),
+      'PDF emissions summary',
       'Email support',
     ],
-    locked: ['Up to 5 facilities', 'Scope 3 workflows', 'Priority support'],
+    locked: [facilitiesLabel('growth'), 'Scope 3 workflows', 'Priority support'],
     roadmap: ['AI Carbon Assistant', 'Supplier request hub', 'QuickBooks & Xero integrations', 'Audit trail & exports'],
   },
   growth: {
@@ -57,13 +88,13 @@ export const PLANS: Record<PlanId, Plan> = {
     popular: true,
     trial: true,
     features: [
-      'Up to 5 facilities',
-      'Scope 1, 2, & key Scope 3 workflows',
-      'Unlimited CSV imports',
-      'All standard reporting templates',
+      facilitiesLabel('growth'),
+      scope3Label('growth'),
+      importsLabel('growth'),
+      'PDF emissions summary',
       'Priority support',
     ],
-    locked: ['Unlimited facilities', 'Premium support & onboarding'],
+    locked: [facilitiesLabel('pro'), 'Premium support & onboarding'],
     roadmap: ['AI Carbon Assistant', 'Supplier request hub', 'QuickBooks & Xero integrations', 'Audit trail & report exports', 'Team permissions', 'API access'],
   },
   pro: {
@@ -75,10 +106,10 @@ export const PLANS: Record<PlanId, Plan> = {
     badge: 'Best for multi-facility teams',
     trial: false,
     features: [
-      'Unlimited facilities',
-      'Scope 1, 2, & key Scope 3 workflows',
-      'Unlimited CSV imports',
-      'All standard reporting templates',
+      facilitiesLabel('pro'),
+      scope3Label('pro'),
+      importsLabel('pro'),
+      'PDF emissions summary',
       'Premium support & onboarding',
     ],
     locked: [],
@@ -86,10 +117,9 @@ export const PLANS: Record<PlanId, Plan> = {
   },
 };
 
-export function getPlanById(id: string): Plan | undefined {
-  return PLANS[id as PlanId];
-}
-
-export function resolvePriceId(plan: Plan, billing: Billing): string | undefined {
-  return process.env[plan.priceIdEnv[billing]];
-}
+// resolvePriceId() was removed: it read process.env in browser code, where Vite
+// does not define `process`, so calling it would have thrown. It had no callers.
+// Price IDs are resolved server-side and validated against an allowlist —
+// GET /api/config/prices (server.cjs) feeding fetchPriceConfig() in lib/stripe.ts.
+// Do not reintroduce client-side price resolution; it is what lets a client
+// inject an arbitrary price into checkout.

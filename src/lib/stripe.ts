@@ -69,10 +69,6 @@ async function fetchPriceConfig(): Promise<PriceConfig> {
   return _priceCachePromise;
 }
 
-function clearPriceCache(): void {
-  _priceCache = null;
-  _priceCachePromise = null;
-}
 
 
 
@@ -129,6 +125,39 @@ export async function createCheckoutSession({ planId, billing, trial }: Checkout
 
     const data = (await resp.json()) as { url: string };
     return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
+  }
+}
+
+/**
+ * Reconciles a completed checkout against Stripe on return to the app.
+ * The webhook is the primary path; this covers the window where it has not
+ * landed yet, so a customer who just paid is not left behind the paywall.
+ * The server checks the session belongs to the caller before granting anything.
+ */
+export async function verifyCheckoutSession(
+  sessionId: string,
+): Promise<StripeResult<{ verified: boolean; reason?: string }>> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: 'You must be signed in to confirm checkout' };
+
+  try {
+    const resp = await fetch('/api/checkout/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      return { ok: false, error: (body as { error?: string }).error || 'Could not confirm checkout' };
+    }
+
+    return { ok: true, data: (await resp.json()) as { verified: boolean; reason?: string } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
   }
@@ -238,5 +267,4 @@ export function handleWebhookEvent(event: StripeWebhookEvent): void {
   }
 }
 
-export { STRIPE_PK, fetchPriceConfig, clearPriceCache };
 export type { PriceConfig };

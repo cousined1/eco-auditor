@@ -1,0 +1,343 @@
+{
+  "version": "2026-07-24",
+  "basis": "kg CO2e per activity unit",
+  "gwpBasis": "ipcc-ar5-gwp100",
+  "note": "Single source of truth for emission factors. Consumed by emissions-engine.cjs (server, CSV import) and src/lib/emission-factors (client calculator). Previously these were two independent tables that disagreed for the same activity. Every source carries factorSource, which must match an id in src/lib/emission-factors/registry.ts. Units are explicit: a factor is only valid for the units listed under it.",
+  "categories": [
+    {
+      "key": "stationary_combustion",
+      "scope": 1,
+      "label": "Stationary Combustion",
+      "showInCalculator": true,
+      "sources": [
+        {
+          "key": "natural_gas",
+          "label": "Natural Gas",
+          "factorSource": "epa-efh-2025",
+          "units": { "MMBtu": 53.06, "therms": 5.306, "MCF": 54.44, "GJ": 50.29 },
+          "note": "53.06 kg CO2/MMBtu. therms = /10, MCF = x1.026 MMBtu/MCF heat content, GJ = /1.055056."
+        },
+        {
+          "key": "propane",
+          "label": "Propane",
+          "factorSource": "epa-efh-2025",
+          "units": { "MMBtu": 62.87, "gallons": 5.72, "liters": 1.5111 }
+        },
+        {
+          "key": "diesel",
+          "label": "Diesel",
+          "factorSource": "epa-efh-2025",
+          "units": { "MMBtu": 73.96, "gallons": 10.21, "liters": 2.6972 }
+        },
+        {
+          "key": "fuel_oil_1",
+          "label": "Fuel Oil No. 1",
+          "factorSource": "epa-efh-2025",
+          "units": { "MMBtu": 73.25, "gallons": 10.18 }
+        },
+        {
+          "key": "fuel_oil_2",
+          "label": "Fuel Oil No. 2",
+          "factorSource": "epa-efh-2025",
+          "units": { "MMBtu": 73.96, "gallons": 10.21 }
+        },
+        {
+          "key": "fuel_oil_4",
+          "label": "Fuel Oil No. 4",
+          "factorSource": "epa-efh-2025",
+          "units": { "gallons": 10.69 }
+        },
+        {
+          "key": "fuel_oil_6",
+          "label": "Fuel Oil No. 6",
+          "factorSource": "epa-efh-2025",
+          "units": { "gallons": 11.1 }
+        },
+        {
+          "key": "kerosene",
+          "label": "Kerosene",
+          "factorSource": "epa-efh-2025",
+          "units": { "MMBtu": 75.2, "gallons": 10.15 }
+        },
+        {
+          "key": "gasoline",
+          "label": "Gasoline",
+          "factorSource": "epa-efh-2025",
+          "units": { "gallons": 8.78 }
+        },
+        {
+          "key": "coal",
+          "label": "Coal",
+          "factorSource": "epa-efh-2025",
+          "verified": false,
+          "units": { "MMBtu": 95.35, "short tons": 2070, "metric tons": 2280 },
+          "note": "UNVERIFIED: Hub 2025 publishes separate rows for mixed commercial (2016 kg/short ton) and mixed industrial (2116). 2070 sits between them and matches neither. Pick a specific coal rank before relying on this."
+        },
+        {
+          "key": "lignite_coal",
+          "label": "Lignite Coal",
+          "factorSource": "epa-efh-2025",
+          "units": { "short tons": 1410 }
+        },
+        {
+          "key": "wood",
+          "label": "Wood and Wood Residuals",
+          "factorSource": "epa-efh-2025",
+          "units": { "short tons": 1640 },
+          "note": "Under GHG Protocol, biogenic CO2 belongs OUTSIDE the scopes as a separate line item; only CH4/N2O are Scope 1. This engine has no biogenic bucket yet, so the value is right but its placement is not."
+        }
+      ]
+    },
+    {
+      "key": "mobile_combustion",
+      "scope": 1,
+      "label": "Mobile Combustion",
+      "showInCalculator": true,
+      "sources": [
+        {
+          "key": "gasoline",
+          "label": "Gasoline",
+          "factorSource": "epa-efh-2025",
+          "aliases": ["gasoline_passenger", "gasoline_light_truck"],
+          "units": { "gallons": 8.78 }
+        },
+        {
+          "key": "diesel",
+          "label": "Diesel",
+          "factorSource": "epa-efh-2025",
+          "aliases": ["diesel_heavy_truck", "diesel_bus"],
+          "units": { "gallons": 10.21 }
+        },
+        {
+          "key": "jet_fuel",
+          "label": "Jet Fuel",
+          "factorSource": "epa-efh-2025",
+          "units": { "gallons": 9.75 }
+        },
+        {
+          "key": "natural_gas_vehicle",
+          "label": "Natural Gas Vehicle",
+          "factorSource": "epa-efh-2025",
+          "verified": false,
+          "units": { "gallons": 11.171 },
+          "note": "UNVERIFIED: matches no published EPA figure. Hub 2025 lists LNG at 4.50 kg/gal and CNG at 0.05444 kg/scf. This entry does not state which fuel basis it means — resolve before relying on it."
+        }
+      ]
+    },
+    {
+      "key": "process_emissions",
+      "scope": 1,
+      "label": "Process Emissions",
+      "showInCalculator": true,
+      "sources": [
+        {
+          "key": "cement",
+          "label": "Cement",
+          "factorSource": "internal-estimate",
+          "verified": false,
+          "units": { "metric tons": 507 }
+        },
+        {
+          "key": "steel",
+          "label": "Steel",
+          "factorSource": "internal-estimate",
+          "verified": false,
+          "units": { "metric tons": 1850 }
+        },
+        {
+          "key": "ammonia",
+          "label": "Ammonia",
+          "factorSource": "internal-estimate",
+          "verified": false,
+          "units": { "metric tons": 2550 }
+        }
+      ]
+    },
+    {
+      "key": "fugitive_emissions",
+      "scope": 1,
+      "label": "Fugitive Emissions",
+      "showInCalculator": true,
+      "sources": [
+        {
+          "key": "refrigerant_r410a",
+          "label": "Refrigerant R-410A",
+          "factorSource": "ipcc-ar5-gwp100",
+          "aliases": ["refrigerant_r_410a"],
+          "units": { "kg": 1924 }
+        },
+        {
+          "key": "refrigerant_r22",
+          "label": "Refrigerant R-22",
+          "factorSource": "ipcc-ar5-gwp100",
+          "aliases": ["refrigerant_r_22"],
+          "units": { "kg": 1760 }
+        },
+        {
+          "key": "natural_gas_leak",
+          "label": "Natural Gas Leak",
+          "factorSource": "ipcc-ar5-gwp100",
+          "units": { "MCF": 512 },
+          "note": "1000 scf x 95% CH4 by volume x 0.0192 kg CH4/scf = 18.3 kg CH4, x GWP 28 (AR5) = 512."
+        }
+      ]
+    },
+    {
+      "key": "purchased_electricity",
+      "scope": 2,
+      "label": "Purchased Electricity",
+      "showInCalculator": true,
+      "sourceListLabel": "eGRID subregion",
+      "sources": [
+        { "key": "AKGD", "label": "ASCC Alaska Grid (AKGD)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.41055, "MWh": 410.55 } },
+        { "key": "AKMS", "label": "ASCC Miscellaneous (AKMS)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.23696, "MWh": 236.96 } },
+        { "key": "AZNM", "label": "WECC Southwest (AZNM)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.32033, "MWh": 320.33 } },
+        { "key": "CAMX", "label": "WECC California (CAMX)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.19504, "MWh": 195.04 } },
+        { "key": "ERCT", "label": "ERCOT All (ERCT)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.33412, "MWh": 334.12 } },
+        { "key": "FRCC", "label": "FRCC All (FRCC)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.35598, "MWh": 355.98 } },
+        { "key": "HIMS", "label": "HICC Miscellaneous (HIMS)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.51406, "MWh": 514.06 } },
+        { "key": "HIOA", "label": "HICC Oahu (HIOA)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.67989, "MWh": 679.89 } },
+        { "key": "MROE", "label": "MRO East (MROE)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.6373, "MWh": 637.3 } },
+        { "key": "MROW", "label": "MRO West (MROW)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.4203, "MWh": 420.3 } },
+        { "key": "NEWE", "label": "NPCC New England (NEWE)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.24639, "MWh": 246.39 } },
+        { "key": "NWPP", "label": "WECC Northwest (NWPP)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.28817, "MWh": 288.17 } },
+        { "key": "NYCW", "label": "NPCC NYC/Westchester (NYCW)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.39268, "MWh": 392.68 } },
+        { "key": "NYLI", "label": "NPCC Long Island (NYLI)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.53946, "MWh": 539.46 } },
+        { "key": "NYUP", "label": "NPCC Upstate NY (NYUP)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.11013, "MWh": 110.13 } },
+        { "key": "PRMS", "label": "Puerto Rico Miscellaneous (PRMS)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.70239, "MWh": 702.39 } },
+        { "key": "RFCE", "label": "RFC East (RFCE)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.27179, "MWh": 271.79 } },
+        { "key": "RFCM", "label": "RFC Michigan (RFCM)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.44271, "MWh": 442.71 } },
+        { "key": "RFCW", "label": "RFC West (RFCW)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.41554, "MWh": 415.54 } },
+        { "key": "RMPA", "label": "WECC Rockies (RMPA)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.47287, "MWh": 472.87 } },
+        { "key": "SPNO", "label": "SPP North (SPNO)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.39358, "MWh": 393.58 } },
+        { "key": "SPSO", "label": "SPP South (SPSO)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.39717, "MWh": 397.17 } },
+        { "key": "SRMV", "label": "SERC Mississippi Valley (SRMV)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.33643, "MWh": 336.43 } },
+        { "key": "SRMW", "label": "SERC Midwest (SRMW)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.56636, "MWh": 566.36 } },
+        { "key": "SRSO", "label": "SERC South (SRSO)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.38374, "MWh": 383.74 } },
+        { "key": "SRTV", "label": "SERC Tennessee Valley (SRTV)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.40973, "MWh": 409.73 } },
+        { "key": "SRVC", "label": "SERC Virginia/Carolina (SRVC)", "factorSource": "epa-egrid-2023", "units": { "kWh": 0.27048, "MWh": 270.48 } },
+        { "key": "US_AVERAGE", "label": "US Average (all subregions)", "factorSource": "epa-egrid-2023", "aliases": ["us_average"], "units": { "kWh": 0.3497, "MWh": 349.7 } },
+        { "key": "RENEWABLE", "label": "Renewable / zero-carbon contract", "factorSource": "epa-egrid-2023", "aliases": ["renewable"], "units": { "kWh": 0, "MWh": 0 }, "note": "Location-based reporting should use the grid factor. A zero factor is market-based and requires contractual instruments (RECs/PPAs) as evidence." }
+      ]
+    },
+    {
+      "key": "purchased_heat_steam",
+      "scope": 2,
+      "label": "Purchased Heat / Steam",
+      "showInCalculator": true,
+      "sources": [
+        { "key": "steam", "label": "Steam", "factorSource": "epa-efh-2025", "units": { "lb": 0.066, "MMBtu": 66.33 } },
+        { "key": "hot_water", "label": "Hot Water", "factorSource": "epa-efh-2025", "verified": false, "units": { "lb": 0.052 } }
+      ]
+    },
+    {
+      "key": "purchased_goods",
+      "scope": 3,
+      "label": "Purchased Goods",
+      "showInCalculator": true,
+      "sources": [
+        { "key": "purchased_goods", "label": "Spend-based (all purchased goods)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 0.25 } },
+        { "key": "paper", "label": "Paper", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 0.94 } },
+        { "key": "plastic", "label": "Plastic", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 2.0 } },
+        { "key": "steel_product", "label": "Steel Product", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 1.35 } },
+        { "key": "aluminum", "label": "Aluminum", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 11.2 } },
+        { "key": "concrete", "label": "Concrete", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 0.107 } }
+      ]
+    },
+    {
+      "key": "capital_goods",
+      "scope": 3,
+      "label": "Capital Goods",
+      "showInCalculator": false,
+      "sources": [
+        { "key": "capital_goods", "label": "Spend-based (capital goods)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 0.177 } }
+      ]
+    },
+    {
+      "key": "fuel_transport",
+      "scope": 3,
+      "label": "Fuel & Energy Related Activities",
+      "showInCalculator": false,
+      "sources": [
+        { "key": "fuel_transport", "label": "Spend-based (fuel & energy related)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 1.06 } }
+      ]
+    },
+    {
+      "key": "transport_inbound",
+      "scope": 3,
+      "label": "Upstream Transportation",
+      "showInCalculator": false,
+      "sources": [
+        { "key": "transport_inbound", "label": "Spend-based (inbound transport)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 0.59 } }
+      ]
+    },
+    {
+      "key": "transport_outbound",
+      "scope": 3,
+      "label": "Downstream Transportation",
+      "showInCalculator": false,
+      "sources": [
+        { "key": "transport_outbound", "label": "Spend-based (outbound transport)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 0.45 } }
+      ]
+    },
+    {
+      "key": "leased_assets",
+      "scope": 3,
+      "label": "Upstream Leased Assets",
+      "showInCalculator": false,
+      "sources": [
+        { "key": "leased_assets", "label": "Spend-based (leased assets)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 0.18 } }
+      ]
+    },
+    {
+      "key": "business_travel",
+      "scope": 3,
+      "label": "Business Travel",
+      "showInCalculator": true,
+      "sources": [
+        { "key": "business_travel", "label": "Spend-based (all business travel)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 0.26 } },
+        { "key": "air_short_haul", "label": "Air Short Haul", "factorSource": "internal-estimate", "verified": false, "units": { "passenger-miles": 0.255 } },
+        { "key": "air_long_haul", "label": "Air Long Haul", "factorSource": "internal-estimate", "verified": false, "units": { "passenger-miles": 0.195 } },
+        { "key": "hotel", "label": "Hotel", "factorSource": "internal-estimate", "verified": false, "units": { "room-nights": 20.6 } },
+        { "key": "rental_car", "label": "Rental Car", "factorSource": "internal-estimate", "verified": false, "units": { "miles": 0.404 } }
+      ]
+    },
+    {
+      "key": "employee_commuting",
+      "scope": 3,
+      "label": "Employee Commuting",
+      "showInCalculator": true,
+      "sources": [
+        { "key": "employee_commuting", "label": "Spend-based (commuting)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 0.22 } },
+        { "key": "car_alone", "label": "Car Alone", "factorSource": "internal-estimate", "verified": false, "units": { "miles": 0.404 } },
+        { "key": "car_pool", "label": "Car Pool", "factorSource": "internal-estimate", "verified": false, "units": { "miles": 0.202 } },
+        { "key": "public_transit", "label": "Public Transit", "factorSource": "internal-estimate", "verified": false, "units": { "passenger-miles": 0.164 } },
+        { "key": "remote", "label": "Remote", "factorSource": "internal-estimate", "verified": false, "units": { "miles": 0 } }
+      ]
+    },
+    {
+      "key": "waste",
+      "scope": 3,
+      "label": "Waste",
+      "showInCalculator": true,
+      "sources": [
+        { "key": "waste", "label": "Spend-based (waste services)", "factorSource": "internal-estimate", "verified": false, "units": { "USD": 1.05 } },
+        { "key": "landfill", "label": "Landfill", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 0.586 } },
+        { "key": "recycling", "label": "Recycling", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 0.02 } },
+        { "key": "composting", "label": "Composting", "factorSource": "internal-estimate", "verified": false, "units": { "kg": 0.01 } }
+      ]
+    },
+    {
+      "key": "transportation",
+      "scope": 3,
+      "label": "Transportation (own fleet distance)",
+      "showInCalculator": true,
+      "sources": [
+        { "key": "heavy_duty_diesel", "label": "Heavy Duty Diesel", "factorSource": "internal-estimate", "verified": false, "units": { "miles": 1.018 } },
+        { "key": "medium_duty_gasoline", "label": "Medium Duty Gasoline", "factorSource": "internal-estimate", "verified": false, "units": { "miles": 0.65 } },
+        { "key": "light_duty_gasoline", "label": "Light Duty Gasoline", "factorSource": "internal-estimate", "verified": false, "units": { "miles": 0.404 } },
+        { "key": "rail", "label": "Rail", "factorSource": "epa-efh-2025", "units": { "miles": 0.021 } }
+      ]
+    }
+  ]
+}

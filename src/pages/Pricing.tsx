@@ -76,7 +76,7 @@ export default function Pricing() {
       </div>
 
       <div className="flex items-center justify-center gap-3" aria-live="polite">
-        <span className={`text-sm font-medium ${billing === 'monthly' ? 'text-surface-800 dark:text-white' : 'text-surface-400'}`}>Monthly</span>
+        <span className={`text-sm font-medium ${billing === 'monthly' ? 'text-surface-800 dark:text-white' : 'text-surface-600 dark:text-surface-400'}`}>Monthly</span>
         <button
           onClick={() => setBilling(billing === 'monthly' ? 'annual' : 'monthly')}
           className="relative w-11 h-6 rounded-full transition-colors bg-surface-300 dark:bg-surface-600"
@@ -86,7 +86,7 @@ export default function Pricing() {
         >
           <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${billing === 'annual' ? 'left-[22px]' : 'left-0.5'}`} />
         </button>
-        <span className={`text-sm font-medium ${billing === 'annual' ? 'text-surface-800 dark:text-white' : 'text-surface-400'}`}>
+        <span className={`text-sm font-medium ${billing === 'annual' ? 'text-surface-800 dark:text-white' : 'text-surface-600 dark:text-surface-400'}`}>
           Annual <span className="text-brand-600 dark:text-brand-400 text-xs font-semibold">Save ~17%</span>
         </span>
       </div>
@@ -126,7 +126,7 @@ export default function Pricing() {
                     </div>
                   )}
                   {billing === 'annual' && plan.trial && (
-                    <div className="text-2xs text-surface-400 mt-1">
+                    <div className="text-2xs text-surface-600 dark:text-surface-400 mt-1">
                       Free trial available on monthly billing
                     </div>
                   )}
@@ -139,7 +139,7 @@ export default function Pricing() {
                     </li>
                   ))}
                   {plan.locked.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-surface-400 dark:text-surface-600">
+                    <li key={f} className="flex items-start gap-2 text-sm text-surface-600 dark:text-surface-400">
                       <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h6M5 7h6M5 11h4" strokeLinecap="round"/></svg>
                       <span><span className="sr-only">Not included: </span>{f}</span>
                     </li>
@@ -151,7 +151,7 @@ export default function Pricing() {
                     <ul className="space-y-2">
                       {plan.roadmap.map((f) => (
                         <li key={f} className="flex items-start gap-2 text-sm text-surface-500 dark:text-surface-500">
-                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border border-surface-200 dark:border-surface-700">Soon</span>
+                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border border-surface-200 dark:border-surface-700">Soon</span>
                           <span>{f}</span>
                         </li>
                       ))}
@@ -173,7 +173,7 @@ export default function Pricing() {
                 <Link to="/demo" className="block w-full py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-center">
                   Book a Demo
                 </Link>
-                <p className="text-2xs text-surface-400 text-center mt-1">
+                <p className="text-2xs text-surface-600 dark:text-surface-400 text-center mt-1">
                   By signing up, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
                 </p>
               </div>
@@ -200,7 +200,13 @@ export default function Pricing() {
                 <span className="text-lg font-bold text-surface-900 dark:text-white">${addon.price.toLocaleString()}</span>
                 <span className="text-xs text-surface-500">{addon.unit}</span>
               </div>
-              <button className="btn-secondary text-xs mt-2 w-full">Add</button>
+              {/* Was a bare "Add" button with no handler — a purchase-shaped
+                  control in the money path that silently did nothing. These
+                  add-ons have no Stripe products, so route to sales instead of
+                  implying self-serve checkout. */}
+              <Link to="/contact?topic=sales" className="btn-secondary text-xs mt-2 w-full text-center block">
+                Talk to sales
+              </Link>
             </div>
           ))}
         </div>
@@ -247,7 +253,7 @@ export default function Pricing() {
         <p className="text-sm text-surface-500 mt-1 max-w-md mx-auto">
           For organizations with complex requirements, multiple entities, or custom integration needs.
         </p>
-        <p className="text-xs text-surface-400 mt-1">EU-facing customers can request a <Link to="/dpa" className="text-accent hover:underline">Data Processing Addendum</Link>.</p>
+        <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">EU-facing customers can request a <Link to="/dpa" className="text-accent hover:underline">Data Processing Addendum</Link>.</p>
         <div className="flex items-center justify-center gap-3 mt-4">
           <Link to="/contact" className="btn-primary">Talk to sales</Link>
           <Link to="/demo" className="btn-secondary">Book a Demo</Link>
@@ -273,6 +279,6 @@ export default function Pricing() {
 function formatCell(value: string): React.ReactNode {
   if (value === '✓' || value === '✓ (advanced)') return <span className="text-risk-low font-medium">{value}</span>;
   if (value === '—') return <span className="text-surface-300 dark:text-surface-600">—</span>;
-  if (value === 'Roadmap') return <span className="text-xs text-surface-400">Roadmap</span>;
+  if (value === 'Roadmap') return <span className="text-xs text-surface-600 dark:text-surface-400">Roadmap</span>;
   return value;
 }

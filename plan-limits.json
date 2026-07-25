@@ -1,0 +1,25 @@
+{
+  "note": "Single source of truth for what each paid plan actually allows. Read by server-billing.cjs (enforcement) and src/content/pricing.ts (the pricing page and comparison table), so an advertised limit and an enforced limit cannot drift apart. Every limit here MUST have a server-side check — if you add one with no enforcement, you are selling something you do not deliver. null means unlimited.",
+  "plans": {
+    "starter": {
+      "facilities": 1,
+      "csvImportsPerMonth": 10,
+      "scope3": false
+    },
+    "growth": {
+      "facilities": 5,
+      "csvImportsPerMonth": null,
+      "scope3": true
+    },
+    "pro": {
+      "facilities": null,
+      "csvImportsPerMonth": null,
+      "scope3": true
+    }
+  },
+  "enforcement": {
+    "facilities": "server.cjs POST /api/companies/:id/facilities",
+    "csvImportsPerMonth": "server.cjs POST /api/ingest/csv, counted from public.csv_import_events",
+    "scope3": "server.cjs POST /api/calculate and POST /api/ingest/csv"
+  }
+}

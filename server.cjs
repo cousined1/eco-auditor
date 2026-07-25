@@ -22,6 +22,10 @@ const {
   hasPlanAccess,
   planFromPriceId,
   resolvePlanPriceId,
+  shouldRetryWebhook,
+  canAddFacility,
+  canImportCsv,
+  canUseScope3,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 } = require('./server-billing.cjs');
@@ -483,28 +487,60 @@ async function queryWithRlsBypass(text, params) {
 }
 
 // Persists a subscription snapshot (from a Stripe webhook or API mutation)
-// onto the owning user's company row. Returns true when a row was updated.
-async function syncSubscriptionRecord(record) {
+// onto the owning user's company row.
+//
+// Returns { ok, reason, retryable }. The distinction matters: these used to be
+// bare `return false`, and the webhook acked them with 200, so Stripe never
+// retried and a paying customer silently lost entitlement. Anything that a
+// later delivery could plausibly resolve is marked retryable so the caller can
+// fail the webhook and let Stripe redeliver.
+//
+// `eventCreatedAt` is the Stripe event.created (seconds). When supplied, the
+// write is skipped if the row already reflects a newer event — Stripe does not
+// guarantee ordering, and a stale "active" arriving after "deleted" would
+// otherwise restore access.
+async function syncSubscriptionRecord(record, eventCreatedAt) {
   if (!pgPool) {
-    log('warn', 'Subscription sync skipped: DATABASE_URL not configured');
-    return false;
+    log('warn', 'Subscription sync deferred: DATABASE_URL not configured');
+    return { ok: false, reason: 'no_database', retryable: true };
   }
-  if (!record.stripeCustomerId) return false;
+  // A record with no customer id is malformed; redelivery cannot fix it.
+  if (!record.stripeCustomerId) {
+    log('error', 'Subscription sync failed: record has no Stripe customer id');
+    return { ok: false, reason: 'no_customer_id', retryable: false };
+  }
+
+  if (record.unrecognizedActivePrice) {
+    log('error', 'Active subscription has an unrecognized price id — check STRIPE_PRICE_* env vars. Granting starter access.', {
+      priceId: record.unrecognizedActivePrice,
+      subId: record.stripeSubscriptionId,
+    });
+  }
 
   const { rows } = await pgPool.query(
     'SELECT insforge_user_id FROM users WHERE stripe_customer_id = $1',
     [record.stripeCustomerId]
   );
   if (rows.length === 0) {
-    log('warn', 'Subscription sync skipped: no user for Stripe customer', { customerId: record.stripeCustomerId });
-    return false;
+    // Checkout can complete before the user->customer mapping is written.
+    // Retryable: Stripe redelivers for days, by which time it normally exists.
+    log('warn', 'Subscription sync deferred: no user for Stripe customer', { customerId: record.stripeCustomerId });
+    return { ok: false, reason: 'no_user_mapping', retryable: true };
   }
   const userId = rows[0].insforge_user_id;
 
   // Companies are normally provisioned on first data access; make sure the
   // row exists so a checkout completed before app usage is not dropped.
-  await ensureCompanyForUser({ id: userId });
+  // ensureCompanyForUser swallows its errors and returns null, so check the
+  // result — without this, a failed provision falls through to the UPDATE,
+  // matches nothing, and would be misread below as a harmless stale event.
+  const companyId = await ensureCompanyForUser({ id: userId });
+  if (!companyId) {
+    log('warn', 'Subscription sync deferred: company row unavailable', { userId });
+    return { ok: false, reason: 'no_company', retryable: true };
+  }
 
+  const eventAt = eventCreatedAt ? new Date(eventCreatedAt * 1000).toISOString() : null;
   const result = await queryWithRlsBypass(
     `UPDATE public.companies SET
        stripe_customer_id = $2,
@@ -514,17 +550,31 @@ async function syncSubscriptionRecord(record) {
        subscription_billing_cycle = $6,
        subscription_current_period_end = $7,
        subscription_cancel_at_period_end = $8,
+       subscription_event_at = COALESCE($9::timestamptz, now()),
        updated_at = now()
-     WHERE user_id = $1`,
+     WHERE user_id = $1
+       AND ($9::timestamptz IS NULL
+            OR subscription_event_at IS NULL
+            OR subscription_event_at <= $9::timestamptz)`,
     [userId, record.stripeCustomerId, record.stripeSubscriptionId, record.status,
-     record.plan, record.billingCycle, record.currentPeriodEnd, record.cancelAtPeriodEnd]
+     record.plan, record.billingCycle, record.currentPeriodEnd, record.cancelAtPeriodEnd, eventAt]
   );
   if (result.rowCount === 0) {
-    log('warn', 'Subscription sync found no company row', { userId });
-    return false;
+    // With no event timestamp the ordering guard passes trivially, so matching
+    // nothing cannot mean "stale" — the row must have gone missing between the
+    // provision above and this write. Never ack that as success.
+    if (!eventAt) {
+      log('error', 'Subscription sync matched no row with no ordering guard', { userId });
+      return { ok: false, reason: 'company_row_vanished', retryable: true };
+    }
+    // Otherwise the company row is confirmed to exist, so the only thing that
+    // can match nothing is the guard rejecting an out-of-order delivery. That
+    // is a correct skip, not a failure — ack it so Stripe stops retrying.
+    log('info', 'Subscription sync skipped: event older than last applied', { userId, eventAt });
+    return { ok: true, reason: 'stale_event', retryable: false };
   }
   log('info', 'Subscription synced to DB', { userId, status: record.status, plan: record.plan });
-  return true;
+  return { ok: true, retryable: false };
 }
 
 // Loads the billing state for a user from their company row. Returns null
@@ -612,8 +662,13 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
     if (subscription.status === 'trialing' && !TRIAL_ELIGIBLE_PLANS.has(priceId)) {
       updateParams.trial_end = 'now';
     }
+    // Watermark from a time taken BEFORE the mutation. Stamping it with the
+    // post-write now() overshoots by the Stripe round-trip, and a genuine
+    // Stripe event created inside that window would be rejected as stale —
+    // e.g. a proration invoice failing and flipping the sub to past_due.
+    const mutatedAt = Math.floor(Date.now() / 1000);
     const updated = await stripe.subscriptions.update(subscription.id, updateParams);
-    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env));
+    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), mutatedAt);
     log('info', 'Subscription changed', { subId: updated.id, planId, billing, userId: req.user.id });
     return res.json({ success: true, plan: planId, billing });
   } catch (err) {
@@ -629,8 +684,9 @@ app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async fu
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription to cancel' });
     }
+    const canceledAt = Math.floor(Date.now() / 1000);
     const updated = await stripe.subscriptions.update(subscription.id, { cancel_at_period_end: true });
-    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env));
+    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), canceledAt);
     log('info', 'Subscription set to cancel at period end', { subId: updated.id, userId: req.user.id });
     return res.json({ success: true, cancelAtPeriodEnd: true });
   } catch (err) {
@@ -719,6 +775,56 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
   }
 });
 
+// Reconciliation for the return-from-Stripe hop. The webhook is the primary
+// path, but if it has not landed yet (or failed and is still retrying) the
+// customer would sit on the paywall with no way out but support. This lets the
+// app pull the subscription straight from Stripe once, on return from checkout.
+//
+// The session's customer must match the caller's own Stripe customer, so a
+// guessed or borrowed session_id cannot grant anyone else's subscription.
+app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async function (req, res) {
+  const sessionId = String((req.body && req.body.session_id) || '').trim();
+  if (!sessionId.startsWith('cs_')) {
+    return res.status(400).json({ error: 'A Stripe checkout session id is required' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
+    const sessionCustomer = typeof session.customer === 'string'
+      ? session.customer
+      : (session.customer && session.customer.id) || null;
+
+    if (!sessionCustomer || sessionCustomer !== customerId) {
+      log('warn', 'Checkout verify rejected: session belongs to another customer', { userId: req.user.id });
+      return res.status(403).json({ error: 'This checkout session does not belong to your account' });
+    }
+    if (!session.subscription) {
+      return res.json({ verified: false, reason: 'no_subscription_on_session' });
+    }
+
+    // Lower bound taken before the read, so the watermark reflects when this
+    // state was true rather than when we finished writing it.
+    const readAt = Math.floor(Date.now() / 1000);
+    const subscription = typeof session.subscription === 'string'
+      ? await stripe.subscriptions.retrieve(session.subscription)
+      : session.subscription;
+
+    const result = await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env), readAt);
+    if (!result.ok) {
+      log('error', 'Checkout verify could not persist subscription', { userId: req.user.id, reason: result.reason });
+      return res.status(503).json({ error: 'Could not confirm your subscription yet', reason: result.reason });
+    }
+
+    const state = await loadBillingState(req.user.id);
+    log('info', 'Checkout verified and subscription reconciled', { userId: req.user.id, subId: subscription.id });
+    return res.json({ verified: true, billing: state });
+  } catch (err) {
+    log('error', 'Checkout verify failed', { error: String(err) });
+    return res.status(500).json({ error: 'Checkout verification failed' });
+  }
+});
+
 app.post('/api/portal', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
     const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
@@ -753,6 +859,11 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
 
   log('info', 'Stripe webhook received', { type: event.type, id: event.id });
 
+  // Set when a sync could not be persisted but a redelivery might succeed. We
+  // answer non-2xx in that case so Stripe retries; acking 200 on a failed sync
+  // is how a paying customer ends up with no entitlement and no recovery path.
+  let retryableFailure = null;
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -762,7 +873,9 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
           const subscription = typeof session.subscription === 'string'
             ? await stripe.subscriptions.retrieve(session.subscription)
             : session.subscription;
-          await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+          const result = await syncSubscriptionRecord(
+            subscriptionRecordFromStripe(subscription, process.env), event.created);
+          if (!result.ok && result.retryable) retryableFailure = result.reason;
         }
         break;
       }
@@ -771,7 +884,9 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
         log('info', 'Subscription lifecycle event', { subId: subscription.id, status: subscription.status });
-        await syncSubscriptionRecord(subscriptionRecordFromStripe(subscription, process.env));
+        const result = await syncSubscriptionRecord(
+          subscriptionRecordFromStripe(subscription, process.env), event.created);
+        if (!result.ok && result.retryable) retryableFailure = result.reason;
         break;
       }
       case 'invoice.paid':
@@ -787,6 +902,21 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
     // Return 500 so Stripe retries the delivery — DB sync failures must not be dropped.
     log('error', 'Webhook processing failed', { type: event.type, id: event.id, error: String(err) });
     return res.status(500).json({ error: 'Webhook processing failed' });
+  }
+
+  if (retryableFailure) {
+    if (shouldRetryWebhook({ ok: false, retryable: true }, event.created, Math.floor(Date.now() / 1000))) {
+      log('error', 'Webhook sync did not persist — asking Stripe to retry', {
+        type: event.type, id: event.id, reason: retryableFailure,
+      });
+      return res.status(503).json({ error: 'Subscription sync unavailable', reason: retryableFailure });
+    }
+    // Past the retry window this failure is not going to resolve itself. Keep
+    // failing it and Stripe may disable the endpoint for every customer, so
+    // ack and leave a loud log for a human to reconcile this one account.
+    log('error', 'Webhook sync abandoned after retry window — needs manual reconciliation', {
+      type: event.type, id: event.id, reason: retryableFailure, eventCreated: event.created,
+    });
   }
 
   return res.json({ received: true });
@@ -970,19 +1100,19 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /scope 1|scope 2|scope 3|ghg|protocol/i,
-    response: "We follow the GHG Protocol for comprehensive emissions accounting:\n\n• **Scope 1**: Direct emissions from owned/controlled sources\n• **Scope 2**: Indirect emissions from purchased energy\n• **Scope 3**: All other indirect emissions in your value chain\n\nOur platform automates data collection and reporting across all three scopes."
+    response: "We follow the GHG Protocol for comprehensive emissions accounting:\n\n• **Scope 1**: Direct emissions from owned/controlled sources\n• **Scope 2**: Indirect emissions from purchased energy\n• **Scope 3**: All other indirect emissions in your value chain\n\nImport your activity data by CSV and we calculate emissions across all three scopes using EPA, eGRID, and IPCC factors."
   },
   {
     pattern: /cbam|carbon border|eu|europe/i,
-    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Track embedded emissions in imports\n• Generate CBAM-aligned reports\n• Monitor compliance deadlines\n• Calculate carbon costs\n\nNeed help preparing for CBAM? Book a demo with our team!"
+    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Build a Scope 1/2/3 emissions inventory from your activity data\n• Stay informed on compliance deadlines\n\nNeed help preparing for CBAM? Book a demo with our team!"
   },
   {
     pattern: /\bsec\b|disclosure|climate rule/i,
-    response: "EcoAuditor helps you build audit-ready GHG disclosures:\n\n• Emissions data collection and validation\n• Scope 1/2/3 inventory with confidence scoring\n• Exportable summaries for voluntary and regulatory reporting\n\nNote: the U.S. SEC climate-disclosure rule was withdrawn in 2025 — we focus on California SB 253/SB 261, EU CBAM, and voluntary GHG reporting."
+    response: "EcoAuditor helps you build audit-ready GHG disclosures:\n\n• CSV activity data import and validation\n• Scope 1/2/3 inventory with confidence scoring\n• PDF summaries for voluntary and regulatory reporting\n\nNote: the U.S. SEC climate-disclosure rule was withdrawn in 2025 — we focus on California SB 253/SB 261, EU CBAM, and voluntary GHG reporting."
   },
   {
     pattern: /california|ab 1305|climate corporate/i,
-    response: "EcoAuditor is built for California's Climate Corporate Data Accountability Act (SB 253):\n\n• Automated emissions reporting\n• Third-party verification support\n• Public disclosure templates\n• Compliance timeline tracking\n\nStay ahead of California's climate reporting requirements with EcoAuditor."
+    response: "EcoAuditor is built for California's Climate Corporate Data Accountability Act (SB 253):\n\n• Scope 1/2/3 emissions inventory from your imported activity data\n• PDF emissions summary reports\n• SB 253 deadline information\n\nStay ahead of California's climate reporting requirements with EcoAuditor."
   },
   {
     pattern: /smb|small business|startup|affordable/i,
@@ -990,7 +1120,7 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /integration|api|connect|erp|salesforce/i,
-    response: "EcoAuditor works with your existing tools:\n\n• **CSV import/export** for spreadsheets\n\nMore integrations are on our roadmap. Need a specific integration? Let us know!"
+    response: "EcoAuditor works with your existing tools:\n\n• **CSV import** of activity data from spreadsheets\n\nMore integrations are on our roadmap. Need a specific integration? Let us know!"
   }
 ];
 
@@ -1254,6 +1384,43 @@ async function loadEmissionEntries(companyId, period) {
   });
 }
 
+// Scope label normalizer that tolerates junk instead of throwing — used by the
+// plan gate, which runs before per-row validation and must not 500 on bad input.
+function normalizeScopeLabel(value) {
+  const text = String(value == null ? '' : value).trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (text === '1' || text === 'scope1') return 'scope1';
+  if (text === '2' || text === 'scope2') return 'scope2';
+  if (text === '3' || text === 'scope3') return 'scope3';
+  return null;
+}
+
+// Imports accepted this calendar month, for the per-plan quota. Counts from the
+// durable log — the in-memory ingestJobs map resets on deploy and is per
+// instance, so it can't back a billing limit.
+async function countCsvImportsThisMonth(companyId) {
+  if (!pgPool) return 0;
+  const { rows } = await pgPool.query(
+    `SELECT COUNT(*)::int AS used FROM public.csv_import_events
+      WHERE company_id = $1 AND created_at >= date_trunc('month', now())`,
+    [companyId]
+  );
+  return rows.length ? rows[0].used : 0;
+}
+
+async function recordCsvImport(companyId, rowCount) {
+  if (!pgPool) return;
+  try {
+    await queryWithRlsBypass(
+      'INSERT INTO public.csv_import_events (company_id, row_count) VALUES ($1, $2)',
+      [companyId, rowCount]
+    );
+  } catch (err) {
+    // Never fail an accepted import because its meter row didn't write; the
+    // customer's data is already in. Under-counting favours the customer.
+    log('error', 'Failed to record CSV import for quota', { error: String(err), companyId });
+  }
+}
+
 async function loadFacilities(companyId) {
   if (pgPool) {
     try {
@@ -1332,6 +1499,20 @@ app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'),
 
     if (Array.isArray(body.entries) || body.scope) {
       const entries = Array.isArray(body.entries) ? body.entries : [body];
+
+      // Scope 3 is a paid tier feature; calculating it here would hand a
+      // starter account the number the upgrade is meant to buy.
+      const plan = (req.billing && req.billing.plan) || 'starter';
+      const scope3Check = canUseScope3(plan);
+      if (!scope3Check.allowed && entries.some((entry) => normalizeScopeLabel(entry && entry.scope) === 'scope3')) {
+        return res.status(402).json({
+          success: false,
+          code: 'upgrade_required',
+          requiredPlan: scope3Check.requiredPlan,
+          error: `Scope 3 workflows are included from the ${scope3Check.requiredPlan} plan up.`,
+        });
+      }
+
       const summary = summarizeEntries(entries, { companyId: companyId, period: period });
       log('info', 'Calculator API completed', { companyId: companyId, period: period, entries: entries.length });
       return res.json(summary);
@@ -1398,6 +1579,35 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     const rawRows = parseEmissionCsv(csvText);
     if (rawRows.length === 0) {
       return res.status(400).json({ success: false, error: 'CSV file is empty or has no data rows after the header.' });
+    }
+
+    const plan = (req.billing && req.billing.plan) || 'starter';
+
+    // Monthly import quota. Checked before any parsing work so a blocked import
+    // costs nothing, and counted from the durable log rather than the in-memory
+    // job map, which resets on deploy.
+    const usedThisMonth = await countCsvImportsThisMonth(companyId);
+    const quotaCheck = canImportCsv(plan, usedThisMonth);
+    if (!quotaCheck.allowed) {
+      return res.status(402).json({
+        success: false,
+        code: 'upgrade_required',
+        requiredPlan: quotaCheck.requiredPlan,
+        error: `Your ${plan} plan includes ${quotaCheck.limit} CSV imports per month and you have used all of them. Upgrade to ${quotaCheck.requiredPlan} for unlimited imports.`,
+      });
+    }
+
+    // Scope 3 is a paid tier feature. Reject the whole file rather than silently
+    // dropping the Scope 3 rows — a partial import would understate the
+    // inventory without the customer realising it.
+    const scope3Check = canUseScope3(plan);
+    if (!scope3Check.allowed && rawRows.some((row) => normalizeScopeLabel(row.scope) === 'scope3')) {
+      return res.status(402).json({
+        success: false,
+        code: 'upgrade_required',
+        requiredPlan: scope3Check.requiredPlan,
+        error: `This file contains Scope 3 rows. Scope 3 workflows are included from the ${scope3Check.requiredPlan} plan up.`,
+      });
     }
 
     const jobId = crypto.randomUUID();
@@ -1521,6 +1731,12 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     };
     ingestJobs.set(jobId, ingestResult);
 
+    // Meter the import only when something was actually imported, so a file
+    // that failed every row does not burn a customer's monthly allowance.
+    if (entries.length > 0) {
+      await recordCsvImport(companyId, entries.length);
+    }
+
     return res.json({
       success: true,
       job_id: jobId,
@@ -1542,7 +1758,12 @@ app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
   return res.json({ success: true, data: job });
 });
 
-app.get('/api/companies/:id/facilities', apiAuthGuard, async function (req, res) {
+// requirePlan added: these reads return the customer's own paid data, so an
+// expired trial or canceled subscription must lose access to them too. The
+// dashboard summary/trend were already gated, but the same figures were
+// reachable per-facility, and report download regenerates a fresh PDF from
+// live data on every call.
+app.get('/api/companies/:id/facilities', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   const facilities = await loadFacilities(companyId);
@@ -1559,7 +1780,24 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
   if (String(body.name).length > 200) {
     return res.status(400).json({ success: false, error: 'name must be 200 characters or fewer' });
   }
+
   try {
+    // Facility cap. requirePlan has already attached req.billing. This has to
+    // sit inside the try — loadFacilities throws when the data store is
+    // unavailable, and Express 4 does not catch async rejections, so an
+    // uncaught one would hang the request instead of erroring cleanly.
+    const plan = (req.billing && req.billing.plan) || 'starter';
+    const existing = await loadFacilities(companyId);
+    const facilityCheck = canAddFacility(plan, existing.length);
+    if (!facilityCheck.allowed) {
+      return res.status(402).json({
+        success: false,
+        code: 'upgrade_required',
+        requiredPlan: facilityCheck.requiredPlan,
+        error: `Your ${plan} plan includes ${facilityCheck.limit} ${facilityCheck.limit === 1 ? 'facility' : 'facilities'}. Upgrade to ${facilityCheck.requiredPlan} to add more.`,
+      });
+    }
+
     if (pgPool) {
       const result = await queryWithRlsBypass(
         `INSERT INTO public.facilities (company_id, name, type, city)
@@ -1581,7 +1819,7 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
   }
 });
 
-app.get('/api/facilities/:id/emissions', apiAuthGuard, async function (req, res) {
+app.get('/api/facilities/:id/emissions', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const facility = await loadFacilityById(req.params.id);
     if (!facility) return res.status(404).json({ success: false, error: 'Facility not found' });
@@ -1596,7 +1834,7 @@ app.get('/api/facilities/:id/emissions', apiAuthGuard, async function (req, res)
   }
 });
 
-app.get('/api/companies/:id/compliance', apiAuthGuard, async function (req, res) {
+app.get('/api/companies/:id/compliance', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   return res.json({ success: true, data: getComplianceStatus(getCompany(companyId)) });
@@ -1676,7 +1914,7 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, re
   }
 });
 
-app.get('/api/reports/:id/download', apiAuthGuard, async function (req, res) {
+app.get('/api/reports/:id/download', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     let companyId;
     let period = null;

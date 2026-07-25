@@ -137,7 +137,7 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
                 {formatCO2e(scopeTotals[s] ?? 0)}
               </div>
               {total > 0 && (
-                <div className="text-2xs text-surface-400">
+                <div className="text-2xs text-surface-600 dark:text-surface-400">
                   {(((scopeTotals[s] ?? 0) / total) * 100).toFixed(1)}% of total
                 </div>
               )}

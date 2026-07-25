@@ -153,7 +153,7 @@ export default function Settings() {
                   <button onClick={handlePortalSession} className="btn-secondary text-xs">Manage billing portal</button>
                   <button onClick={() => setShowCancelConfirm(true)} className="btn-ghost text-xs text-risk-high">Cancel subscription</button>
                 </div>
-                <p className="text-2xs text-surface-400 mt-2">By continuing, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.</p>
+                <p className="text-2xs text-surface-600 dark:text-surface-400 mt-2">By continuing, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.</p>
               </div>
 
               {showChangePlan && (
@@ -179,7 +179,7 @@ export default function Settings() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-2xs text-surface-400 mt-3">Plan changes take effect according to Stripe billing terms. Any applicable charges or credits will appear on your next invoice.</p>
+                  <p className="text-2xs text-surface-600 dark:text-surface-400 mt-3">Plan changes take effect according to Stripe billing terms. Any applicable charges or credits will appear on your next invoice.</p>
                 </div>
               )}
 
