@@ -13,9 +13,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "node server.cjs",
-    "db:push": "drizzle-kit push",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "npx @insforge/cli db migrations up --all",
+    "db:migrate:status": "npx @insforge/cli db migrations list",
+    "db:migrate:check": "node scripts/check-migrations.mjs",
+    "db:migrate:new": "npx @insforge/cli db migrations new",
     "test": "vitest run",
     "test:watch": "vitest"
   },
