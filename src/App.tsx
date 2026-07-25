@@ -27,7 +27,6 @@ import DataProcessingAddendum from './pages/DataProcessingAddendum';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
 import AuthCallback from './pages/AuthCallback';
 import NotFound from './pages/NotFound';
 import CarbonCalculator from './components/carbon-calculator';
@@ -411,7 +410,6 @@ function AppContent() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

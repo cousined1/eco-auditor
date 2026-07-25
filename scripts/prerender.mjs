@@ -51,10 +51,6 @@ const ROUTES = [
   '/login',
   '/signup',
   '/forgot-password',
-  // /reset-password is deliberately NOT prerendered: with no token in the URL
-  // it renders the "link isn't valid" state, which would flash before
-  // hydration for someone arriving from a perfectly good email link. The SPA
-  // fallback in server.cjs serves it, and robots.txt keeps crawlers out.
 ];
 
 // P0-01: noindex these routes so search engines don't index auth pages.
