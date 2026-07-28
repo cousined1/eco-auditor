@@ -2105,7 +2105,7 @@ app.use('/api', function (_req, res) {
 // should return a real 404 so crawlers don't index an infinite duplicate-
 // content space of soft-404 homepages.
 app.get('*', function (req, res) {
-  const spaRoots = ['/app', '/auth'];
+  const spaRoots = ['/app', '/auth', '/blog'];
   const isKnownSpa = spaRoots.some(function (root) {
     return req.path === root || req.path.startsWith(root + '/');
   });
