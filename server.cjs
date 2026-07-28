@@ -263,6 +263,9 @@ app.get('/api/blog-posts', async function (_req, res) {
     );
     res.json({ posts: rows });
   } catch (err) {
+    if (err.code === '42P01') { // table does not exist
+      return res.json({ posts: [] });
+    }
     log('error', 'GET /api/blog-posts:', err.message);
     res.status(500).json({ error: 'Failed to fetch blog posts' });
   }
@@ -283,6 +286,9 @@ app.get('/api/blog-posts/:slug', async function (req, res) {
     }
     res.json({ post: rows[0] });
   } catch (err) {
+    if (err.code === '42P01') { // table does not exist
+      return res.status(404).json({ error: 'Post not found' });
+    }
     log('error', 'GET /api/blog-posts/:slug:', err.message);
     res.status(500).json({ error: 'Failed to fetch post' });
   }
