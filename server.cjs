@@ -251,6 +251,43 @@ app.get('/api/insforge-config', function (_req, res) {
   });
 });
 
+// ─── Blog posts (public, no auth) ───
+app.get('/api/blog-posts', async function (_req, res) {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  if (!pgPool) {
+    return res.json({ posts: [] });
+  }
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT id, slug, title, meta_title, meta_description, body_html, primary_keyword, faq, internal_links, external_links, cta, content_score, geo_score, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 50'
+    );
+    res.json({ posts: rows });
+  } catch (err) {
+    log('error', 'GET /api/blog-posts:', err.message);
+    res.status(500).json({ error: 'Failed to fetch blog posts' });
+  }
+});
+
+app.get('/api/blog-posts/:slug', async function (req, res) {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  if (!pgPool) {
+    return res.status(404).json({ error: 'Post not found' });
+  }
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT id, slug, title, meta_title, meta_description, body_html, primary_keyword, faq, internal_links, external_links, cta, content_score, geo_score, published_at FROM blog_posts WHERE slug = $1 LIMIT 1',
+      [req.params.slug]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    res.json({ post: rows[0] });
+  } catch (err) {
+    log('error', 'GET /api/blog-posts/:slug:', err.message);
+    res.status(500).json({ error: 'Failed to fetch post' });
+  }
+});
+
 app.get('/ready', function (_req, res) {
   const videoPath = findVideoPath();
   res.json({

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useTheme } from '../hooks/useTheme';
-import { insforge } from '../lib/insforge';
 
 interface BlogPost {
   id: string;
@@ -57,19 +56,15 @@ export default function BlogList() {
     let cancelled = false;
     async function fetchPosts() {
       try {
-        const { data, error: queryError } = await insforge.database
-          .from('blog_posts')
-          .select('*')
-          .order('published_at', { ascending: false })
-          .limit(50);
-
+        const resp = await fetch('/api/blog-posts');
         if (cancelled) return;
-        if (queryError) {
-          setError(queryError.message || 'Failed to load blog posts');
+        if (!resp.ok) {
+          setError('Failed to load blog posts');
           setLoading(false);
           return;
         }
-        setPosts((data || []) as BlogPost[]);
+        const json = await resp.json();
+        setPosts((json.posts || []) as BlogPost[]);
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
