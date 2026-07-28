@@ -3,8 +3,6 @@ import { Link, useParams } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useTheme } from '../hooks/useTheme';
-import { insforge } from '../lib/insforge';
-
 interface BlogPost {
   id: string;
   slug: string;
@@ -50,24 +48,15 @@ export default function BlogPostPage() {
     let cancelled = false;
     async function fetchPost() {
       try {
-        const { data, error: queryError } = await insforge.database
-          .from('blog_posts')
-          .select('*')
-          .eq('slug', slug)
-          .limit(1);
-
+        const resp = await fetch(`/api/blog-posts/${encodeURIComponent(slug)}`);
         if (cancelled) return;
-        if (queryError) {
-          setError(queryError.message || 'Failed to load post');
+        if (!resp.ok) {
+          setError(resp.status === 404 ? 'Post not found' : 'Failed to load post');
           setLoading(false);
           return;
         }
-        if (!data || data.length === 0) {
-          setError('Post not found');
-          setLoading(false);
-          return;
-        }
-        const p = data[0] as BlogPost;
+        const json = await resp.json();
+        const p = json.post as BlogPost;
         setPost(p);
         document.title = p.meta_title || `${p.title} — Eco-Auditor Blog`;
         const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
