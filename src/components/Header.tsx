@@ -73,6 +73,7 @@ const DEFAULT_NAV: Record<HeaderVariant, Array<{ label: string; href: string }>>
   marketing: [
     { label: 'Features', href: '/#features' },
     { label: 'Pricing', href: '/pricing' },
+    { label: 'Blog', href: '/blog' },
     { label: 'Methodology', href: '/methodology' },
     { label: 'Sample Report', href: '/sample-report' },
     { label: 'Security', href: '/security' },
@@ -82,6 +83,7 @@ const DEFAULT_NAV: Record<HeaderVariant, Array<{ label: string; href: string }>>
   // back to product evaluation.
   legal: [
     { label: 'Pricing', href: '/pricing' },
+    { label: 'Blog', href: '/blog' },
     { label: 'Methodology', href: '/methodology' },
     { label: 'Sample Report', href: '/sample-report' },
     { label: 'Security', href: '/security' },

@@ -7,6 +7,8 @@ import { insforge } from './lib/insforge';
 import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
 import { createCheckoutSession, verifyCheckoutSession } from './lib/stripe';
 import LandingPage from './pages/LandingPage';
+import BlogList from './pages/BlogList';
+import BlogPostPage from './pages/BlogPost';
 import Dashboard from './pages/Dashboard';
 import DataIntake from './pages/DataIntake';
 import AIAssistant from './pages/AIAssistant';
@@ -406,6 +408,16 @@ function AppContent() {
       <Route path="/methodology" element={<MethodologyPublic />} />
       <Route path="/sample-report" element={<SampleReport />} />
       <Route path="/security" element={<Security />} />
+      <Route path="/blog" element={
+        <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex flex-col">
+          <BlogList />
+        </div>
+      } />
+      <Route path="/blog/:slug" element={
+        <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex flex-col">
+          <BlogPostPage />
+        </div>
+      } />
       <Route path="/demo" element={<Demo />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
