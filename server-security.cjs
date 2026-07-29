@@ -128,10 +128,35 @@ function sanitizeLeadPayload(payload) {
   };
 }
 
+const CHAT_FLOWS = new Set(['demo', 'contact']);
+const CHAT_STEPS = new Set(['name', 'email', 'company', 'date', 'time', 'message']);
+
+function sanitizeChatState(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  const state = {};
+  if (CHAT_FLOWS.has(value.flow)) state.flow = value.flow;
+  if (CHAT_STEPS.has(value.step)) state.step = value.step;
+
+  const fields = {
+    name: 120,
+    email: 254,
+    company: 160,
+    date: 40,
+  };
+  for (const [field, maxLength] of Object.entries(fields)) {
+    const bounded = boundedString(value[field], maxLength);
+    if (bounded) state[field] = bounded;
+  }
+
+  return state;
+}
+
 module.exports = {
   buildSecurityHeaders,
   canUseDevAuth,
   getAuthorizedCompanyIds,
   resolveAuthorizedCompanyId,
+  sanitizeChatState,
   sanitizeLeadPayload,
 };

@@ -15,11 +15,12 @@ const {
   buildSecurityHeaders,
   canUseDevAuth,
   resolveAuthorizedCompanyId,
+  sanitizeChatState,
   sanitizeLeadPayload,
 } = require('./server-security.cjs');
 const {
   billingStateFromCompany,
-  hasPlanAccess,
+  planAccessDecision,
   planFromPriceId,
   resolvePlanPriceId,
   shouldRetryWebhook,
@@ -54,7 +55,11 @@ let pgPool = null;
 if (process.env.DATABASE_URL) {
   try {
     const { Pool } = require('pg');
-    pgPool = new Pool({ connectionString: process.env.DATABASE_URL });
+    pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 3000,
+      query_timeout: 3000,
+    });
     // Auto-migrate + auto-seed: ensure blog_posts table exists and has content.
     pgPool.query(`
       CREATE TABLE IF NOT EXISTS blog_posts (
@@ -366,16 +371,23 @@ function buildSha() {
     || null;
 }
 
-function healthPayload() {
-  // Check InsForge/DB connectivity if configured
-  let dbStatus = 'not configured';
-  const insforgeUrl = process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL;
-  if (insforgeUrl) {
-    dbStatus = 'configured';
+async function probeDatabase() {
+  if (!pgPool) return { ok: false, configured: false };
+  try {
+    await pgPool.query('SELECT 1');
+    return { ok: true, configured: true };
+  } catch (err) {
+    log('error', 'Database health probe failed', { error: String(err) });
+    return { ok: false, configured: true };
   }
+}
+
+async function healthPayload() {
+  const database = await probeDatabase();
+  const dbStatus = database.ok ? 'ok' : database.configured ? 'unreachable' : 'not configured';
 
   return {
-    status: 'ok',
+    status: database.configured && !database.ok ? 'degraded' : 'ok',
     sha: buildSha(),
     build: buildSha(), // alias kept for /api/version parity (impl-spec AF-2)
     uptime: process.uptime(),
@@ -385,23 +397,25 @@ function healthPayload() {
   };
 }
 
-app.get('/health', function (_req, res) {
+app.get('/health', async function (_req, res) {
   // ponytail: no-store so cached health never defeats its purpose (godmythos HR #25).
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.json(healthPayload());
+  const payload = await healthPayload();
+  res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
 });
 
 // ─── /api/health — godmythos HR #24 §0 mandatory health route (AF-2) ───
 // Canonical SHA-self-report endpoint. Same payload as /health; the /api
 // prefix aligns with the API surface so uptime monitors and the gate-13
 // F1 check can probe a stable, semantically-named URL.
-app.get('/api/health', function (_req, res) {
+app.get('/api/health', async function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.json(healthPayload());
+  const payload = await healthPayload();
+  res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
 });
 
 // ─── InsForge config endpoint (for auth) ───
@@ -582,7 +596,14 @@ async function requireCompanyAccess(req, res, requestedCompanyId) {
   }
 
   // Auto-provision a company for first-time users so onboarding never errors.
-  const companyId = await ensureCompanyForUser(user);
+  let companyId;
+  try {
+    companyId = await ensureCompanyForUser(user);
+  } catch (err) {
+    log('error', 'Company provisioning unavailable', { error: String(err), userId: user.id });
+    res.status(503).json({ success: false, error: 'Data store unavailable' });
+    return null;
+  }
   if (companyId) {
     user.company_id = String(companyId);
   }
@@ -629,9 +650,13 @@ async function ensureCompanyForUser(user) {
     log('info', 'Auto-provisioned company with 14-day trial', { userId, companyId: insert.rows[0].id, trialEndsAt: insert.rows[0].trial_ends_at });
     return insert.rows[0].id;
   } catch (err) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      log('error', 'Company provisioning rollback failed', { error: String(rollbackErr), userId });
+    }
     log('error', 'ensureCompanyForUser failed', { error: String(err), userId });
-    return null;
+    throw err;
   } finally {
     client.release();
   }
@@ -744,10 +769,16 @@ async function syncSubscriptionRecord(record, eventCreatedAt) {
 
   // Companies are normally provisioned on first data access; make sure the
   // row exists so a checkout completed before app usage is not dropped.
-  // ensureCompanyForUser swallows its errors and returns null, so check the
-  // result — without this, a failed provision falls through to the UPDATE,
-  // matches nothing, and would be misread below as a harmless stale event.
-  const companyId = await ensureCompanyForUser({ id: userId });
+  // ensureCompanyForUser throws when the data store is unavailable — treat that
+  // as retryable rather than letting it fall through to the UPDATE, which would
+  // match nothing and be misread below as a harmless stale event.
+  let companyId;
+  try {
+    companyId = await ensureCompanyForUser({ id: userId });
+  } catch (err) {
+    log('warn', 'Subscription sync deferred: company provisioning failed', { userId, error: String(err) });
+    return { ok: false, reason: 'no_company', retryable: true };
+  }
   if (!companyId) {
     log('warn', 'Subscription sync deferred: company row unavailable', { userId });
     return { ok: false, reason: 'no_company', retryable: true };
@@ -812,20 +843,17 @@ function requirePlan(minPlanId) {
     if (!pgPool) return next();
     try {
       const state = await loadBillingState(req.user.id);
-      if (!state) return next();
-      if (!state.active || !hasPlanAccess(state.plan, minPlanId)) {
-        return res.status(402).json({
-          success: false,
-          error: 'An active subscription is required for this feature',
-          code: 'upgrade_required',
-          requiredPlan: minPlanId,
-        });
-      }
+      const decision = planAccessDecision(state, minPlanId);
+      if (!decision.allowed) return res.status(decision.status).json(decision.body);
       req.billing = state;
       return next();
     } catch (err) {
       log('error', 'requirePlan check failed', { error: String(err) });
-      return next(); // fail-open: a billing check outage must not take down core APIs
+      return res.status(503).json({
+        success: false,
+        error: 'Billing status unavailable, please retry',
+        code: 'billing_unavailable',
+      });
     }
   };
 }
@@ -1466,8 +1494,8 @@ async function getBotResponse(message, state = {}) {
 
 // ─── CHAT API ───
 app.post('/api/chat', express.json({ limit: '16kb' }), chatRateLimit, async function (req, res) {
-  const startTime = Date.now();
-  const { message, sessionId, state = {} } = req.body || {};
+  const { message } = req.body || {};
+  const state = sanitizeChatState(req.body && req.body.state);
 
   if (!message || typeof message !== 'string' || message.trim().length === 0) {
     return res.status(400).json({ success: false, error: 'Message is required' });
@@ -1491,64 +1519,6 @@ app.post('/api/chat', express.json({ limit: '16kb' }), chatRateLimit, async func
     });
   }
 
-  // Fallback to AI if no pattern matched and no flow is active
-  const chatModel = process.env.CHAT_MODEL;
-  const chatApiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
-
-  if (!chatApiKey) {
-    return res.json({
-      success: true,
-      response: "I'm here to help! I can assist with:\n\n• 💰 Pricing and plans\n• 📅 Booking a demo\n• 🚀 How EcoAuditor works\n• 📞 Contacting sales\n• Carbon accounting and compliance questions\n\nWhat would you like to know?",
-      quickReplies: ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales']
-    });
-  }
-
-  try {
-    const systemPrompt = `You are the EcoAuditor AI assistant — an expert in carbon accounting, emissions reporting, GHG protocols, Scope 1/2/3, California SB 253/SB 261, EU CBAM, and sustainability compliance for SMBs. Answer clearly and concisely. When uncertain, say so rather than guessing. Do not provide legal or regulatory advice — recommend consulting a specialist for specific compliance questions.`;
-
-    let result;
-    if (chatModel === 'anthropic' || process.env.ANTHROPIC_API_KEY) {
-      const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: message.trim() }],
-        }),
-      });
-      const data = await response.json();
-      result = data.content?.[0]?.text || 'Sorry, I could not process that request.';
-    } else {
-      const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          max_tokens: 1024,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: message.trim() },
-          ],
-        }),
-      });
-      const data = await response.json();
-      result = data.choices?.[0]?.message?.content || 'Sorry, I could not process that request.';
-    }
-
-    return res.json({ success: true, response: result.trim(), quickReplies: ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales'] });
-  } catch (err) {
-    log('error', 'Chat API error', { error: String(err) });
-    return res.status(500).json({ success: false, error: 'Internal error. Please try again.', quickReplies: ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales'] });
-  }
 });
 
 // ─── LEADS API ───
@@ -2350,13 +2320,31 @@ process.on('unhandledRejection', function (reason) {
 });
 
 // ─── Graceful shutdown ───
-const server = app.listen(PORT, '0.0.0.0', function () {
-  var videoPath = findVideoPath();
-  log('info', 'Eco-Auditor listening', { port: PORT, video: videoPath || 'not-found' });
+let server;
+
+async function startServer() {
+  if (process.env.NODE_ENV === 'production' && INSFORGE_BASE_URL && !process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is required when InsForge authentication is configured');
+  }
+  if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
+    const database = await probeDatabase();
+    if (!database.ok) throw new Error('DATABASE_URL is configured but unreachable');
+  }
+
+  server = app.listen(PORT, '0.0.0.0', function () {
+    var videoPath = findVideoPath();
+    log('info', 'Eco-Auditor listening', { port: PORT, video: videoPath || 'not-found' });
+  });
+}
+
+startServer().catch(function (err) {
+  log('error', 'Server startup failed', { error: String(err) });
+  process.exit(1);
 });
 
 function shutdown(signal) {
   log('info', 'Shutting down', { signal: signal });
+  if (!server) return process.exit(0);
   server.close(function () {
     log('info', 'All connections closed');
     process.exit(0);

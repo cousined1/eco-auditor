@@ -53,6 +53,9 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
         // Avoid accidental DB connection attempts during the test.
         INSFORGE_URL: '',
         NEXT_PUBLIC_INSFORGE_URL: '',
+        INSFORGE_BASE_URL: '',
+        VITE_INSFORGE_BASE_URL: '',
+        DATABASE_URL: '',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -84,6 +87,7 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
     expect(body.sha).toBe(TEST_SHA);
     // build alias mirrors /api/version (impl-spec AF-2).
     expect(body.build).toBe(TEST_SHA);
+    expect(body.db).toBe('not configured');
   });
 
   it('/api/health response includes Cache-Control: no-store', async () => {
