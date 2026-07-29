@@ -1,0 +1,33 @@
+title = "eco-auditor secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Installed dependencies and build output are not authored source"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)static/''',
+  '''(^|/)coverage/''',
+  '''(^|/)\.git/''',
+  '''package-lock\.json$''',
+]
+
+[[allowlists]]
+description = "Security scanner output quotes the findings it reports"
+paths = ['''findings\.sarif$''']
+
+[[allowlists]]
+description = "Local agent-tool state; high-entropy idempotency keys, not credentials"
+paths = [
+  '''(^|/)\.refact/''',
+  '''(^|/)\.insforge/''',
+  '''(^|/)\.omo/''',
+  '''(^|/)\.swarm/''',
+  '''(^|/)\.claude-flow/''',
+]
+
+[[allowlists]]
+description = "Test fixture uses a structurally-valid but non-functional token"
+paths = ['''tests/insforge\.test\.ts$''']

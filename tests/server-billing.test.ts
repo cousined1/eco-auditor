@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   billingStateFromCompany,
   hasPlanAccess,
+  planAccessDecision,
   planFromPriceId,
   resolvePlanPriceId,
   shouldRetryWebhook,
@@ -77,6 +78,22 @@ describe('server billing helpers', () => {
     expect(state.plan).toBe('starter');
     expect(hasPlanAccess(state.plan, 'starter')).toBe(true);
     expect(hasPlanAccess(state.plan, 'growth')).toBe(false);
+  });
+
+  it('fails closed when billing state is missing', () => {
+    expect(planAccessDecision(null, 'starter')).toMatchObject({
+      allowed: false,
+      status: 402,
+      body: { code: 'upgrade_required', requiredPlan: 'starter' },
+    });
+  });
+
+  it('allows an active plan at or above the required tier', () => {
+    expect(planAccessDecision({ active: true, plan: 'growth' }, 'starter')).toEqual({ allowed: true });
+    expect(planAccessDecision({ active: true, plan: 'starter' }, 'growth')).toMatchObject({
+      allowed: false,
+      status: 402,
+    });
   });
 });
 

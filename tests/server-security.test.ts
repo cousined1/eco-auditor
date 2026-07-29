@@ -7,6 +7,7 @@ const {
   canUseDevAuth,
   getAuthorizedCompanyIds,
   resolveAuthorizedCompanyId,
+  sanitizeChatState,
   sanitizeLeadPayload,
 } = require('../server-security.cjs');
 
@@ -62,5 +63,22 @@ describe('server security policy', () => {
       expect(lead.value.email).toBe('ada@example.com');
       expect(lead.value.message?.length).toBeLessThanOrEqual(1000);
     }
+  });
+
+  it('allowlists and bounds client-controlled chat state', () => {
+    expect(sanitizeChatState({
+      flow: 'demo',
+      step: 'email',
+      name: 'x'.repeat(200),
+      email: 'ada@example.com',
+      injected: 'ignored',
+    })).toEqual({
+      flow: 'demo',
+      step: 'email',
+      name: 'x'.repeat(120),
+      email: 'ada@example.com',
+    });
+    expect(sanitizeChatState({ flow: 'admin', step: 'complete' })).toEqual({});
+    expect(sanitizeChatState('not-an-object')).toEqual({});
   });
 });
