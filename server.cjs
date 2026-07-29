@@ -55,6 +55,33 @@ if (process.env.DATABASE_URL) {
   try {
     const { Pool } = require('pg');
     pgPool = new Pool({ connectionString: process.env.DATABASE_URL });
+    // Auto-migrate: ensure blog_posts table exists (idempotent).
+    pgPool.query(`
+      CREATE TABLE IF NOT EXISTS blog_posts (
+        id          TEXT PRIMARY KEY,
+        slug        TEXT NOT NULL UNIQUE,
+        target      TEXT NOT NULL,
+        topic_id    TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        meta_title  TEXT NOT NULL,
+        meta_description TEXT NOT NULL,
+        body_html   TEXT NOT NULL,
+        primary_keyword TEXT NOT NULL,
+        faq         JSONB NOT NULL DEFAULT '[]'::jsonb,
+        internal_links JSONB NOT NULL DEFAULT '[]'::jsonb,
+        external_links JSONB NOT NULL DEFAULT '[]'::jsonb,
+        cta         JSONB NOT NULL,
+        content_score INT,
+        geo_score   INT,
+        published_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS blog_posts_target_idx ON blog_posts(target);
+      CREATE INDEX IF NOT EXISTS blog_posts_published_at_idx ON blog_posts(published_at DESC);
+    `).then(() => {
+      log('info', 'blog_posts table migration complete');
+    }).catch((migErr) => {
+      log('error', 'blog_posts table migration failed:', migErr.message);
+    });
   } catch (err) {
     // pg package not installed — billing routes that need user lookup will return 503
   }
