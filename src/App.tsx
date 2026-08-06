@@ -194,9 +194,11 @@ function AppContent() {
     if (sessionId) {
       params.delete('session_id');
       replaced = true;
-      setCheckoutBanner({
-        message: 'Welcome back! Confirming your subscription…',
-        type: 'success',
+      queueMicrotask(() => {
+        setCheckoutBanner({
+          message: 'Welcome back! Confirming your subscription…',
+          type: 'success',
+        });
       });
       // Don't rely on the webhook alone. If it has not landed yet, or failed
       // and is still being retried, the customer would sit behind the paywall
