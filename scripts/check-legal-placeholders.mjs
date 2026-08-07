@@ -13,6 +13,9 @@ export const BANNED_PHRASES = [
   '[PLACEHOLDER]',
   'TBD',
   'to be set upon legal review',
+  'verify before publication',
+  'TO BE CONFIRMED',
+  'days of termination)',
 ];
 
 // "business draft for review" is the intentional banner sentence on each legal

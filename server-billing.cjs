@@ -52,6 +52,22 @@ function hasPlanAccess(planId, minPlanId) {
   return current >= minimum;
 }
 
+function planAccessDecision(state, minPlanId) {
+  if (!state || !state.active || !hasPlanAccess(state.plan, minPlanId)) {
+    return {
+      allowed: false,
+      status: 402,
+      body: {
+        success: false,
+        error: 'An active subscription is required for this feature',
+        code: 'upgrade_required',
+        requiredPlan: minPlanId,
+      },
+    };
+  }
+  return { allowed: true };
+}
+
 function isFuture(value, now) {
   if (!value) return false;
   const date = new Date(value);
@@ -195,6 +211,7 @@ function billingStateFromCompany(company, now = new Date()) {
 module.exports = {
   billingStateFromCompany,
   hasPlanAccess,
+  planAccessDecision,
   planFromPriceId,
   resolvePlanPriceId,
   planLimits,

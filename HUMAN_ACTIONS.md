@@ -119,6 +119,12 @@ treats any non-kWh unit as MWh.
 
 ## AUTH-2 (M19) — Auth configured without `DATABASE_URL` fails silently  · owner: Engineering/DevOps  · P2
 
+> **RESOLVED 2026-07-29 (Strix SARIF pass).** The proposed fail-fast below was
+> implemented in `server.cjs` (`startServer()`), and extended to also probe an
+> unreachable `DATABASE_URL`, not just a missing one. Verified: production boot
+> exits 1 for both missing and unreachable DB. Retained for history. The
+> operational half — actually setting a reachable value — is **OPS-1** below.
+
 **Why not auto-applied:** touches auth/config failure semantics + needs a
 deploy/env decision.
 
@@ -196,6 +202,172 @@ npm run build                                   # legal-placeholder gate still g
 A cautious procurement, finance, or legal buyer evaluating Eco-Auditor for
 carbon-accounting will read the banner as "this service is not commercially
 ready" and decline to create an account or upload source records.
+
+---
+
+# Strix SARIF remediation (2026-07-29) — production-only actions
+
+Source: `findings.sarif` (Strix, 2026-07-29). The code-side fixes for all five
+findings were applied this session and verified (171/171 tests, build green,
+`npm run security:audit` green, gitleaks green + negative-control). The four
+items below **cannot** be closed from the IDE — they need Railway/provider
+access or a coordinated force-push — and each is a precondition for the
+production outage actually ending.
+
+Run them in order: **OPS-1 first** (it is the live outage), then SEC-2/SEC-3.
+
+---
+
+## OPS-1 — `DATABASE_URL` outage: NOT REPRODUCIBLE as of 2026-07-29 · owner: DevOps · P2 (was P0)
+
+> **STATUS CORRECTION (2026-07-29, re-verified against live production).**
+> The SARIF report describes a total outage. **Live production does not show
+> it.** Re-probing `https://ecoauditor.io` at deployed sha `2521553` (identical
+> to the sha this remediation was authored against):
+> ```
+> GET /api/health      → 200  {"status":"ok","db":"configured","sha":"2521553…"}
+> GET /api/blog-posts  → 200  4 posts served FROM POSTGRES via the same pgPool
+> ```
+> `/api/blog-posts` is the decisive signal: it executes
+> `SELECT … FROM blog_posts` on the very pool the SARIF finding claims is
+> unreachable. Rows come back. **`DATABASE_URL` is set and the database is
+> reachable.** Operator confirms the variable is present in Railway.
+>
+> The SARIF finding was either fixed by an intervening deploy, or was recorded
+> against a different environment. Do **not** treat this as a live P0.
+> Nothing here needs an emergency change.
+>
+> One caveat worth noting: the *reason* `db:"configured"` looked reassuring
+> during the outage report is the exact defect this PR fixes — the old health
+> route reported env-var presence, never connectivity. After this PR merges,
+> that field becomes `db:"ok"` from a real `SELECT 1`, so a future outage will
+> be visible instead of silently green. Until then, `db:"configured"` alone is
+> **not** proof of connectivity — `/api/blog-posts` returning rows is.
+
+**Why IDE access is insufficient:** the defect described was a Railway service
+variable, not code.
+
+**Original SARIF evidence (NOT reproducible today — retained for audit
+history):** `findings.sarif` vuln-0001 (CVSS 7.5) reported dynamic testing with
+two verified accounts where `/api/emissions/summary`, `/api/emissions/trend`,
+`/api/companies/:id/facilities`, `/api/ingest/csv`, `/api/calculate`,
+`/api/compliance`, `/api/reports/*` all returned `{"success":false,
+"error":"Forbidden"}`; `/api/trial-status` → `"source":"error-fallback"`;
+`/api/billing` → 500.
+
+**Applied this session (code side):** `server.cjs` now (a) live-probes the DB in
+`healthPayload()` with a 3s timeout and reports `db:"ok"|"unreachable"` instead
+of echoing env presence, (b) returns 503 `degraded` from `/health` and
+`/api/health` when the DB is configured but unreachable, (c) returns 503
+`Data store unavailable` rather than 403 when company provisioning fails, and
+(d) refuses to boot in production when the DB is missing or unreachable.
+
+> **DEPLOY CAUTION — read before redeploying.** Item (d) changes failure mode:
+> with a still-broken `DATABASE_URL` the service will now **exit non-zero at
+> startup instead of serving a degraded app**. Set the variable *before* or *in
+> the same deploy as* this change, or the service will fail to come up.
+
+**Action (reduced — the emergency step is already satisfied):**
+1. ~~Set `DATABASE_URL` in Railway~~ — already set; connectivity verified.
+2. On the next deploy of this PR, confirm the health field flips from
+   `db:"configured"` to `db:"ok"` (proves the live probe is active).
+
+**Verify (all three must pass):**
+```bash
+curl -sS "$APP_URL/api/health" | jq '{status, db, sha}'   # status "ok", db "ok"
+# sha MUST equal the commit you intended to deploy — a mismatch is a deploy failure, not an app bug
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $TOKEN" "$APP_URL/api/emissions/summary"
+# expect 200 (entitled) or 402 (upgrade_required) — 403 means this item is NOT fixed
+```
+
+**Follow-up:** add a synthetic check that exercises one authenticated data
+endpoint and alerts on a 403 spike; `/api/health` alone would not have caught
+this outage before the probe change.
+
+---
+
+## SEC-2 — Rotate the two committed API keys · owner: Security · P1
+
+**Why IDE access is insufficient:** revocation happens in provider dashboards.
+
+**Exactly which two keys (verified by git archaeology 2026-07-29):**
+
+| # | Key | Provider | Where it leaked | Commits | In HEAD? |
+|---|-----|----------|-----------------|---------|----------|
+| 1 | `ik_sehr…` (InsForge API key) | InsForge | `opencode.json` | `f2eaf94` (added), `cc62540` (redacted) | No — now `${INSFORGE_MCP_API_KEY}` |
+| 2 | `8eba…` (Ollama API key) | Ollama | `.env.ollama` | `edfa108` (added), `cb801b4`, `dfdb256` | No — file absent from HEAD |
+
+**It is NOT the Stripe key.** A reasonable hypothesis was that
+`STRIPE_SECRET_KEY` leaked. Checked and **ruled out**:
+`git log --all -S 'sk_live'` returns 4 commits, but every hit is a
+documentation placeholder — `sk_live_...` in `ADR.md`/`DEPLOY.md`, and
+`sk_live_your_secret_key` in `railway.env.example`. No live Stripe secret is
+in history. Stripe is correctly read from `process.env.STRIPE_SECRET_KEY`
+(`server.cjs`). No Stripe rotation is required for this finding.
+
+**Evidence:** `findings.sarif` vuln-0003 (CVSS 5.3).
+
+Strix reports both backends currently reject the keys (404 / 401 invalid).
+That limits present-day exploitability — it does **not** remove the need to
+rotate, since a restored backend or any key reuse re-arms them.
+
+**Action:** revoke + regenerate both credentials in the InsForge dashboard and
+the Ollama provider console. Audit InsForge access logs for prior use.
+
+**Verify:** old key returns 401/403 from its provider; the app still functions
+with the regenerated value supplied via environment.
+
+---
+
+## SEC-3 — Purge `.env.ollama` from git history · owner: Engineering · P1
+
+**Why IDE access is insufficient:** requires history rewrite + force-push +
+coordinated re-clone by every contributor. Destructive and irreversible.
+
+**Evidence:** `findings.sarif` vuln-0003; commit `edfa108`
+("config: add ollama api key for openensemble integration").
+
+**Do SEC-2 first.** Rotation is what actually neutralizes the key; the purge
+only limits further spread. A purge without rotation leaves a live credential
+in every existing clone.
+
+**Action:**
+```bash
+git clone --mirror <remote> eco-auditor-purge && cd eco-auditor-purge
+git filter-repo --path .env.ollama --invert-paths   # or BFG --delete-files .env.ollama
+git push --force --all && git push --force --tags
+```
+Then require every contributor to re-clone; existing clones still contain the
+blob.
+
+**Verify:** `git log --all --full-history -- .env.ollama` returns nothing in a
+fresh clone.
+
+---
+
+## SEC-4 — Decide on the React Router audit exception · owner: Engineering · P2
+
+**Why this needs a human:** it is a risk-acceptance decision, not a fix.
+
+**Context:** dependencies were upgraded this session (react-router-dom 7.18.2,
+postcss 8.5.24, ws 8.21.1, body-parser 1.20.6, esbuild 0.28.1). One advisory
+remains open with no v7 fix: **GHSA-qwww-vcr4-c8h2** (high, RSC-mode CSRF),
+patched only in react-router 8.3.0.
+
+**Assessment:** this app is a client-only Vite SPA using declarative
+`<BrowserRouter>`; it does not use the unstable RSC server-action path the
+advisory affects. Rather than force a v8 major migration to silence a
+non-applicable finding, `scripts/audit-production.mjs` encodes this **single**
+documented exception by advisory URL and still fails the build on every other
+high/critical production advisory.
+
+**Action:** either (a) ratify the exception, or (b) schedule the v8 migration.
+If v8 is adopted, delete the `allowedAdvisories` entry in
+`scripts/audit-production.mjs` — it should not outlive its justification.
+
+**Verify:** `npm run security:audit` exits 0; planting any other high advisory
+makes it exit 1.
 
 ---
 
