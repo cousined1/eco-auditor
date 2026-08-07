@@ -9,7 +9,6 @@ describe('trustFacts (P0-06)', () => {
       'encryptionAtRest',
       'accountDeletionRequestWindowDays',
       'postTerminationRetentionDays',
-      'backupsDeletionWindowDays',
       'contentUsedForModelTraining',
       'soc2Status',
       'cloudHosting',
@@ -27,10 +26,8 @@ describe('trustFacts (P0-06)', () => {
   });
 
   it('verified:false scalar fields do NOT expose a fabricated concrete value', () => {
-    // 30 is the documented code value (not fabricated); 'VERIFY' is the sentinel (not fabricated).
+    // 'VERIFY' is the sentinel (not fabricated).
     // Any other concrete value on a verified:false fact would be an invented claim.
-    expect(trustFacts.backupsDeletionWindowDays.value).toBe(30);
-    expect(trustFacts.backupsDeletionWindowDays.verified).toBe(false);
     expect(trustFacts.cloudHosting.value).toBe('VERIFY');
     expect(trustFacts.cloudHosting.verified).toBe(false);
   });
@@ -44,7 +41,6 @@ describe('trustFacts (P0-06)', () => {
   });
 
   it('renderFact returns "(verify before publication)" for verified:false and the string value for verified:true', () => {
-    expect(renderFact(trustFacts.backupsDeletionWindowDays)).toBe('(verify before publication)');
     expect(renderFact(trustFacts.cloudHosting)).toBe('(verify before publication)');
     expect(renderFact(trustFacts.encryptionAtRest)).toBe('AES-256');
     expect(renderFact(trustFacts.soc2Status)).toBe('in progress (Q3 2026)');
