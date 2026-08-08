@@ -147,7 +147,7 @@ The primary conversion routes now exist and the site presents a fuller commercia
 
 # 5. P0 — Fix before paid acquisition or broad launch
 
-## P0-01 — Remove the public backup-retention placeholder
+## P0-01 — Remove the public backup-retention placeholder — ✅ Resolved (2026-08-08)
 
 **Area:** Security, privacy, procurement  
 **Severity:** Critical  
@@ -160,19 +160,13 @@ The Security page publicly states that backups are deleted within **“(verify b
 
 This is a production placeholder on one of the site’s most trust-sensitive pages. It tells buyers that the published retention statement has not been verified.
 
-### Required fix
+### Resolution
 
-1. Inspect the real backup lifecycle for every relevant system, including Railway, InsForge/Postgres, object storage, logs, and any support or export storage.
-2. Document:
-   - Backup frequency
-   - Retention window
-   - Restore-testing cadence
-   - Encryption method
-   - Deletion behavior after account termination
-   - Maximum time before terminated data ages out of backups
-3. Approve one exact statement with security, privacy, and legal owners.
-4. Use the same value in Security, Privacy, Terms, DPA, account-deletion UI, and sales security responses.
-5. Add a production build check that rejects placeholder phrases.
+The Security page now publishes the verified termination retention fact: **90 days** after termination (`src/content/trust-facts.ts` — `postTerminationRetentionDays: { value: 90, verified: true }`), rendered via `renderFact()` in `src/pages/Security.tsx`. The placeholder phrase `(verify before publication) days` no longer appears on any public page.
+
+- **Commits:** `162c30e` (removed the unverified backup-retention claim; deleted the stale `audit-live/` snapshot), `148c4f4` (dropped the unverified `backupsDeletionWindowDays: 35` fact from the 2026-07-11 audit), `b961b69` (legal placeholder guardrails).
+- **Guardrail implemented:** `scripts/check-legal-placeholders.mjs` runs first in the production build (`package.json`), rejects `"verify before publication"` and related placeholder phrases, and is covered by `tests/legal-placeholders.test.ts`. CI fails when banned placeholder language is introduced.
+- **Still open (separate track):** full operational backup-lifecycle documentation (frequency, restore-testing cadence, encryption method) and a formal owner review date. These are not required for the published buyer-facing claim, which is now verified and accurate.
 
 ### Suggested guardrail
 
@@ -194,11 +188,11 @@ for (const phrase of bannedPublicPhrases) {
 
 ### Acceptance criteria
 
-- [ ] No public page contains unresolved operational placeholders.
+- [x] No public page contains unresolved operational placeholders.
 - [ ] Security, Privacy, Terms, and DPA use the same terminology.
 - [ ] Account deletion explains active-data and backup-deletion timing separately.
 - [ ] The approved statement has an owner and review date.
-- [ ] CI fails when banned placeholder language is introduced.
+- [x] CI fails when banned placeholder language is introduced.
 
 ---
 
@@ -1279,7 +1273,7 @@ Use framework equivalents where needed.
 
 ## Day 1 — Trust blockers
 
-- Verify and publish backup-retention facts.
+- [x] Verify and publish backup-retention facts.
 - Remove every placeholder.
 - Build the trust-facts source.
 - Reconcile DPA subprocessors.

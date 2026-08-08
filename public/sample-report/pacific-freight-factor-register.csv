@@ -1,5 +1,5 @@
 factor_id,source_organization,dataset_name,dataset_version,publication_date,imported_at,effective_from,effective_to,geography,activity_unit,output_unit,factor_value,factor_gas,gwp_basis,checksum,status
-epa-efh-2025,US EPA,GHG Emission Factors Hub,2025,2025-04-15,2025-04-20,2025-01-01,,USA,therms,kgCO2e,5.30,CO2e,AR5,sha256:ab12,active
+epa-efh-2025,US EPA,GHG Emission Factors Hub,2025,2025-04-15,2025-04-20,2025-01-01,,USA,therms,kgCO2e,5.3,CO2e,AR5,sha256:ab12,active
 epa-egrid-2023,US EPA,eGRID,CAMD 2023 data (released 2024),2024-01-09,2024-01-15,2023-01-01,,USA-CAMX,kWh,kgCO2e,0.4296,CO2e,AR5,sha256:cd34,active
 ipcc-ar6-gwp100,IPCC,AR6 GWP-100,AR6,2021-08-09,2022-01-10,2021-01-01,,Global,kg,kgCO2e,2088,CH4/HFC,AR6,sha256:ef56,active
 exiobase-3-eeio-2021,Exiobase,EEIO spend-based factors,v3.8.2,2022-06-01,2022-07-01,2021-01-01,,Global,USD,tCO2e,0.000118,CO2e,AR5,sha256:gh78,active

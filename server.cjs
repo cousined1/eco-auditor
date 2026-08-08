@@ -30,6 +30,10 @@ const {
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 } = require('./server-billing.cjs');
+const {
+  buildReportText,
+  createSimplePdf,
+} = require('./src/lib/reports/report-generator.cjs');
 
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
@@ -2053,23 +2057,6 @@ app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, requirePla
   return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: new Date().toISOString() } });
 });
 
-// Renders the emissions summary into the plain text the PDF is built from.
-function buildReportText(summary, period) {
-  const lines = [
-    'EcoAuditor Emissions Report',
-    'Generated: ' + new Date().toISOString().split('T')[0],
-    'Reporting period: ' + (period || 'All time'),
-    '',
-    'Total: ' + summary.total_emissions_tCO2e + ' tCO2e',
-    'Scope 1: ' + summary.by_scope.scope1 + ' tCO2e',
-    'Scope 2: ' + summary.by_scope.scope2 + ' tCO2e',
-    'Scope 3: ' + summary.by_scope.scope3 + ' tCO2e',
-    'Confidence: ' + summary.confidence_score + '%',
-    'Methodology: ' + summary.methodology,
-  ];
-  return lines.join('\n');
-}
-
 app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const companyId = await requireCompanyAccess(req, res, req.params.id);
@@ -2136,31 +2123,6 @@ app.get('/api/reports/:id/download', apiAuthGuard, requirePlan('starter'), async
     return res.status(500).json({ success: false, error: 'Failed to generate report PDF' });
   }
 });
-
-function createSimplePdf(text) {
-  const safeText = String(text).replace(/[()\\]/g, '\\$&').split('\n').join(') Tj\n0 -16 Td\n(');
-  const stream = `BT /F1 12 Tf 72 740 Td (${safeText}) Tj ET`;
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
-  ];
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
-  objects.forEach(function (object, index) {
-    offsets.push(Buffer.byteLength(pdf));
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xref = Buffer.byteLength(pdf);
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (let i = 1; i < offsets.length; i++) {
-    pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
-  }
-  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return Buffer.from(pdf);
-}
 
 app.get('/api/video', function (req, res) {
   const filePath = findVideoPath();
