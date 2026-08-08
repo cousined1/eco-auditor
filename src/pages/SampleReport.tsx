@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import Header from '../components/Header';
 import { summarizeQuality } from '../lib/reports/quality-summary';
+import fixture from '../lib/reports/sample-report-fixture.json';
 
 const SCHEMA = {
   "@context": "https://schema.org",
@@ -10,28 +11,23 @@ const SCHEMA = {
   "description": "See what a reviewable GHG emissions report looks like. Scope 1-3 breakdown, data quality scoring, compliance framework alignment.",
 };
 
+const fmt = (n: number) => n.toLocaleString('en-US');
+
 const METRICS = {
-  total: '12,847',
-  unit: 'tCO₂e',
-  scope1: { value: '3,421', pct: 27, color: 'bg-red-500' },
-  scope2: { value: '2,156', pct: 17, color: 'bg-blue-500' },
-  scope3: { value: '7,270', pct: 56, color: 'bg-emerald-500' },
+  total: fmt(fixture.metrics.total),
+  unit: fixture.metrics.unit,
+  scope1: { value: fmt(fixture.metrics.scope1.value), pct: fixture.metrics.scope1.pct, color: 'bg-red-500' },
+  scope2: { value: fmt(fixture.metrics.scope2.value), pct: fixture.metrics.scope2.pct, color: 'bg-blue-500' },
+  scope3: { value: fmt(fixture.metrics.scope3.value), pct: fixture.metrics.scope3.pct, color: 'bg-emerald-500' },
 };
 
-// Illustrative mix of confidence bands. The product scores each entry by
-// activity category (see /methodology); it does not assign L1-L5 quality
-// levels — that hierarchy was described here as if it shipped, and does not.
-const QUALITY_SCORES = [
-  { label: 'Metered electricity (97%)', score: 34, color: 'bg-brand-500' },
-  { label: 'Metered fuel (88–90%)', score: 25, color: 'bg-brand-400' },
-  { label: 'Activity-based Scope 3 (72–75%)', score: 24, color: 'bg-amber-400' },
-  { label: 'Spend-based Scope 3 (65%)', score: 17, color: 'bg-orange-400' },
-];
+const QUALITY_SCORES = fixture.quality;
 
-const YEAR_COMPARISON = [
-  { year: '2025', total: '11,204', change: null },
-  { year: '2026', total: '12,847', change: '+14.7%' },
-];
+const YEAR_COMPARISON = fixture.year.map(y => ({
+  year: String(y.year),
+  total: fmt(y.total),
+  change: y.change,
+}));
 
 export default function SampleReport() {
   useEffect(() => {
@@ -81,11 +77,11 @@ export default function SampleReport() {
           <div className="border-b border-surface-200 dark:border-surface-800 px-6 py-4 flex items-center justify-between">
             <div>
               <div className="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase tracking-wider">Annual GHG Inventory Report</div>
-              <h2 className="text-base font-bold text-surface-900 dark:text-white mt-0.5">Pacific Freight Co. · FY 2026</h2>
+              <h2 className="text-base font-bold text-surface-900 dark:text-white mt-0.5">{fixture.company.name} · FY {fixture.company.fiscalYear}</h2>
             </div>
             <div className="flex items-center gap-2">
               <span className="badge-green text-2xs">GHG Protocol aligned</span>
-              <span className="badge-gray text-2xs">DRAFT — FOR REVIEW</span>
+              <span className="badge-gray text-2xs">{fixture.revisionLabel}</span>
             </div>
           </div>
 
@@ -94,7 +90,7 @@ export default function SampleReport() {
             <p className="text-xs text-surface-500 uppercase tracking-wider mb-1">Total scope 1 + 2 + 3 emissions</p>
             <div className="text-5xl font-bold text-surface-900 dark:text-white">{METRICS.total}</div>
             <div className="text-lg text-surface-500 mt-1">{METRICS.unit}</div>
-            <p className="text-xs text-surface-600 dark:text-surface-400 mt-2">Operational control boundary · Base year: 2025</p>
+            <p className="text-xs text-surface-600 dark:text-surface-400 mt-2">{fixture.boundary} boundary · Base year: {fixture.baseYear}</p>
           </div>
 
           {/* Scope breakdown */}

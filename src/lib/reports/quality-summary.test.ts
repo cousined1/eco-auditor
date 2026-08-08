@@ -1,21 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { summarizeQuality, type QualityScore } from './quality-summary';
 
-// Mirrors SampleReport.tsx QUALITY_SCORES (L1=8, L2=34, L3=41, L4–L5=17).
+// Mirrors SampleReport.tsx QUALITY_SCORES and sample-report-fixture.json quality[].
 const QUALITY_SCORES: QualityScore[] = [
-  { label: 'Direct Measurement (L1)', score: 8 },
-  { label: 'Primary Source Data (L2)', score: 34 },
-  { label: 'Industry Average (L3)', score: 41 },
-  { label: 'Proxy / Estimated (L4–L5)', score: 17 },
+  { label: 'Metered electricity (97%)', score: 34 },
+  { label: 'Metered fuel (88–90%)', score: 25 },
+  { label: 'Activity-based Scope 3 (72–75%)', score: 24 },
+  { label: 'Spend-based Scope 3 (65%)', score: 17 },
 ];
 
 describe('summarizeQuality (P0-03)', () => {
-  it('produces primaryOrBetter=42, industryAverageOrBetter=83, estimated=17, total=100', () => {
+  it('produces primaryOrBetter=59, industryAverageOrBetter=83, estimated=17, total=100', () => {
     const q = summarizeQuality(QUALITY_SCORES);
-    expect(q.primaryOrBetter).toBe(42); // 8 + 34
-    expect(q.industryAverageOrBetter).toBe(83); // 42 + 41
+    expect(q.primaryOrBetter).toBe(59); // 34 + 25
+    expect(q.industryAverageOrBetter).toBe(83); // 59 + 24
     expect(q.estimated).toBe(17); // 100 - 83
-    expect(q.total).toBe(100); // 8 + 34 + 41 + 17
+    expect(q.total).toBe(100); // 34 + 25 + 24 + 17
   });
 
   it('is null-safe when the scores array is shorter than expected', () => {
