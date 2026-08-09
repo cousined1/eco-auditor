@@ -1,4 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+
+/**
+ * Dialog shell for the chat panel.
+ *
+ * The panel was a bare <div>: opening it left focus on the launcher, Tab walked
+ * straight out into the page behind, Escape did nothing, and closing dropped
+ * focus onto <body> so the next Tab restarted from the top of the document.
+ * useFocusTrap handles focus-in, Tab containment, Escape and focus-return; it
+ * lives in a separate component because the hook must run unconditionally while
+ * the panel itself renders conditionally.
+ */
+function ChatDialog({
+  onClose,
+  style,
+  children,
+}: {
+  onClose: () => void;
+  style: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const ref = useFocusTrap<HTMLDivElement>(onClose);
+  return (
+    <div ref={ref} role="dialog" aria-modal="true" aria-label="EcoAuditor chat" style={style}>
+      {children}
+    </div>
+  );
+}
 
 interface Message {
   id: string;
@@ -56,9 +84,22 @@ export default function ChatWidget({
   const [chatState, setChatState] = useState<Record<string, unknown>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  // The launcher is unmounted while the panel is open, so useFocusTrap's saved
+  // "previously focused" node is gone by the time it tries to restore focus and
+  // the browser falls back to <body> — the next Tab then restarts from the top
+  // of the document. This re-focuses the launcher once it remounts on close.
+  const restoreFocusRef = useRef(false);
+
+  useEffect(() => {
+    if (isOpen || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    launcherRef.current?.focus();
+  }, [isOpen]);
 
   // Seed welcome message on first open
   const handleOpen = () => {
+    restoreFocusRef.current = true;
     setIsOpen(true);
     if (messages.length === 0) {
       setMessages([createMessage('welcome', 'assistant', welcomeMessage, QUICK_REPLIES)]);
@@ -150,6 +191,7 @@ export default function ChatWidget({
       {/* Floating button */}
       {!isOpen && (
         <button
+          ref={launcherRef}
           onClick={handleOpen}
           aria-label="Open EcoAuditor chat"
           style={{
@@ -182,19 +224,22 @@ export default function ChatWidget({
 
       {/* Chat window */}
       {isOpen && (
-        <div style={{
-          // Was a fixed 380px, which overflowed a 375px viewport and pushed the
-          // close button off-screen — and covered the cookie banner's buttons.
-          width: 'min(380px, calc(100vw - 32px))',
-          height: 'min(540px, calc(100dvh - 96px))',
-          backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          border: '1px solid #e5e7eb',
-        }}>
+        <ChatDialog
+          onClose={() => setIsOpen(false)}
+          style={{
+            // Was a fixed 380px, which overflowed a 375px viewport and pushed the
+            // close button off-screen — and covered the cookie banner's buttons.
+            width: 'min(380px, calc(100vw - 32px))',
+            height: 'min(540px, calc(100dvh - 96px))',
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            border: '1px solid #e5e7eb',
+          }}
+        >
           {/* Header */}
           <div style={{
             padding: '16px 20px',
@@ -417,7 +462,7 @@ export default function ChatWidget({
               </svg>
             </button>
           </form>
-        </div>
+        </ChatDialog>
       )}
 
       <style>{`

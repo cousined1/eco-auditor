@@ -88,7 +88,7 @@ export default function ContactUs() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Email</h3>
-            <a href="mailto:support@ecoauditor.io" className="text-sm text-accent hover:underline">support@ecoauditor.io</a>
+            <a href="mailto:support@ecoauditor.io" className="text-sm text-accent-text hover:underline">support@ecoauditor.io</a>
             <p className="text-2xs text-surface-500 mt-0.5">For all inquiries · also <a href="mailto:hello@developer312.com" className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 hover:underline">hello@developer312.com</a></p>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default function ContactUs() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Phone</h3>
-            <a href="tel:+15104011225" className="text-sm text-accent hover:underline">(510) 401-1225</a>
+            <a href="tel:+15104011225" className="text-sm text-accent-text hover:underline">(510) 401-1225</a>
             <p className="text-2xs text-surface-500 mt-0.5">Mon–Fri, 9am–5pm PT</p>
           </div>
         </div>
@@ -216,7 +216,7 @@ export default function ContactUs() {
                 {submitError && (
                   <p className="text-xs text-risk-high mt-2">
                     {submitError} You can still reach us — email{' '}
-                    <a href={mailtoHref} className="text-accent hover:underline">hello@developer312.com</a>{' '}
+                    <a href={mailtoHref} className="text-accent-text hover:underline">hello@developer312.com</a>{' '}
                     and we&apos;ll get back to you within 1–2 business days.
                   </p>
                 )}
@@ -259,9 +259,9 @@ export default function ContactUs() {
           <div className="card">
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Direct addresses</h3>
             <ul className="space-y-1.5 text-xs">
-              <li><a href="mailto:support@ecoauditor.io" className="text-accent hover:underline">support@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— general help</span></li>
-              <li><a href="mailto:security@ecoauditor.io" className="text-accent hover:underline">security@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— security reports</span></li>
-              <li><a href="mailto:privacy@ecoauditor.io" className="text-accent hover:underline">privacy@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— privacy & DPA</span></li>
+              <li><a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— general help</span></li>
+              <li><a href="mailto:security@ecoauditor.io" className="text-accent-text hover:underline">security@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— security reports</span></li>
+              <li><a href="mailto:privacy@ecoauditor.io" className="text-accent-text hover:underline">privacy@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— privacy & DPA</span></li>
             </ul>
           </div>
         </div>

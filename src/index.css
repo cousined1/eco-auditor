@@ -2,14 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Metric-matched fallback for Inter.
+ *
+ * index.html loads Inter with `display=swap`, so the browser paints in the
+ * local sans-serif first and reflows when the webfont arrives. Lighthouse
+ * attributed the home page's entire 0.212 CLS to that swap ("Web font loaded",
+ * fonts.gstatic.com/.../Inter...woff2) — the cookie banner was only the element
+ * it happened to move. A warm browser never shows it because the font is
+ * already cached; a first-time mobile visitor sees it every time.
+ *
+ * size-adjust / ascent / descent scale the fallback so it occupies the same
+ * space Inter will, making the swap visually invisible instead of a reflow.
+ * Values are the standard Arial->Inter match used by Next.js's font optimizer.
+ */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  size-adjust: 107.12%;
+  ascent-override: 90.49%;
+  descent-override: 22.56%;
+  line-gap-override: 0%;
+}
+
+/* Muted body text, resolved per theme.
+ *
+ * `text-surface-500` is the app's muted-text token and appears at ~156 sites,
+ * only 6 of which carry a dark: override. At its old fixed #6b7a70 it failed
+ * WCAG AA in BOTH themes — 4.31:1 on the surface.50 page background and
+ * 3.75:1 on the dark surface.900 — which is where the bulk of axe-core's 136
+ * serious colour-contrast nodes came from.
+ *
+ * Darkening the hex alone would have fixed light mode and made dark mode worse,
+ * so the token resolves through a variable instead: #647368 on light (4.78:1 on
+ * surface.50, 4.52:1 on surface.100) and #9ca8a0 on dark (6.88:1 on surface.900,
+ * 5.98:1 on surface.800). Every existing `text-surface-500` now passes in both
+ * themes with no per-site changes.
+ */
+/* `accent` as text had the same problem: #0d9488 measures 3.74:1 on white.
+ * Light mode now uses the palette's existing accent.dark (#0f766e, 5.47:1) and
+ * dark mode keeps #0d9488, which is 4.53:1 against surface.900. The accent
+ * BACKGROUND utilities are untouched — this variable only feeds text-accent,
+ * where the 4.5:1 minimum applies. */
+:root {
+  --surface-500: #647368;
+  --accent-text: #0f766e;
+}
+
+.dark {
+  --surface-500: #9ca8a0;
+  --accent-text: #0d9488;
+}
+
 @layer base {
   * {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
+
+
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', 'Inter Fallback', system-ui, -apple-system, sans-serif;
   }
 
   ::selection {

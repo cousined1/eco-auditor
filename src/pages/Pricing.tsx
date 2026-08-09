@@ -174,7 +174,7 @@ export default function Pricing() {
                   Book a Demo
                 </Link>
                 <p className="text-2xs text-surface-600 dark:text-surface-400 text-center mt-1">
-                  By signing up, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
+                  By signing up, you agree to our <Link to="/terms" className="text-accent-text hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent-text hover:underline">Privacy Policy</Link>.
                 </p>
               </div>
             </div>
@@ -253,7 +253,7 @@ export default function Pricing() {
         <p className="text-sm text-surface-500 mt-1 max-w-md mx-auto">
           For organizations with complex requirements, multiple entities, or custom integration needs.
         </p>
-        <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">EU-facing customers can request a <Link to="/dpa" className="text-accent hover:underline">Data Processing Addendum</Link>.</p>
+        <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">EU-facing customers can request a <Link to="/dpa" className="text-accent-text hover:underline">Data Processing Addendum</Link>.</p>
         <div className="flex items-center justify-center gap-3 mt-4">
           <Link to="/contact" className="btn-primary">Talk to sales</Link>
           <Link to="/demo" className="btn-secondary">Book a Demo</Link>

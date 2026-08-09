@@ -1,11 +1,25 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useConsent } from '@/lib/consent-context';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+
+// Client-only gate. The prerenderer has no localStorage, so it always rendered
+// the banner into the static HTML — then createRoot() replaced the tree on the
+// client and the banner repainted, which Lighthouse measured as the page's
+// entire 0.212 CLS. useSyncExternalStore returns the server snapshot (false)
+// during the static render and the client snapshot (true) in the browser, so
+// the banner never reaches the prerendered markup and the first layout the
+// user sees is the final one. Expressed this way rather than as a mount effect
+// because setState-in-effect triggers a cascading render (react-hooks lint).
+const subscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 export function CookieConsentBanner() {
   const { consentState, acceptAll, rejectAll } = useConsent();
   const [showPreferences, setShowPreferences] = useState(false);
+  const isClient = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
 
+  if (!isClient) return null;
   if (consentState.hasConsented) return null;
 
   return (

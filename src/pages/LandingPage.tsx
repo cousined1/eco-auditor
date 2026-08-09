@@ -384,7 +384,7 @@ function FeatureCard({ title, description, icon, comingSoon }: { title: string; 
   return (
     <div className="card hover:shadow-md transition-shadow group">
       <div className="flex items-start justify-between mb-4">
-        <div className="w-9 h-9 rounded-lg bg-accent/10 dark:bg-accent/20 flex items-center justify-center text-accent group-hover:bg-accent/20 transition-colors">
+        <div className="w-9 h-9 rounded-lg bg-accent/10 dark:bg-accent/20 flex items-center justify-center text-accent-text group-hover:bg-accent/20 transition-colors">
           {icon}
         </div>
         {comingSoon && (
