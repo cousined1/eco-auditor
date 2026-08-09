@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
@@ -9,18 +9,10 @@ import { createCheckoutSession, verifyCheckoutSession } from './lib/stripe';
 import LandingPage from './pages/LandingPage';
 import BlogList from './pages/BlogList';
 import BlogPostPage from './pages/BlogPost';
-import Dashboard from './pages/Dashboard';
-import DataIntake from './pages/DataIntake';
-import AIAssistant from './pages/AIAssistant';
-import Ledger from './pages/Ledger';
-import Reports from './pages/Reports';
-import Suppliers from './pages/Suppliers';
-import Methodology from './pages/Methodology';
 import MethodologyPublic from './pages/MethodologyPublic';
 import SampleReport from './pages/SampleReport';
 import Security from './pages/Security';
 import Pricing from './pages/Pricing';
-import Settings from './pages/Settings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import ContactUs from './pages/ContactUs';
@@ -31,10 +23,41 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import AuthCallback from './pages/AuthCallback';
 import NotFound from './pages/NotFound';
-import CarbonCalculator from './components/carbon-calculator';
 import Footer from './components/Footer';
 import Header from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Authenticated surfaces are split out of the entry graph. Every one of these
+// is behind the /app auth gate and none is prerendered, so an anonymous visitor
+// on the landing page no longer downloads them — most importantly Dashboard and
+// the calculator, which pull in recharts (~112KB gzipped of charting an
+// unauthenticated visitor can never see).
+//
+// The prerendered marketing routes above stay static on purpose:
+// scripts/prerender.mjs calls renderToString(), which cannot resolve a lazy
+// chunk, so making those lazy would empty the prerendered HTML.
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DataIntake = lazy(() => import('./pages/DataIntake'));
+const AIAssistant = lazy(() => import('./pages/AIAssistant'));
+const Ledger = lazy(() => import('./pages/Ledger'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Suppliers = lazy(() => import('./pages/Suppliers'));
+const Methodology = lazy(() => import('./pages/Methodology'));
+const Settings = lazy(() => import('./pages/Settings'));
+const CarbonCalculator = lazy(() => import('./components/carbon-calculator'));
+
+// Shown while an /app chunk is in flight. Matches the Dashboard's own loading
+// treatment so the transition does not read as a different kind of wait.
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center h-96" role="status" aria-live="polite">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto mb-4"></div>
+        <p className="text-surface-600 dark:text-surface-400">Loading…</p>
+      </div>
+    </div>
+  );
+}
 
 const LEGAL_PATHS = ['/privacy', '/terms', '/dpa', '/contact'];
 
@@ -101,7 +124,13 @@ export default function App() {
 function AppContent() {
   const { theme, toggle } = useTheme();
   const locationInfo = useLocation();
-  const location = locationInfo.pathname;
+  // express.static 301-redirects bare marketing paths to their trailing-slash
+  // form (/privacy -> /privacy/), and the prerenderer declares that slashed URL
+  // canonical. The <Route> paths below tolerate it because react-router appends
+  // an optional-slash terminator, but the two manual comparisons here did not —
+  // so every direct load, refresh, or shared link to a legal page fell through
+  // to the catch-all 404. Normalise once, before both checks.
+  const location = locationInfo.pathname.replace(/\/+$/, '') || '/';
   const navigate = useNavigate();
   const isLegalPage = LEGAL_PATHS.includes(location);
   // Exact '/app' or a '/app/' subpath — NOT '/apple', '/application', etc.
@@ -159,18 +188,39 @@ function AppContent() {
   useEffect(() => {
     if (!isAppPage || authStatus !== 'authed') return;
     let done = false;
-    const forceReauth = () => {
+    const forceReauth = async () => {
       if (done) return;
       done = true;
+      // Clear the SDK's cached session BEFORE navigating, and await it.
+      //
+      // Resetting only React state left the SDK holding accessToken + user in
+      // memory, and getCurrentUser() answers from that cache without a network
+      // call — so /login's useRedirectIfAuthenticated saw a "valid" user and
+      // sent the browser straight back to /app. That produced a burst of
+      // redirects (/app -> /login -> /app -> …) which settled on /app showing a
+      // fully rendered dashboard shell, sidebar and the user's own email, while
+      // every API call underneath returned 401. It looked signed in and was not.
+      //
+      // The await matters: firing signOut() without waiting loses the race
+      // against the login page's own session check, which reads the still-warm
+      // cache and bounces back — the redirect burst reproduced unchanged.
+      // signOut() also revokes the session server-side; if that request fails
+      // the local cache is cleared regardless, which is the part that fixes
+      // this, so the rejection is deliberately swallowed.
+      try {
+        await insforge.auth.signOut();
+      } catch {
+        /* local session is cleared either way */
+      }
       setUser(null);
       setAuthStatus('anon');
       navigate('/login', { replace: true });
     };
     const revalidate = async () => {
       const ok = await isSessionValid();
-      if (!ok) forceReauth();
+      if (!ok) void forceReauth();
     };
-    const uninstall = installUnauthorizedInterceptor(forceReauth);
+    const uninstall = installUnauthorizedInterceptor(() => { void forceReauth(); });
     const intervalId = window.setInterval(revalidate, 5 * 60 * 1000);
     const onVisible = () => {
       if (document.visibilityState === 'visible') void revalidate();
@@ -375,19 +425,21 @@ function AppContent() {
           )}
 
           <main className="flex-1 overflow-y-auto">
-            <Routes>
-              <Route path="/app" element={<Dashboard />} />
-              <Route path="/app/intake" element={<DataIntake />} />
-              <Route path="/app/calculator" element={<CarbonCalculator />} />
-              <Route path="/app/assistant" element={<AIAssistant />} />
-              <Route path="/app/ledger" element={<Ledger />} />
-              <Route path="/app/reports" element={<Reports />} />
-              <Route path="/app/suppliers" element={<Suppliers />} />
-              <Route path="/app/methodology" element={<Methodology />} />
-              <Route path="/app/pricing" element={<Pricing />} />
-              <Route path="/app/settings" element={<Settings />} />
-              <Route path="*" element={<NotFound title="Page not found" message="That section of the app does not exist." homeHref="/app" />} />
-            </Routes>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/app" element={<Dashboard />} />
+                <Route path="/app/intake" element={<DataIntake />} />
+                <Route path="/app/calculator" element={<CarbonCalculator />} />
+                <Route path="/app/assistant" element={<AIAssistant />} />
+                <Route path="/app/ledger" element={<Ledger />} />
+                <Route path="/app/reports" element={<Reports />} />
+                <Route path="/app/suppliers" element={<Suppliers />} />
+                <Route path="/app/methodology" element={<Methodology />} />
+                <Route path="/app/pricing" element={<Pricing />} />
+                <Route path="/app/settings" element={<Settings />} />
+                <Route path="*" element={<NotFound title="Page not found" message="That section of the app does not exist." homeHref="/app" />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </div>
