@@ -100,8 +100,8 @@ export function AuthError({ message }: { readonly message: string | null }) {
 export function TermsNotice() {
   return (
     <p className="pt-2 text-center text-xs text-surface-600 dark:text-surface-400">
-      By continuing, you agree to the <Link to="/terms" className="text-accent hover:underline">Terms</Link> and{' '}
-      <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
+      By continuing, you agree to the <Link to="/terms" className="text-accent-text hover:underline">Terms</Link> and{' '}
+      <Link to="/privacy" className="text-accent-text hover:underline">Privacy Policy</Link>.
     </p>
   );
 }

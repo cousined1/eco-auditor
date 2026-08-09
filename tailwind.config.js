@@ -25,7 +25,9 @@ export default {
           200: '#e8ece9',
           300: '#d1d8d3',
           400: '#9ca8a0',
-          500: '#6b7a70',
+          // Theme-aware: see the --surface-500 block in src/index.css. The old
+          // fixed #6b7a70 failed WCAG AA in both themes at ~156 usage sites.
+          500: 'var(--surface-500, #647368)',
           600: '#4a5a4f',
           700: '#3a493f',
           800: '#1e2b23',
@@ -33,9 +35,18 @@ export default {
           950: '#0a120d',
         },
         accent: {
+          // Unchanged: this feeds bg-accent, ring-accent/40, border-accent and
+          // the /NN opacity modifiers, which cannot take a var() colour —
+          // Tailwind has no alpha channel to substitute into one, and the build
+          // fails outright on `ring-accent/40`.
           DEFAULT: '#0d9488',
           light: '#2dd4bf',
           dark: '#0f766e',
+          // Accent as TEXT, where the 4.5:1 minimum applies. #0d9488 measures
+          // 3.74:1 on white; this resolves to the palette's own accent.dark in
+          // light mode and stays #0d9488 in dark mode (4.53:1 on surface.900).
+          // See --accent-text in src/index.css.
+          text: 'var(--accent-text, #0f766e)',
         },
         risk: {
           low: '#16a34a',

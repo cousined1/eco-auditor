@@ -1,6 +1,8 @@
 import { Routes, Route, NavLink, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTheme } from './hooks/useTheme';
+import { useFocusTrap } from './hooks/useFocusTrap';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
@@ -45,6 +47,40 @@ const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Methodology = lazy(() => import('./pages/Methodology'));
 const Settings = lazy(() => import('./pages/Settings'));
 const CarbonCalculator = lazy(() => import('./components/carbon-calculator'));
+
+// The authenticated mobile navigation, as a real modal dialog.
+//
+// It previously rendered as a bare <div>: opening it left focus on the trigger
+// button, Tab walked straight through into the page behind, Escape did nothing,
+// and assistive tech was never told the rest of the page was inert. useFocusTrap
+// already implements all four behaviours (focus in, Tab containment, Escape,
+// focus return) and was written for exactly this — it was just only wired up to
+// the cookie-preferences dialog. Extracted into its own component because the
+// hook must be called unconditionally, and the drawer renders conditionally.
+function MobileNavDrawer({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
+
+  return (
+    <div className="fixed inset-0 z-40 md:hidden">
+      <button
+        type="button"
+        className="absolute inset-0 h-full w-full bg-surface-950/50"
+        aria-label="Close navigation menu"
+        onClick={onClose}
+      />
+      <aside
+        ref={dialogRef}
+        id="app-mobile-navigation"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Main navigation"
+        className="relative z-50 flex h-full w-72 max-w-[85vw] flex-col border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 shadow-xl"
+      >
+        {children}
+      </aside>
+    </div>
+  );
+}
 
 // Shown while an /app chunk is in flight. Matches the Dashboard's own loading
 // treatment so the transition does not read as a different kind of wait.
@@ -343,17 +379,9 @@ function AppContent() {
     return (
       <div className="flex h-screen overflow-hidden bg-surface-50 dark:bg-surface-950">
         {mobileNavOpen && (
-          <div className="fixed inset-0 z-40 md:hidden">
-            <button
-              type="button"
-              className="absolute inset-0 h-full w-full bg-surface-950/50"
-              aria-label="Close navigation menu"
-              onClick={() => setMobileNavOpen(false)}
-            />
-            <aside id="app-mobile-navigation" className="relative z-50 flex h-full w-72 max-w-[85vw] flex-col border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 shadow-xl">
-              <SidebarContent user={user} onLogout={handleLogout} onNavigate={() => setMobileNavOpen(false)} />
-            </aside>
-          </div>
+          <MobileNavDrawer onClose={() => setMobileNavOpen(false)}>
+            <SidebarContent user={user} onLogout={handleLogout} onNavigate={() => setMobileNavOpen(false)} />
+          </MobileNavDrawer>
         )}
 
         <aside className="hidden md:flex flex-col w-60 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
