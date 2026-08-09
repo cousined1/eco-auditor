@@ -13,11 +13,20 @@ type CsvUploadResult = {
   warnings: string[];
 };
 
+/** Per-file outcome for a multi-file upload, so no file's result is hidden. */
+type FileOutcome = {
+  name: string;
+  status: 'imported' | 'skipped' | 'failed';
+  detail: string;
+};
+
 export default function DataIntake() {
   const [activeTab, setActiveTab] = useState<'files' | 'integrations' | 'review'>('files');
   const [actionStatus, setActionStatus] = useState<ActionStatus>(null);
   const [csvResult, setCsvResult] = useState<CsvUploadResult | null>(null);
   const [uploadUpgrade, setUploadUpgrade] = useState<UpgradeRequired | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [outcomes, setOutcomes] = useState<FileOutcome[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -42,12 +51,21 @@ export default function DataIntake() {
     if (!files || files.length === 0) return;
     setCsvResult(null);
 
+    // Every file's outcome is collected and rendered, rather than each call to
+    // showStatus overwriting the previous one. With a single status slot, a
+    // batch of [ok, failed, ok] ended on "Imported 5 of 5 rows from good2.csv"
+    // and the failure in the middle was invisible — the user was told the
+    // import succeeded while rows were silently missing from their inventory.
+    const collected: FileOutcome[] = [];
+    setOutcomes([]);
+    setUploading(true);
+
     // Upload each CSV and display results
     for (let i = 0; i < files.length; i++) {
       const file: File | undefined = files.item(i) ?? undefined;
       if (!file) continue;
       if (!file.name.endsWith('.csv')) {
-        showStatus('error', `${file.name} is not a CSV file — skipped`);
+        collected.push({ name: file.name, status: 'skipped', detail: 'Not a CSV file' });
         continue;
       }
 
@@ -63,7 +81,7 @@ export default function DataIntake() {
           body: text,
         });
         if (res.status === 401) {
-          showStatus('error', 'Your session expired — please sign in again to upload.');
+          collected.push({ name: file.name, status: 'failed', detail: 'Session expired — sign in again to upload' });
           continue;
         }
         if (res.status === 402) {
@@ -72,22 +90,48 @@ export default function DataIntake() {
           // Prefer the server's reason — "you have used all 10 imports this
           // month" or "this file contains Scope 3 rows" tells the customer what
           // to do; a generic "requires an active plan" does not.
-          showStatus('error', up?.message || 'CSV import requires an active plan.');
+          collected.push({ name: file.name, status: 'failed', detail: up?.message || 'CSV import requires an active plan' });
           continue;
         }
         const data = await res.json();
 
         if (data.success) {
           setCsvResult({ imported: data.imported, total_rows: data.total_rows, errors: data.errors || [], warnings: data.warnings || [] });
-          showStatus('success', `Imported ${data.imported} of ${data.total_rows} rows from ${file.name}`);
+          collected.push({
+            name: file.name,
+            // A partial import is not a success: some rows did not land, and on
+            // an emissions inventory that difference is the whole point.
+            status: data.imported === data.total_rows ? 'imported' : 'failed',
+            detail: `${data.imported} of ${data.total_rows} rows imported`,
+          });
         } else {
-          showStatus('error', data.error || `Failed to import ${file.name}`);
+          collected.push({ name: file.name, status: 'failed', detail: data.error || 'Import failed' });
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : `Failed to upload ${file.name}`;
-        showStatus('error', msg);
+        const msg = err instanceof Error ? err.message : 'Upload failed';
+        collected.push({ name: file.name, status: 'failed', detail: msg });
       }
     }
+
+    setOutcomes(collected);
+    setUploading(false);
+
+    // Summarise honestly: the banner reports failure whenever ANY file failed,
+    // so a mixed batch can never read as a clean success.
+    const failed = collected.filter((o) => o.status !== 'imported');
+    if (failed.length === 0) {
+      showStatus('success', `Imported ${collected.length} file${collected.length === 1 ? '' : 's'}`);
+    } else {
+      showStatus(
+        'error',
+        `${failed.length} of ${collected.length} file${collected.length === 1 ? '' : 's'} did not import — see details below`,
+      );
+    }
+
+    // Clearing the input is what makes re-selecting the SAME file work. Without
+    // it the change event never fires again, so a user who fixes a rejected CSV
+    // and picks it a second time gets no response at all.
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -108,11 +152,49 @@ export default function DataIntake() {
           <h1 className="text-xl font-semibold text-surface-900 dark:text-white">Data Intake</h1>
           <p className="text-sm text-surface-500 mt-0.5">Upload, connect, and review emissions data sources</p>
         </div>
-        <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-primary">
-          <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12" strokeLinecap="round"/></svg>
-          Upload Files
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          aria-busy={uploading}
+          className="btn-primary disabled:opacity-60"
+        >
+          {uploading ? (
+            <span className="mr-1.5 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-b-white" aria-hidden="true" />
+          ) : (
+            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12" strokeLinecap="round"/></svg>
+          )}
+          {uploading ? 'Uploading…' : 'Upload Files'}
         </button>
       </div>
+
+      {/* Per-file outcomes. A single status line could only ever show the LAST
+          file's result, so a failure followed by a success reported as success. */}
+      {outcomes.length > 0 && (
+        <div className="card" role="status" aria-live="polite">
+          <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Upload results</h2>
+          <ul className="space-y-1.5">
+            {outcomes.map((o) => (
+              <li key={o.name} className="flex items-start gap-2 text-sm">
+                <span
+                  aria-hidden="true"
+                  className={
+                    o.status === 'imported'
+                      ? 'mt-1.5 h-2 w-2 shrink-0 rounded-full bg-risk-low'
+                      : o.status === 'skipped'
+                        ? 'mt-1.5 h-2 w-2 shrink-0 rounded-full bg-risk-medium'
+                        : 'mt-1.5 h-2 w-2 shrink-0 rounded-full bg-risk-high'
+                  }
+                />
+                <span className="min-w-0">
+                  <span className="font-medium text-surface-800 dark:text-surface-200 break-all">{o.name}</span>
+                  <span className="text-surface-500"> — {o.status === 'imported' ? 'imported' : o.status}: {o.detail}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Plan gate: CSV import rejected because the account has no active plan */}
       {uploadUpgrade && (
