@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const zlib = require('node:zlib');
 const {
   calculateEntry,
   summarizeEntries,
@@ -269,6 +270,74 @@ if (canUseDevAuth(process.env)) {
 // Railway terminates TLS and forwards X-Forwarded-For; without this,
 // req.ip resolves to the proxy IP and rate limiting collapses all users.
 app.set('trust proxy', 1);
+
+// ─── Response compression ───
+// Nothing upstream compresses: Railway's proxy passes the origin body through,
+// and express.static has no compression of its own, so the entry bundle was
+// going out at its full 496KB instead of ~121KB. That is the single largest
+// contributor to LCP on a cold mobile load.
+//
+// zlib is stdlib, so this adds no dependency. It wraps write/end rather than
+// piping a stream so that Content-Length is replaced correctly and the
+// already-set security headers survive. Skips: clients that did not ask for
+// gzip, HEAD/304 (no body), Range requests (byte offsets refer to the
+// uncompressed entity — the video route serves those), and payloads that are
+// already compressed (images, fonts, video, .gz/.br).
+const COMPRESSIBLE = /^(?:text\/|application\/(?:javascript|json|xml|manifest\+json)|image\/svg\+xml)/i;
+const COMPRESSION_THRESHOLD = 1024; // below this, gzip framing costs more than it saves
+
+app.use(function (req, res, next) {
+  const accepts = String(req.headers['accept-encoding'] || '');
+  if (!/\bgzip\b/i.test(accepts) || req.method === 'HEAD' || req.headers.range) return next();
+
+  const originalWrite = res.write;
+  const originalEnd = res.end;
+  let gzip = null;
+
+  function start() {
+    if (gzip !== null) return gzip;
+    const type = String(res.getHeader('Content-Type') || '');
+    const length = Number(res.getHeader('Content-Length') || 0);
+    const encoded = res.getHeader('Content-Encoding');
+    if (
+      res.statusCode === 204 ||
+      res.statusCode === 304 ||
+      encoded ||
+      !COMPRESSIBLE.test(type) ||
+      (length && length < COMPRESSION_THRESHOLD)
+    ) {
+      gzip = false;
+      return gzip;
+    }
+    res.setHeader('Content-Encoding', 'gzip');
+    // Length changes, and caches must not serve one encoding for the other.
+    res.removeHeader('Content-Length');
+    res.setHeader('Vary', res.getHeader('Vary') ? res.getHeader('Vary') + ', Accept-Encoding' : 'Accept-Encoding');
+    gzip = zlib.createGzip({ level: 6 });
+    gzip.on('data', function (chunk) { originalWrite.call(res, chunk); });
+    gzip.on('end', function () { originalEnd.call(res); });
+    return gzip;
+  }
+
+  res.write = function (chunk, encoding, callback) {
+    const stream = start();
+    if (stream === false) return originalWrite.call(res, chunk, encoding, callback);
+    if (chunk) stream.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? encoding : 'utf8'));
+    if (typeof callback === 'function') callback();
+    return true;
+  };
+
+  res.end = function (chunk, encoding, callback) {
+    const stream = start();
+    if (stream === false) return originalEnd.call(res, chunk, encoding, callback);
+    if (chunk) stream.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? encoding : 'utf8'));
+    stream.end();
+    if (typeof callback === 'function') callback();
+    return res;
+  };
+
+  next();
+});
 
 // ─── Security headers ───
 // nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage app APIs use bearer Authorization headers, not ambient cookie auth.

@@ -45,7 +45,9 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        // 'Inter Fallback' is the metric-matched @font-face in src/index.css —
+        // it keeps the pre-swap layout identical to the post-swap one.
+        sans: ['Inter', 'Inter Fallback', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
       fontSize: {

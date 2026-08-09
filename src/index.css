@@ -2,14 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Metric-matched fallback for Inter.
+ *
+ * index.html loads Inter with `display=swap`, so the browser paints in the
+ * local sans-serif first and reflows when the webfont arrives. Lighthouse
+ * attributed the home page's entire 0.212 CLS to that swap ("Web font loaded",
+ * fonts.gstatic.com/.../Inter...woff2) — the cookie banner was only the element
+ * it happened to move. A warm browser never shows it because the font is
+ * already cached; a first-time mobile visitor sees it every time.
+ *
+ * size-adjust / ascent / descent scale the fallback so it occupies the same
+ * space Inter will, making the swap visually invisible instead of a reflow.
+ * Values are the standard Arial->Inter match used by Next.js's font optimizer.
+ */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  size-adjust: 107.12%;
+  ascent-override: 90.49%;
+  descent-override: 22.56%;
+  line-gap-override: 0%;
+}
+
 @layer base {
   * {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
+
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', 'Inter Fallback', system-ui, -apple-system, sans-serif;
   }
 
   ::selection {
