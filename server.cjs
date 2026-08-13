@@ -35,6 +35,7 @@ const {
   buildReportText,
   createSimplePdf,
 } = require('./src/lib/reports/report-generator.cjs');
+const { createPublishHandler } = require('./server-publish.cjs');
 
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
@@ -542,6 +543,21 @@ app.get('/api/blog-posts/:slug', async function (req, res) {
     res.status(500).json({ error: 'Failed to fetch post' });
   }
 });
+
+// Write side of the two blog routes above. SEO AI Regent posts scored articles
+// here with a Bearer SITE_DEPLOY_TOKEN; rows land in the same blog_posts table
+// those handlers read, so a published post is live on /blog with no rebuild.
+// Body limit is generous because an article is full HTML, not a form payload.
+app.post(
+  '/api/publish',
+  express.json({ limit: '1mb' }),
+  createPublishHandler({
+    pgPool,
+    deployToken: process.env.SITE_DEPLOY_TOKEN,
+    canonicalOrigin: process.env.PUBLIC_ORIGIN || 'https://ecoauditor.io',
+    log,
+  }),
+);
 
 app.get('/ready', function (_req, res) {
   const videoPath = findVideoPath();
