@@ -57,3 +57,20 @@ godmythos-v10.2/
 # Local OpenCode MCP configuration (contains secrets)
 opencode.json
 opencode.jsonc
+
+# Local agent/tool state — never track
+.omc/
+.omo/
+.refact/
+.playwright-mcp/
+.security-audit/
+.swarm/
+.claude-flow/
+.codegraph
+.codex/
+.claude/settings.local.json
+gsc-key-temp.json
+gsc-b64-temp.txt
+
+# Live audit artifacts
+audit-live-*/
