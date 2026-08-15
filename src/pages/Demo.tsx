@@ -117,9 +117,9 @@ export default function Demo() {
             A focused walkthrough of Eco-Auditor against your reporting objective. Tell us what you need and we’ll show you the path — not a generic pitch.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-surface-500">
-            <Link to="/sample-report" className="text-accent hover:underline">View the sample report first</Link>
+            <Link to="/sample-report" className="text-accent-text hover:underline">View the sample report first</Link>
             <span className="hidden sm:inline text-surface-300">·</span>
-            <Link to="/methodology" className="text-accent hover:underline">Read the methodology</Link>
+            <Link to="/methodology" className="text-accent-text hover:underline">Read the methodology</Link>
           </div>
         </div>
       </section>
@@ -264,11 +264,11 @@ export default function Demo() {
                   {submitError && (
                     <p className="text-xs text-risk-high">
                       {submitError} You can also email{' '}
-                      <a href={mailtoHref} className="text-accent hover:underline">hello@developer312.com</a>.
+                      <a href={mailtoHref} className="text-accent-text hover:underline">hello@developer312.com</a>.
                     </p>
                   )}
                   <p className="text-2xs text-surface-600 dark:text-surface-400 text-center">
-                    By submitting, you agree to our <Link to="/terms" className="text-accent hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent hover:underline">Privacy Policy</Link>.
+                    By submitting, you agree to our <Link to="/terms" className="text-accent-text hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent-text hover:underline">Privacy Policy</Link>.
                   </p>
                 </form>
               </>

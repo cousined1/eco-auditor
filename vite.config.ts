@@ -46,11 +46,20 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // Code-split vendor bundles for better long-term caching
+        // Code-split vendor bundles for better long-term caching.
+        //
+        // recharts is deliberately NOT named here. Forcing it into a manual
+        // chunk hoisted it into the entry graph and made Vite emit a
+        // modulepreload for it on the landing page — 112KB gzipped of charting
+        // that only the authenticated Dashboard and calculator use. Left
+        // unnamed, Rollup keeps it inside the lazy /app chunks that actually
+        // import it, so anonymous visitors never fetch it.
+        //
+        // The 'router' rule is also gone: react-router-dom matched the
+        // `id.includes('react')` test on the following line first, so it never
+        // produced a chunk — a no-op that only looked like configuration.
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          if (id.includes('recharts')) return 'charts';
-          if (id.includes('react-router-dom')) return 'router';
           if (id.includes('react') || id.includes('react-dom')) return 'vendor';
         },
       },

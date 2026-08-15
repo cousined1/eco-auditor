@@ -299,7 +299,7 @@ export default function Dashboard() {
 }
 
 function EmissionsCard({ scope, color }: { scope: { value: number; label: string; pct: number; trend: number | null }; color: string }) {
-  const colorMap: Record<string, string> = { brand: 'text-brand-600 dark:text-brand-400', accent: 'text-accent', amber: 'text-amber-600 dark:text-amber-400' };
+  const colorMap: Record<string, string> = { brand: 'text-brand-600 dark:text-brand-400', accent: 'text-accent-text', amber: 'text-amber-600 dark:text-amber-400' };
   const bgMap: Record<string, string> = { brand: 'bg-brand-50 dark:bg-brand-900/20', accent: 'bg-teal-50 dark:bg-teal-900/20', amber: 'bg-amber-50 dark:bg-amber-900/20' };
   return (
     <div className={`card !p-3.5 ${bgMap[color]}`}>

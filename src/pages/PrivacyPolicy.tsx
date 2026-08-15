@@ -61,8 +61,8 @@ export default function PrivacyPolicy() {
           <p>Developer312 is a subsidiary of NIGHT LITE USA LLC. We provide the Eco-Auditor platform from the United States.</p>
           <p>Contact information:</p>
           <ul>
-            <li>Email: <a href="mailto:hello@developer312.com" className="text-accent hover:underline">hello@developer312.com</a></li>
-            <li>Phone: <a href="tel:+15104011225" className="text-accent hover:underline">(510) 401-1225</a></li>
+            <li>Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></li>
+            <li>Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></li>
           </ul>
         </LegalSection>
 
@@ -200,8 +200,8 @@ export default function PrivacyPolicy() {
           <p>To submit a privacy request, exercise your rights, or ask questions about this policy, you may contact us through:</p>
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312 Privacy Team</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-1">Email: <a href="mailto:hello@developer312.com" className="text-accent hover:underline">hello@developer312.com</a></p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent hover:underline">(510) 401-1225</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-1">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
           </div>
           <p>We will verify your identity before processing your request and respond within the timeframe required by applicable law, typically within 30 days. If more time is needed, we will notify you of the reason and the expected timeline.</p>
         </LegalSection>
@@ -236,8 +236,8 @@ export default function PrivacyPolicy() {
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312</p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent hover:underline">hello@developer312.com</a></p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent hover:underline">(510) 401-1225</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
           </div>
         </LegalSection>
       </article>
@@ -249,7 +249,7 @@ function LegalSection({ id, title, onScroll, children }: { id: string; title: st
   return (
     <section id={id} className="mb-8 scroll-mt-6" onMouseEnter={() => onScroll(id)}>
       <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-3">{title}</h2>
-      <div className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed space-y-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_h4]:font-semibold [&_h4]:text-surface-800 [&_h4]:dark:text-surface-200 [&_h4]:mt-4 [&_h4]:mb-2 [&_a]:text-accent [&_a]:hover:underline [&_p]:text-surface-600 [&_p]:dark:text-surface-400">
+      <div className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed space-y-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_h4]:font-semibold [&_h4]:text-surface-800 [&_h4]:dark:text-surface-200 [&_h4]:mt-4 [&_h4]:mb-2 [&_a]:text-accent-text [&_a]:hover:underline [&_p]:text-surface-600 [&_p]:dark:text-surface-400">
         {children}
       </div>
     </section>

@@ -18,6 +18,7 @@ import {
   useNoIndex,
   useRedirectIfAuthenticated,
 } from '../components/auth/authHelpers';
+import { PasswordInput } from '../components/auth/PasswordInput';
 
 // Client-side password policy: min 8 chars with at least one letter and one number.
 const PASSWORD_MIN_LENGTH = 8;
@@ -38,6 +39,9 @@ export default function Signup() {
 
   useNoIndex();
   useRedirectIfAuthenticated('/app');
+
+  // Only once the user has typed something — an empty field is not "wrong yet".
+  const passwordInvalid = password.length > 0 && !isPasswordValid(password);
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -101,7 +105,7 @@ export default function Signup() {
       <AuthShell centered>
         <div className="card">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
-            <svg className="h-6 w-6 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+            <svg className="h-6 w-6 text-accent-text" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
             </svg>
           </div>
@@ -160,21 +164,31 @@ export default function Signup() {
               className={authInputClass}
             />
           </div>
-          <div>
-            <label htmlFor="signup-password" className="sr-only">Password</label>
-            <input
-              id="signup-password"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={PASSWORD_MIN_LENGTH}
-              placeholder="Password (8+ characters, with a letter and a number)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={submitting}
-              className={authInputClass}
-            />
-          </div>
+          {/* The submit button is disabled by the same isPasswordValid() test
+              that guards handleEmailSignup, so the policy message inside the
+              handler could never fire: a user who typed a non-conforming
+              password got a permanently greyed-out button, no explanation, and
+              no visible rule — the placeholder that stated it disappears as
+              soon as the field has a value. This surfaces the rule inline, the
+              way ForgotPassword already does for its mismatch case. */}
+          <PasswordInput
+            id="signup-password"
+            label="Password"
+            placeholder="Password (8+ characters, with a letter and a number)"
+            autoComplete="new-password"
+            minLength={PASSWORD_MIN_LENGTH}
+            value={password}
+            onChange={setPassword}
+            disabled={submitting}
+            invalid={passwordInvalid}
+            {...(passwordInvalid ? { errorId: 'signup-password-error' } : {})}
+          >
+            {passwordInvalid && (
+              <p id="signup-password-error" className="text-xs text-risk-high mt-1" role="alert">
+                Password must be at least 8 characters and include at least one letter and one number.
+              </p>
+            )}
+          </PasswordInput>
           <button
             type="submit"
             disabled={submitting || !email.trim() || !isPasswordValid(password)}
@@ -198,7 +212,7 @@ export default function Signup() {
         Already have an account?{' '}
         <Link
           to={`/login${searchParams.toString() ? '?' + searchParams.toString() : ''}`}
-          className="font-medium text-accent hover:underline"
+          className="font-medium text-accent-text hover:underline"
         >
           Sign in
         </Link>

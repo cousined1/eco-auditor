@@ -9,6 +9,7 @@ import {
   SubmitLabel,
 } from '../components/auth/AuthShell';
 import { authInputClass, useNoIndex } from '../components/auth/authHelpers';
+import { PasswordInput } from '../components/auth/PasswordInput';
 
 // Matches the signup form. Note the backend's own minimum is lower
 // (auth.password.min_length = 6 in insforge.toml); the stricter client rule is
@@ -133,42 +134,33 @@ export default function ForgotPassword() {
                 className={authInputClass}
               />
             </div>
-            <div>
-              <label htmlFor="new-password" className="sr-only">New password</label>
-              <input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={PASSWORD_MIN_LENGTH}
-                placeholder="New password (8+ characters, with a letter and a number)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={submitting}
-                className={authInputClass}
-              />
-            </div>
-            <div>
-              <label htmlFor="confirm-password" className="sr-only">Confirm new password</label>
-              <input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                required
-                placeholder="Confirm new password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                disabled={submitting}
-                aria-invalid={mismatch}
-                aria-describedby={mismatch ? 'confirm-password-error' : undefined}
-                className={authInputClass}
-              />
+            <PasswordInput
+              id="new-password"
+              label="New password"
+              placeholder="New password (8+ characters, with a letter and a number)"
+              autoComplete="new-password"
+              minLength={PASSWORD_MIN_LENGTH}
+              value={password}
+              onChange={setPassword}
+              disabled={submitting}
+            />
+            <PasswordInput
+              id="confirm-password"
+              label="Confirm new password"
+              placeholder="Confirm new password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={setConfirm}
+              disabled={submitting}
+              invalid={mismatch}
+              {...(mismatch ? { errorId: 'confirm-password-error' } : {})}
+            >
               {mismatch && (
                 <p id="confirm-password-error" className="text-xs text-risk-high mt-1" role="alert">
                   The two passwords do not match.
                 </p>
               )}
-            </div>
+            </PasswordInput>
             <button
               type="submit"
               disabled={submitting || !code.trim() || !isPasswordValid(password) || password !== confirm}
@@ -183,7 +175,7 @@ export default function ForgotPassword() {
           <button
             type="button"
             onClick={() => { setStep('request'); setError(null); setCode(''); }}
-            className="w-full text-center text-xs text-accent hover:underline"
+            className="w-full text-center text-xs text-accent-text hover:underline"
           >
             Use a different email, or send another code
           </button>
@@ -231,7 +223,7 @@ export default function ForgotPassword() {
         <button
           type="button"
           onClick={() => { setStep('reset'); setError(null); }}
-          className="w-full text-center text-xs text-accent hover:underline"
+          className="w-full text-center text-xs text-accent-text hover:underline"
         >
           I already have a code
         </button>
@@ -239,7 +231,7 @@ export default function ForgotPassword() {
 
       <p className="mt-6 text-center text-sm text-surface-500">
         Remembered it?{' '}
-        <Link to="/login" className="font-medium text-accent hover:underline">
+        <Link to="/login" className="font-medium text-accent-text hover:underline">
           Back to sign in
         </Link>
       </p>

@@ -32,7 +32,20 @@ RUN npm ci --omit=dev
 # emission-factors.json is the shared factor catalog and emission-factors.cjs
 # its server-side lookup — the engine require()s both at runtime, so they must
 # ship. src/ is not in this image, hence the root-level location.
-COPY server.cjs emissions-engine.cjs server-security.cjs server-billing.cjs emission-factors.cjs emission-factors.json plan-limits.json ./
+# server-publish.cjs is in this list because server.cjs require()s it at the
+# top level: omitting it does not disable /api/publish, it kills the whole
+# process with MODULE_NOT_FOUND on boot and every route 502s. Any new
+# root-level server module has to be added here too.
+COPY server.cjs server-publish.cjs emissions-engine.cjs server-security.cjs server-billing.cjs emission-factors.cjs emission-factors.json plan-limits.json ./
+
+# server.cjs require()s the report generator from its src/ path, so that one
+# file has to exist at the same relative location inside the image. Without it
+# the container does not start at all — `node server.cjs` exits immediately with
+# "Cannot find module './src/lib/reports/report-generator.cjs'". Only the two
+# pure helpers (buildReportText, createSimplePdf) are used at runtime; the
+# fixture-driven generateSampleReportFiles is build-time only, so the JSON
+# fixture deliberately stays out of the image.
+COPY src/lib/reports/report-generator.cjs ./src/lib/reports/report-generator.cjs
 COPY --from=builder /app/static ./static
 
 # Volume mount point for video assets

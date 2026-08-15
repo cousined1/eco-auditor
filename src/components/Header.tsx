@@ -5,7 +5,7 @@
 //   cta prop accepts CtaAction[] with { label, href, variant?, icon? }
 //   Empty array hides CTAs. Omitted prop uses variant default.
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 // ─── Types ────────────────────────────────────────────────────
@@ -73,20 +73,11 @@ const DEFAULT_NAV: Record<HeaderVariant, Array<{ label: string; href: string }>>
   marketing: [
     { label: 'Features', href: '/#features' },
     { label: 'Pricing', href: '/pricing' },
-    { label: 'Blog', href: '/blog' },
     { label: 'Methodology', href: '/methodology' },
     { label: 'Sample Report', href: '/sample-report' },
     { label: 'Security', href: '/security' },
   ],
-  // P1-05: legal/contact pages keep the same global navigation as marketing
-  // pages so a prospect reaching a policy or contact page retains a route
-  // back to product evaluation.
   legal: [
-    { label: 'Pricing', href: '/pricing' },
-    { label: 'Blog', href: '/blog' },
-    { label: 'Methodology', href: '/methodology' },
-    { label: 'Sample Report', href: '/sample-report' },
-    { label: 'Security', href: '/security' },
   ],
   app: [
   ],
@@ -99,12 +90,9 @@ const DEFAULT_CTA: Record<HeaderVariant, CtaAction[]> = {
   ],
   marketing: [
     { label: 'Start Free Trial', href: '/signup', variant: 'primary' },
-    { label: 'Book a Demo', href: '/demo', variant: 'secondary' },
+    { label: 'Book a Demo', href: '/contact', variant: 'secondary' },
   ],
-  // P1-04: canonical CTA taxonomy — one label maps to one intent.
   legal: [
-    { label: 'Log In', href: '/login', variant: 'secondary' },
-    { label: 'Start Free Trial', href: '/signup', variant: 'primary' },
   ],
   app: [
     { label: 'Notifications', icon: <BellIcon />, variant: 'icon' },
@@ -126,15 +114,24 @@ export default function Header({ variant, cta, navItems, hideCta, extra, classNa
   const resolvedCta = hideCta ? [] : (cta ?? DEFAULT_CTA[variant]);
   const isSticky = STICKY[variant];
   const showMobileMenuButton = resolvedNav.length > 0 || resolvedCta.some((action) => action.href);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Escape closes the mobile panel and puts focus back on the toggle.
+  // Deliberately NOT a focus trap: this panel expands inline in document
+  // flow rather than overlaying the page, so the content below stays
+  // visible and reachable — trapping Tab inside it would strand the user.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setMobileNavOpen(false);
+      menuButtonRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileNavOpen]);
 
   return (
-    <>
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-brand-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-semibold"
-      >
-        Skip to main content
-      </a>
     <header
       className={`${isSticky ? 'sticky top-0 ' : ''}z-50 border-b border-surface-200/80 dark:border-surface-800/80 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md${className ? ' ' + className : ''}`}>
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
@@ -162,6 +159,7 @@ export default function Header({ variant, cta, navItems, hideCta, extra, classNa
           {showMobileMenuButton && (
             <button
               type="button"
+              ref={menuButtonRef}
               onClick={() => setMobileNavOpen((open) => !open)}
               className="md:hidden p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
               aria-label="Toggle navigation menu"
@@ -221,6 +219,5 @@ export default function Header({ variant, cta, navItems, hideCta, extra, classNa
         </div>
       )}
     </header>
-    </>
   );
 }

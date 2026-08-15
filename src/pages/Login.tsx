@@ -18,6 +18,7 @@ import {
   useNoIndex,
   useRedirectIfAuthenticated,
 } from '../components/auth/authHelpers';
+import { PasswordInput } from '../components/auth/PasswordInput';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -104,28 +105,24 @@ export default function Login() {
               className={authInputClass}
             />
           </div>
-          <div>
-            <label htmlFor="login-password" className="sr-only">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              required
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={submitting}
-              className={authInputClass}
-            />
+          <PasswordInput
+            id="login-password"
+            label="Password"
+            placeholder="Password"
+            autoComplete="current-password"
+            value={password}
+            onChange={setPassword}
+            disabled={submitting}
+          >
             <div className="mt-1.5 text-right">
               {/* Was a mailto: to an off-brand domain — a locked-out paying
                   customer had to wait for a human, and email-driven manual
                   resets are a standard account-takeover channel. */}
-              <Link to="/forgot-password" className="text-xs text-accent hover:underline">
+              <Link to="/forgot-password" className="text-xs text-accent-text hover:underline">
                 Forgot password?
               </Link>
             </div>
-          </div>
+          </PasswordInput>
           <button
             type="submit"
             disabled={submitting || !email.trim() || !password}
@@ -149,7 +146,7 @@ export default function Login() {
         Don't have an account?{' '}
         <Link
           to={`/signup${searchParams.toString() ? '?' + searchParams.toString() : ''}`}
-          className="font-medium text-accent hover:underline"
+          className="font-medium text-accent-text hover:underline"
         >
           Sign up
         </Link>
