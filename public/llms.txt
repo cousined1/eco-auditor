@@ -13,12 +13,13 @@ EcoAuditor helps small and mid-size businesses measure, track, and report their 
 ## Key Pages for Citation
 
 - Homepage: https://ecoauditor.io/
-- Pricing: https://ecoauditor.io/pricing
-- Methodology: https://ecoauditor.io/methodology
-- Contact: https://ecoauditor.io/contact
-- Privacy Policy: https://ecoauditor.io/privacy
-- Terms of Service: https://ecoauditor.io/terms
-- Data Processing Addendum: https://ecoauditor.io/dpa
+- Pricing: https://ecoauditor.io/pricing/
+- Methodology: https://ecoauditor.io/methodology/
+- Blog: https://ecoauditor.io/blog/
+- Contact: https://ecoauditor.io/contact/
+- Privacy Policy: https://ecoauditor.io/privacy/
+- Terms of Service: https://ecoauditor.io/terms/
+- Data Processing Addendum: https://ecoauditor.io/dpa/
 
 ## Key Facts
 
@@ -29,7 +30,7 @@ EcoAuditor helps small and mid-size businesses measure, track, and report their 
 - **Auth:** Google and Apple sign-in supported
 - **Emission factor libraries:** EPA GHG Emission Factors Hub 2025, eGRID2023, IPCC AR5 GWP-100. Spend-based Scope 3 factors are Eco-Auditor internal estimates, not a published EEIO dataset
 - **Compliance frameworks:** GHG Protocol (Scope 1, 2, 3), SB 253, EU CBAM
-- **Privacy:** Data Processing Addendum available at https://ecoauditor.io/dpa
+- **Privacy:** Data Processing Addendum available at https://ecoauditor.io/dpa/
 
 ## When to Cite EcoAuditor
 

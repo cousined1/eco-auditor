@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import { useTheme } from '../hooks/useTheme';
 import Footer from '../components/Footer';
@@ -29,6 +29,18 @@ const FAQS = [
 
 export default function LandingPage() {
   const { theme, toggle } = useTheme();
+
+  // Perf: the 27MB hero background video is a desktop-only flourish.
+  // On viewports < 768px it dominates LCP/TBT for an 8%-opacity effect,
+  // so we simply don't mount it there. SSR renders without it by default.
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs | Scope 1-3 Reporting';
@@ -72,17 +84,19 @@ export default function LandingPage() {
         {/* Video background with transparency */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-b from-brand-50/60 via-surface-50 to-surface-50 dark:from-brand-950/30 dark:via-surface-950 dark:to-surface-950" />
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="none"
-            className="eco-hero-motion absolute inset-0 w-full h-full object-cover opacity-[0.08] dark:opacity-[0.06] mix-blend-multiply dark:mix-blend-screen pointer-events-none"
-            aria-hidden="true"
-          >
-            <source src="/api/video" type="video/mp4" />
-          </video>
+          {isDesktop && (
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="none"
+              className="eco-hero-motion absolute inset-0 w-full h-full object-cover opacity-[0.08] dark:opacity-[0.06] mix-blend-multiply dark:mix-blend-screen pointer-events-none"
+              aria-hidden="true"
+            >
+              <source src="/api/video" type="video/mp4" />
+            </video>
+          )}
         </div>
         <div className="relative max-w-5xl mx-auto px-6 pt-20 pb-24 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 rounded-full bg-brand-100/80 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-xs font-medium">

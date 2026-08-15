@@ -48,6 +48,7 @@ const ROUTES = [
   '/privacy',
   '/terms',
   '/dpa',
+  '/blog',
   '/login',
   '/signup',
   '/forgot-password',
@@ -102,7 +103,11 @@ const HEAD = {
   },
   '/terms': {
     title: 'Terms of Service — Eco-Auditor',
-    description: 'Eco-Auditor Terms of Service — business draft for review.',
+    description: 'Eco-Auditor Terms of Service — the agreement governing your use of the Eco-Auditor platform.',
+  },
+  '/blog': {
+    title: 'Blog — Eco-Auditor | Carbon Accounting for SMBs',
+    description: 'Eco-Auditor blog: practical carbon accounting guidance for small and mid-size businesses — Scope 1-3 baselines, supplier data collection, and disclosure readiness.',
   },
   '/dpa': {
     title: 'Data Processing Addendum — Eco-Auditor',
