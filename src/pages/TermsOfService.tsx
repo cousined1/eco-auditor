@@ -30,7 +30,7 @@ export default function TermsOfService() {
   return (
     <div className="flex min-h-screen">
       <nav className="hidden lg:block w-56 flex-shrink-0 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 p-6 sticky top-0 h-screen overflow-y-auto scrollbar-thin">
-        <h2 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">On This Page</h2>
+        <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">On This Page</p>
         <ul className="space-y-1">
           {SECTIONS.map((s) => (
             <li key={s.id}>
@@ -51,7 +51,7 @@ export default function TermsOfService() {
 
         <Sec id="company" title="2. Company Identity" onScroll={setActiveSection}>
           <p>The Eco-Auditor platform is operated by Developer312. Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-          <p>Contact: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a> | <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
+          <p>Contact: <a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a> | <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
         </Sec>
 
         <Sec id="eligibility" title="3. Eligibility and Business Use" onScroll={setActiveSection}>
@@ -192,7 +192,7 @@ export default function TermsOfService() {
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312</p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
           </div>
         </Sec>

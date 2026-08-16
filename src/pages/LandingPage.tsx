@@ -47,7 +47,7 @@ export default function LandingPage() {
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
     const originalDesc = desc?.content ?? '';
-    if (desc) desc.content = 'Eco-Auditor is carbon accounting for SMBs facing SB 253, CBAM, and supply-chain carbon disclosure. Import activity data by CSV, get reviewable Scope 1-3 emissions records with per-entry confidence scoring. 14-day free trial, no card required.';
+    if (desc) desc.content = 'Carbon accounting for SMBs facing SB 253, CBAM, and supply-chain disclosure. Import CSV data, get reviewable Scope 1-3 records. 14-day free trial.';
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -132,8 +132,8 @@ export default function LandingPage() {
             },
             {
               step: '2',
-              title: 'Import & calculate',
-              desc: 'Import activity data by CSV; we apply EPA, eGRID, and IPCC factors and score every entry for confidence.',
+              title: 'Apply factors & calculate',
+              desc: 'We apply EPA, eGRID, and IPCC factors to each row and score every entry for confidence — so you know what is measured and what is estimated.',
               icon: <AIIcon />,
             },
             {
@@ -150,7 +150,7 @@ export default function LandingPage() {
               <div className="w-10 h-10 rounded-lg bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-brand-600 dark:text-brand-400 mx-auto mb-4 mt-2">
                 {item.icon}
               </div>
-              <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-2">{item.title}</h3>
+              <h2 className="text-sm font-semibold text-surface-900 dark:text-white mb-2">{item.title}</h2>
               <p className="text-xs text-surface-500 leading-relaxed">{item.desc}</p>
             </div>
           ))}
@@ -245,7 +245,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {[
               { step: '01', title: 'Import Data', desc: 'Import activity data by CSV — utility bills, invoices, and freight docs. Connect QuickBooks and Xero (roadmap).' },
-              { step: '02', title: 'Import & Map', desc: 'Import CSV activity data; we apply published emission factors and score each row for confidence.' },
+              { step: '02', title: 'Apply Factors', desc: 'We apply published emission factors to each row and score every entry for confidence.' },
               { step: '03', title: 'Review & Verify', desc: 'Your team checks the imported rows and confidence scores, and corrects anything that looks wrong.' },
               { step: '04', title: 'Export Reports', desc: 'Export a PDF emissions summary to support California, CBAM, procurement, and annual inventory work.' },
             ].map((item) => (

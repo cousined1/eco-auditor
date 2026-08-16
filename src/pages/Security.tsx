@@ -161,7 +161,7 @@ export default function Security() {
               <Link to="/contact" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg">
                 Contact Security Team
               </Link>
-              <a href="mailto:hello@developer312.com?subject=Security%20Question" className="inline-flex items-center justify-center px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-lg transition-colors border border-white/20">
+              <a href="mailto:support@ecoauditor.io?subject=Security%20Question" className="inline-flex items-center justify-center px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-lg transition-colors border border-white/20">
                 Email Us
               </a>
             </div>

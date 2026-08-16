@@ -28,7 +28,7 @@ function makeRes() {
   return res as {
     statusCode: number;
     headers: Record<string, string>;
-    body: any;
+    body: unknown;
     setHeader: (k: string, v: string) => void;
     status: (c: number) => unknown;
     json: (p: unknown) => unknown;

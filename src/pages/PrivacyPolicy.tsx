@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
   return (
     <div className="flex min-h-screen">
       <nav className="hidden lg:block w-56 flex-shrink-0 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 p-6 sticky top-0 h-screen overflow-y-auto scrollbar-thin">
-        <h2 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">On This Page</h2>
+        <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">On This Page</p>
         <ul className="space-y-1">
           {SECTIONS.map((s) => (
             <li key={s.id}>
@@ -61,7 +61,7 @@ export default function PrivacyPolicy() {
           <p>Developer312 is a subsidiary of NIGHT LITE USA LLC. We provide the Eco-Auditor platform from the United States.</p>
           <p>Contact information:</p>
           <ul>
-            <li>Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></li>
+            <li>Email: <a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a></li>
             <li>Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></li>
           </ul>
         </LegalSection>
@@ -126,7 +126,7 @@ export default function PrivacyPolicy() {
         <LegalSection id="how-we-share" title="8. How We Share Information" onScroll={setActiveSection}>
           <p>We do not sell your personal data. We may share information in the following circumstances:</p>
 
-          <h4>Service Providers and Subprocessors</h4>
+          <h3>Service Providers and Subprocessors</h3>
           <p>We engage third-party service providers who process data on our behalf to deliver our service. These providers are contractually obligated to process data only as instructed and to maintain appropriate security measures. Categories include:</p>
           <ul>
             <li><strong>Cloud hosting:</strong> Infrastructure providers that host our application and data</li>
@@ -137,7 +137,7 @@ export default function PrivacyPolicy() {
           </ul>
           <p>Our current subprocessor list is available upon request. We will notify customers of material changes to our subprocessors.</p>
 
-          <h4>Compliance and Legal Requirements</h4>
+          <h3>Compliance and Legal Requirements</h3>
           <p>We may disclose information when required by law, regulation, legal process, or governmental request, or when we believe in good faith that disclosure is necessary to protect our rights, your safety, or the safety of others.</p>
         </LegalSection>
 
@@ -200,7 +200,7 @@ export default function PrivacyPolicy() {
           <p>To submit a privacy request, exercise your rights, or ask questions about this policy, you may contact us through:</p>
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312 Privacy Team</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-1">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-1">Email: <a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
           </div>
           <p>We will verify your identity before processing your request and respond within the timeframe required by applicable law, typically within 30 days. If more time is needed, we will notify you of the reason and the expected timeline.</p>
@@ -236,7 +236,7 @@ export default function PrivacyPolicy() {
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312</p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
           </div>
         </LegalSection>

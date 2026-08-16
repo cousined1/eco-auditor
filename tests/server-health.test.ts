@@ -2,18 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
 
-// AF-2 — /api/health (and /health) must self-report the build SHA from env and
-// send Cache-Control: no-store so cached health never defeats its purpose
-// (godmythos HR #22/#25). See `.omo/impl-spec.md` AF-2.
-//
-// Approach: spawn `node server.cjs` as a child process with a random PORT and
-// GIT_SHA=testsha123, then fetch the endpoints. No new deps (no supertest) —
-// uses Node's built-in fetch (Node 22) and child_process.
+// AF-2 — /api/health (and /health) must report status and DB state, and
+// send Cache-Control: no-store so cached health never defeats its purpose.
+// Build SHA/uptime were removed from the public response to avoid build
+// fingerprint disclosure (security audit 2026-08-15).
 
 const ROOT = path.resolve(__dirname, '..');
-const TEST_SHA = 'testsha123';
 
-// ponytail: pick a random high port to avoid collisions with a running dev server.
 function randomPort(): number {
   return 10000 + Math.floor(Math.random() * 50000);
 }
@@ -49,8 +44,6 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
       env: {
         ...process.env,
         PORT: String(port),
-        GIT_SHA: TEST_SHA,
-        // Avoid accidental DB connection attempts during the test.
         INSFORGE_URL: '',
         NEXT_PUBLIC_INSFORGE_URL: '',
         INSFORGE_BASE_URL: '',
@@ -59,9 +52,7 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    // Surface server stderr if it crashes before we can probe.
     child.stderr?.on('data', (d) => {
-      // Only log on failure to keep output clean; the probe timeout will reject.
       process.stderr.write(`[server-health stderr] ${d}`);
     });
     await waitForServer(baseUrl);
@@ -79,15 +70,15 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
     expect(r.status).toBe(200);
   });
 
-  it('/api/health body has status "ok" and sha equal to the GIT_SHA env value', async () => {
+  it('/api/health body has status "ok" and db "not configured"', async () => {
     const r = await fetch(`${baseUrl}/api/health`);
     const body = await r.json();
     expect(body.status).toBe('ok');
-    // sha must be self-reported from env (GIT_SHA), never hardcoded.
-    expect(body.sha).toBe(TEST_SHA);
-    // build alias mirrors /api/version (impl-spec AF-2).
-    expect(body.build).toBe(TEST_SHA);
     expect(body.db).toBe('not configured');
+    // sha/build/uptime removed for security — must not be present
+    expect(body.sha).toBeUndefined();
+    expect(body.build).toBeUndefined();
+    expect(body.uptime).toBeUndefined();
   });
 
   it('/api/health response includes Cache-Control: no-store', async () => {
@@ -97,11 +88,11 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
     expect(cc!.toLowerCase()).toContain('no-store');
   });
 
-  it('/health (alias) returns 200 with the same sha + no-store contract', async () => {
+  it('/health (alias) returns 200 with the same status + no-store contract', async () => {
     const r = await fetch(`${baseUrl}/health`);
     expect(r.status).toBe(200);
     const body = await r.json();
-    expect(body.sha).toBe(TEST_SHA);
+    expect(body.status).toBe('ok');
     const cc = r.headers.get('cache-control');
     expect(cc).toBeTruthy();
     expect(cc!.toLowerCase()).toContain('no-store');

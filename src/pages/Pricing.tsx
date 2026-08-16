@@ -108,7 +108,7 @@ export default function Pricing() {
               )}
               <div className="p-5 flex-1">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-surface-900 dark:text-white">{plan.name}</h3>
+                  <h2 className="text-lg font-bold text-surface-900 dark:text-white">{plan.name}</h2>
                   {!isPopular && plan.badge && <span className="badge-gray text-2xs max-w-[120px] text-center">{plan.badge}</span>}
                   {isPopular && <span className="badge-green text-2xs">{plan.badge}</span>}
                 </div>
@@ -147,7 +147,7 @@ export default function Pricing() {
                 </ul>
                 {plan.roadmap.length > 0 && (
                   <div className="mt-1 pt-4 border-t border-surface-200 dark:border-surface-700">
-                    <h4 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">On the roadmap</h4>
+                    <h3 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">On the roadmap</h3>
                     <ul className="space-y-2">
                       {plan.roadmap.map((f) => (
                         <li key={f} className="flex items-start gap-2 text-sm text-surface-500 dark:text-surface-500">
@@ -249,7 +249,7 @@ export default function Pricing() {
       )}
 
       <div className="card text-center py-10">
-        <h3 className="text-lg font-bold text-surface-900 dark:text-white">Need something different?</h3>
+        <h2 className="text-lg font-bold text-surface-900 dark:text-white">Need something different?</h2>
         <p className="text-sm text-surface-500 mt-1 max-w-md mx-auto">
           For organizations with complex requirements, multiple entities, or custom integration needs.
         </p>
@@ -267,7 +267,7 @@ export default function Pricing() {
           { title: 'Cheaper than a single consultant engagement', desc: 'Typical consultant fees for a basic GHG inventory: $15K–$40K. Eco-Auditor Growth plan: $3,990/year.' },
         ].map((item) => (
           <div key={item.title} className="card">
-            <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">{item.title}</h4>
+            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">{item.title}</h3>
             <p className="text-xs text-surface-500 mt-1.5">{item.desc}</p>
           </div>
         ))}

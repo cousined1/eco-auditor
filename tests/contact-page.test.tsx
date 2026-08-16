@@ -33,10 +33,10 @@ describe('ContactUs /contact page (P1-06, P1-13)', () => {
     expect(contactSrc).toContain('privacy@ecoauditor.io');
   });
 
-  it('keeps the operational developer312 address as a backstop, not the primary identity', () => {
-    // The developer312 address still routes mail; it's just no longer the
-    // first/only customer-facing identity.
-    expect(contactSrc).toContain('hello@developer312.com');
+  it('does not surface the developer312 address as a customer-facing identity', () => {
+    // The developer312 address has been fully replaced with branded
+    // ecoauditor.io emails across all customer-facing surfaces.
+    expect(contactSrc).not.toContain('developer312');
   });
 });
 

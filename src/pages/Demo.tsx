@@ -71,7 +71,7 @@ export default function Demo() {
     ].filter(Boolean).join('\n');
 
     if (!isInsForgeConfigured) {
-      setSubmitError('Our demo form is temporarily unavailable. Please email hello@developer312.com to book.');
+      setSubmitError('Our demo form is temporarily unavailable. Please email support@ecoauditor.io to book.');
       setSubmitting(false);
       return;
     }
@@ -86,18 +86,18 @@ export default function Demo() {
         source: 'demo',
       }]);
       if (error) {
-        setSubmitError(error.message || 'We couldn’t send your request right now. You can also email hello@developer312.com.');
+        setSubmitError(error.message || 'We couldn’t send your request right now. You can also email support@ecoauditor.io.');
         return;
       }
       setSubmitted(true);
     } catch {
-      setSubmitError('We couldn’t send your request right now. You can also email hello@developer312.com.');
+      setSubmitError('We couldn’t send your request right now. You can also email support@ecoauditor.io.');
     } finally {
       setSubmitting(false);
     }
   }
 
-  const mailtoHref = `mailto:hello@developer312.com?subject=${encodeURIComponent('Eco-Auditor Demo Request')}&body=${encodeURIComponent(`${form.name}\n${form.email}\n${form.company}\nGoal: ${form.goal}\nFacilities: ${form.facilityCount}\nDeadline: ${form.reportingDeadline}\n\n${form.message}`)}`;
+  const mailtoHref = `mailto:support@ecoauditor.io?subject=${encodeURIComponent('Eco-Auditor Demo Request')}&body=${encodeURIComponent(`${form.name}\n${form.email}\n${form.company}\nGoal: ${form.goal}\nFacilities: ${form.facilityCount}\nDeadline: ${form.reportingDeadline}\n\n${form.message}`)}`;
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
@@ -264,7 +264,7 @@ export default function Demo() {
                   {submitError && (
                     <p className="text-xs text-risk-high">
                       {submitError} You can also email{' '}
-                      <a href={mailtoHref} className="text-accent-text hover:underline">hello@developer312.com</a>.
+                      <a href={mailtoHref} className="text-accent-text hover:underline">support@ecoauditor.io</a>.
                     </p>
                   )}
                   <p className="text-2xs text-surface-600 dark:text-surface-400 text-center">

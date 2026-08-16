@@ -31,7 +31,7 @@ export default function DataProcessingAddendum() {
   return (
     <div className="flex min-h-screen">
       <nav className="hidden lg:block w-56 flex-shrink-0 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 p-6 sticky top-0 h-screen overflow-y-auto scrollbar-thin">
-        <h2 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">On This Page</h2>
+        <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">On This Page</p>
         <ul className="space-y-1">
           {SECTIONS.map((s) => (
             <li key={s.id}>
@@ -175,7 +175,7 @@ export default function DataProcessingAddendum() {
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312 — Data Protection</p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
           </div>
         </S>
@@ -217,7 +217,7 @@ export default function DataProcessingAddendum() {
               { category: 'Subprocessor Management', measures: ['Written data processing agreements with all subprocessors', 'Ongoing review of subprocessor security practices', 'Notification procedures for subprocessor changes'] },
             ].map((group) => (
               <div key={group.category} className="p-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-                <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">{group.category}</h4>
+                <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">{group.category}</h3>
                 <ul className="list-disc pl-5 space-y-1 mt-1">
                   {group.measures.map((m) => <li key={m} className="text-xs text-surface-600 dark:text-surface-400">{m}</li>)}
                 </ul>
@@ -262,15 +262,15 @@ export default function DataProcessingAddendum() {
           <p>Where personal data is transferred outside the EEA/UK/Switzerland, the following applies:</p>
           <div className="space-y-4 mt-3">
             <div className="p-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-              <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">SCC Module Applicability</h4>
+              <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">SCC Module Applicability</h3>
               <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">Module Two (Controller to Processor) applies where the Customer acts as Controller. Module Three (Processor to Processor) applies where Developer312 engages subprocessors.</p>
             </div>
             <div className="p-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-              <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Transfer Mechanism</h4>
+              <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Transfer Mechanism</h3>
               <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">The European Commission's Standard Contractual Clauses (Decision 2021/914) serve as the primary transfer mechanism. For UK transfers, the UK Addendum to the EU SCCs applies.</p>
             </div>
             <div className="p-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">
-              <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Supplementary Measures</h4>
+              <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Supplementary Measures</h3>
               <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">Encryption in transit and at rest, access controls, and the security measures described in Annex II serve as supplementary technical measures to support the adequacy of the transfer.</p>
             </div>
           </div>

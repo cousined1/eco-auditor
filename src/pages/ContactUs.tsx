@@ -70,7 +70,7 @@ export default function ContactUs() {
     }
   };
 
-  const mailtoHref = `mailto:hello@developer312.com?subject=${encodeURIComponent(form.subject || 'Contact request')}&body=${encodeURIComponent(form.message)}`;
+  const mailtoHref = `mailto:support@ecoauditor.io?subject=${encodeURIComponent(form.subject || 'Contact request')}&body=${encodeURIComponent(form.message)}`;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -89,7 +89,7 @@ export default function ContactUs() {
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Email</h3>
             <a href="mailto:support@ecoauditor.io" className="text-sm text-accent-text hover:underline">support@ecoauditor.io</a>
-            <p className="text-2xs text-surface-500 mt-0.5">For all inquiries · also <a href="mailto:hello@developer312.com" className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 hover:underline">hello@developer312.com</a></p>
+            <p className="text-2xs text-surface-500 mt-0.5">For all inquiries · also <a href="mailto:support@ecoauditor.io" className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 hover:underline">support@ecoauditor.io</a></p>
           </div>
         </div>
         <div className="card flex items-start gap-3">
@@ -216,7 +216,7 @@ export default function ContactUs() {
                 {submitError && (
                   <p className="text-xs text-risk-high mt-2">
                     {submitError} You can still reach us — email{' '}
-                    <a href={mailtoHref} className="text-accent-text hover:underline">hello@developer312.com</a>{' '}
+                    <a href={mailtoHref} className="text-accent-text hover:underline">support@ecoauditor.io</a>{' '}
                     and we&apos;ll get back to you within 1–2 business days.
                   </p>
                 )}

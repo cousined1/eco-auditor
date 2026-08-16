@@ -427,7 +427,6 @@ app.get('/api/version', function (_req, res) {
   res.setHeader('Expires', '0');
   res.json({
     version: process.env.APP_VERSION || process.env.npm_package_version || process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
-    build: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || null,
     timestamp: new Date().toISOString(),
   });
 });
@@ -438,13 +437,6 @@ app.get('/api/version', function (_req, res) {
 // VERCEL_GIT_COMMIT_SHA; generic CI: GIT_SHA). null is a signal that
 // the deploy pipeline isn't wiring the SHA — fix that before trusting
 // gate-13 AC-P0-1 (F1) SHA-equality checks. Mirrors /api/version :143-152.
-function buildSha() {
-  return process.env.RAILWAY_GIT_COMMIT_SHA
-    || process.env.VERCEL_GIT_COMMIT_SHA
-    || process.env.GIT_SHA
-    || null;
-}
-
 async function probeDatabase() {
   if (!pgPool) return { ok: false, configured: false };
   try {
@@ -462,10 +454,6 @@ async function healthPayload() {
 
   return {
     status: database.configured && !database.ok ? 'degraded' : 'ok',
-    sha: buildSha(),
-    build: buildSha(), // alias kept for /api/version parity (impl-spec AF-2)
-    uptime: process.uptime(),
-    version: process.env.APP_VERSION || process.env.npm_package_version || '0.0.0',
     db: dbStatus,
     timestamp: new Date().toISOString(),
   };
