@@ -1,0 +1,29 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://ecoauditor.io/security/vex/VULN-202608-002",
+  "author": "Sisyphus <security@ecoauditor.io>",
+  "timestamp": "2026-08-16T17:10:00-07:00",
+  "version": 1,
+  "tooling": {
+    "scanner": "trivy",
+    "scanner_version": "0.74.0",
+    "scanner_rule": "stripe-publishable-token"
+  },
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "trivy-secret-scan/stripe-publishable-token",
+        "identifiers": {
+          "scanner_rule_id": "stripe-publishable-token"
+        }
+      },
+      "products": [
+        { "@id": "pkg:generic/eco-auditor@2.0.0" }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "All 22 scanner matches are the literal guard strings 'pk_test_placeholder' and 'pk_live_placeholder' used in src/lib/stripe.ts:77 to detect an unconfigured VITE_STRIPE_PK at build time, and the same strings baked into the prerendered bundle static/assets/index-BoMLkOML.js. No real Stripe publishable key (pk_live_* or pk_test_* with credential material) is present in source, git history, or build output (verified via grep for pk_(live|test)_[A-Za-z0-9]{20,} -> 0 hits). The matches in .omo/panel-gpt5.stdout are in a gitignored, untracked tooling directory that is not shipped. Stripe publishable keys are public-by-design per Stripe's own key model. No credential exposure exists.",
+      "action_statement": "No action required. This VEX statement exists so `trivy fs --vex reports/2026-08/vex/VULN-202608-002.vex.json` suppresses the 22 placeholder matches in future monthly scans automatically, keeping the backlog signal-to-noise ratio high."
+    }
+  ]
+}
