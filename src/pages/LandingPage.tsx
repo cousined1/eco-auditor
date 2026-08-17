@@ -101,7 +101,7 @@ export default function LandingPage() {
         <div className="relative max-w-5xl mx-auto px-6 pt-20 pb-24 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 rounded-full bg-brand-100/80 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-xs font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-            Now in beta — built for SMBs
+            Now live — open for business
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-surface-900 dark:text-white leading-tight tracking-tight">
             Carbon accounting<br className="hidden sm:block" />
