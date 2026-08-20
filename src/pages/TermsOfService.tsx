@@ -109,7 +109,18 @@ export default function TermsOfService() {
 
         <Sec id="trials-termination" title="9. Trials, Cancellation, Suspension, and Termination" onScroll={setActiveSection}>
           <ul>
-            <li><strong>Free trials:</strong> We may offer 14-day free trials on eligible monthly plans. No payment method is required to start a trial. During the trial, the workspace is fully editable. If you do not add a payment method and select a paid plan before the trial ends, the workspace becomes read-only — no automatic charge occurs. If you add a payment method and choose a paid plan, the selected subscription begins after the trial period and you authorize the charge at that time</li>
+            {/*
+              Rewritten to match actual behaviour. The previous text said "No
+              payment method is required to start a trial" and "no automatic
+              charge occurs" for ALL trials — but a trial started from the
+              pricing page creates a Stripe Checkout subscription with
+              trial_period_days: 14, which collects a card and auto-converts at
+              trial end. Publishing terms that deny an auto-converting trial is
+              negative-option / state auto-renewal exposure.
+              *** HAVE COUNSEL REVIEW THIS WORDING BEFORE PUBLISHING. ***
+              See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-6).
+            */}
+            <li><strong>Free trials:</strong> We may offer 14-day free trials on eligible monthly plans. There are two ways to start one. <em>If you sign up directly without selecting a plan</em>, no payment method is required; if you do not select a paid plan before the trial ends, access to the workspace is paused until you do, and no charge occurs. <em>If you start a trial by selecting a plan</em>, you will be asked for a payment method at checkout, and unless you cancel before the trial ends the selected subscription begins automatically at the end of the trial period and you authorize the charge at that time. You may cancel at any point during the trial from your account settings</li>
             <li><strong>Cancellation:</strong> You may cancel your subscription at any time through your account settings or by contacting us. Cancellation prevents future charges but does not result in a refund for the current billing period</li>
             <li><strong>Suspension:</strong> We may suspend access to the Service for overdue payments, Terms violations, or suspected fraudulent activity</li>
             <li><strong>Termination:</strong> We may terminate your account for material breach of these Terms with notice. Upon termination, your right to access the Service ceases immediately</li>

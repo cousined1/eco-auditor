@@ -43,28 +43,26 @@ function addStringValues(target, value) {
   if (text) target.add(text);
 }
 
+// The ONLY trusted source of a caller's company is the value the server itself
+// resolved from the database by user_id (requireCompanyAccess sets
+// user.company_id from `SELECT id FROM companies WHERE user_id = $1` before
+// calling resolveAuthorizedCompanyId).
+//
+// This deliberately does NOT read user_metadata / app_metadata / company_ids.
+// On Supabase-compatible backends (InsForge included) user_metadata is writable
+// by the account holder via signUp({ options: { data } }) and updateUser({ data }).
+// Honouring it here meant an attacker could set user_metadata.company_id = "5",
+// then walk sequential integer ids and read or write another tenant's emissions,
+// facilities and generated reports through /api/companies/:id/*.
+// The data model is strictly one company per user (ensureCompanyForUser), so
+// nothing legitimate needs the extra claims.
+// See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-4).
 function getAuthorizedCompanyIds(user) {
   const ids = new Set();
   if (!user || typeof user !== 'object') return [];
 
   addStringValues(ids, user.company_id);
   addStringValues(ids, user.companyId);
-  addStringValues(ids, user.company_ids);
-  addStringValues(ids, user.companyIds);
-
-  if (user.user_metadata && typeof user.user_metadata === 'object') {
-    addStringValues(ids, user.user_metadata.company_id);
-    addStringValues(ids, user.user_metadata.companyId);
-    addStringValues(ids, user.user_metadata.company_ids);
-    addStringValues(ids, user.user_metadata.companyIds);
-  }
-
-  if (user.app_metadata && typeof user.app_metadata === 'object') {
-    addStringValues(ids, user.app_metadata.company_id);
-    addStringValues(ids, user.app_metadata.companyId);
-    addStringValues(ids, user.app_metadata.company_ids);
-    addStringValues(ids, user.app_metadata.companyIds);
-  }
 
   return Array.from(ids);
 }

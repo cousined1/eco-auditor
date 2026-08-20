@@ -1,6 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import Header from '../components/Header';
+// Privacy/Terms/DPA links live in Footer. Without it these pages had no legal
+// links at all — Google and Meta both require an accessible privacy policy
+// from the ad destination. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-9).
+import Footer from '../components/Footer';
 import { summarizeQuality } from '../lib/reports/quality-summary';
 import fixture from '../lib/reports/sample-report-fixture.json';
 
@@ -264,6 +268,7 @@ export default function SampleReport() {
         </div>
       </section>
       </main>
+      <Footer />
     </div>
   );
 }

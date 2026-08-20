@@ -39,6 +39,15 @@ const { createPublishHandler } = require('./server-publish.cjs');
 
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
+// ─── Public base URL ───
+// Every Stripe redirect (checkout success/cancel, billing portal return) is
+// built from this. If it is wrong, a customer who has just paid is bounced to a
+// dead URL and /api/checkout/verify — the reconciliation that rescues a late
+// webhook — never runs. Production boot refuses to start without it rather than
+// silently shipping localhost redirects to real buyers.
+// See ecoauditor-mvp-readiness-audit-2026-08-20.md ("Config gaps").
+const APP_BASE_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+
 // ─── Stripe SDK (lazy init) ───
 let stripe = null;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
@@ -925,13 +934,24 @@ async function loadBillingState(userId) {
 }
 
 // Plan-tier enforcement: requires an active trial or subscription at or above
-// minPlanId. Skips enforcement when no DB is configured (dev mode) or the
-// company row does not exist yet (trial is provisioned on first data access).
+// minPlanId. Skips enforcement when no DB is configured (dev mode).
+//
+// Provisions the company row (and with it the 14-day trial) when the user does
+// not have one yet. This MUST happen here rather than in the route handlers:
+// every handler that reaches ensureCompanyForUser via requireCompanyAccess sits
+// BEHIND this middleware, so deferring provisioning to "first data access" made
+// it unreachable — a brand new signup had no company row, planAccessDecision
+// denied the null state, and the user was 402'd off their own free trial within
+// seconds of signing up. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-1).
 function requirePlan(minPlanId) {
   return async function (req, res, next) {
     if (!pgPool) return next();
     try {
-      const state = await loadBillingState(req.user.id);
+      let state = await loadBillingState(req.user.id);
+      if (!state) {
+        await ensureCompanyForUser(req.user);
+        state = await loadBillingState(req.user.id);
+      }
       const decision = planAccessDecision(state, minPlanId);
       if (!decision.allowed) return res.status(decision.status).json(decision.body);
       req.billing = state;
@@ -1078,12 +1098,32 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
 
     const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
 
+    // Never open a second subscription for a customer who already has one.
+    // Without this, an existing subscriber who revisits /pricing and clicks a
+    // plan gets a SECOND concurrent Stripe subscription (e.g. $399 + $999/mo),
+    // and because syncSubscriptionRecord keys on the company rather than the
+    // subscription id, their entitlement then flaps between the two.
+    // Plan changes belong on PATCH /api/subscription.
+    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-3).
+    const existingSubscription = await findActiveSubscription(customerId);
+    if (existingSubscription) {
+      log('warn', 'Rejected checkout for customer with an existing subscription', {
+        userId: req.user.id,
+        subscriptionId: existingSubscription.id,
+        status: existingSubscription.status,
+      });
+      return res.status(409).json({
+        error: 'You already have an active subscription. Change your plan from Settings instead.',
+        code: 'subscription_exists',
+      });
+    }
+
     const sessionParams = {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: (process.env.APP_URL || 'http://localhost:3000') + '/app?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: (process.env.APP_URL || 'http://localhost:3000') + '/pricing',
+      success_url: APP_BASE_URL + '/app?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: APP_BASE_URL + '/pricing',
     };
 
     // Only allow a trial on eligible plans, and only once per customer — a
@@ -1161,7 +1201,7 @@ app.post('/api/portal', express.json(), stripeGuard, authGuard, async function (
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: (process.env.APP_URL || 'http://localhost:3000') + '/app/settings',
+      return_url: APP_BASE_URL + '/app/settings',
     });
     return res.json({ url: session.url });
   } catch (err) {
@@ -1414,7 +1454,7 @@ app.post('/api/consent-audit', consentRateLimit, express.json({ limit: '4kb' }),
 const ECOAUDITOR_KB = [
   {
     pattern: /pricing|cost|how much|plan/i,
-    response: "We offer three plans:\n\n• **Starter** — $149/mo for basic carbon tracking\n• **Growth** — $399/mo for full Scope 1/2/3 reporting\n• **Pro** — $999/mo for multi-facility teams\n\nAll plans include a 14-day free trial. Would you like me to help you choose the right plan?"
+    response: "We offer three plans:\n\n• **Starter** — $149/mo for basic carbon tracking\n• **Growth** — $399/mo for full Scope 1/2/3 reporting\n• **Pro** — $999/mo for multi-facility teams\n\nStarter and Growth include a 14-day free trial on monthly billing. Would you like me to help you choose the right plan?"
   },
   {
     pattern: /demo|book a demo|schedule a call|talk to sales/i,
@@ -1446,7 +1486,7 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /smb|small business|startup|affordable/i,
-    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $149/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial today!"
+    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $149/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial on a monthly Starter or Growth plan today!"
   },
   {
     pattern: /integration|api|connect|erp|salesforce/i,
@@ -2372,6 +2412,34 @@ let server;
 async function startServer() {
   if (process.env.NODE_ENV === 'production' && INSFORGE_BASE_URL && !process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required when InsForge authentication is configured');
+  }
+
+  // Half-configured billing is worse than no billing: the site stays up and
+  // looks healthy while real customers hit dead redirects, unverifiable
+  // webhooks, or "Invalid plan selection" on every buy button. Fail loudly at
+  // boot instead of discovering it from a support ticket.
+  if (process.env.NODE_ENV === 'production' && STRIPE_SECRET_KEY) {
+    if (!process.env.APP_URL) {
+      throw new Error(
+        'APP_URL is required when STRIPE_SECRET_KEY is set — Stripe would redirect paying customers to http://localhost:3000'
+      );
+    }
+    if (!STRIPE_WEBHOOK_SECRET) {
+      throw new Error(
+        'STRIPE_WEBHOOK_SECRET is required when STRIPE_SECRET_KEY is set — without it every Stripe webhook is rejected with 503 and paying customers lose access at their first renewal'
+      );
+    }
+    const missingPrices = [
+      'STRIPE_PRICE_STARTER_MONTHLY',
+      'STRIPE_PRICE_STARTER_ANNUAL',
+      'STRIPE_PRICE_GROWTH_MONTHLY',
+      'STRIPE_PRICE_GROWTH_ANNUAL',
+      'STRIPE_PRICE_PRO_MONTHLY',
+      'STRIPE_PRICE_PRO_ANNUAL',
+    ].filter(function (name) { return !process.env[name]; });
+    if (missingPrices.length) {
+      log('warn', 'Stripe price IDs missing — those plans cannot be purchased', { missing: missingPrices });
+    }
   }
   if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
     const database = await probeDatabase();

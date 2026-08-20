@@ -11,11 +11,17 @@ RUN npm ci
 ARG VITE_STRIPE_PK
 ARG VITE_INSFORGE_BASE_URL
 ARG VITE_INSFORGE_ANON_KEY
+# VITE_GTM_ID must be a BUILD arg, not a runtime Railway variable: Vite inlines
+# it into the bundle at build time. Without it here, GTM_ID is '' in the image
+# and analytics silently never loads — no pageviews, no conversions, no way to
+# attribute ad spend. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-5).
+ARG VITE_GTM_ID
 
 COPY . .
 ENV VITE_STRIPE_PK=$VITE_STRIPE_PK
 ENV VITE_INSFORGE_BASE_URL=$VITE_INSFORGE_BASE_URL
 ENV VITE_INSFORGE_ANON_KEY=$VITE_INSFORGE_ANON_KEY
+ENV VITE_GTM_ID=$VITE_GTM_ID
 RUN npm run build
 
 # ─── Stage 2: Production ───

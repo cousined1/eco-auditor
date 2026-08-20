@@ -264,7 +264,13 @@ export default function Pricing() {
         {[
           { title: 'Get reviewable records without enterprise-software overhead', desc: 'Scope 1–3 tracking, methodology documentation, and reviewable records — without a six-figure platform.' },
           { title: 'Contract readiness, not just compliance', desc: 'Large-company disclosure rules are cascading through supply chains. Be ready when your customers ask.' },
-          { title: 'Cheaper than a single consultant engagement', desc: 'Typical consultant fees for a basic GHG inventory: $15K–$40K. Eco-Auditor Growth plan: $3,990/year.' },
+          // The "$15K–$40K typical consultant fees" comparison was removed:
+          // claims.ts marks it status:'unverified', caveat "Remove if a
+          // defensible source cannot be cited", review_due 2026-08-15 (passed).
+          // Objective comparative price claims need substantiation before they
+          // run in paid advertising. Restore only with a citable source recorded
+          // in claims.ts. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-8).
+          { title: 'Predictable subscription pricing', desc: 'A flat annual subscription instead of a scoped consulting engagement — Eco-Auditor Growth is $3,990/year.' },
         ].map((item) => (
           <div key={item.title} className="card">
             <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">{item.title}</h4>

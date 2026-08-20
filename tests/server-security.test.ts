@@ -25,7 +25,16 @@ describe('server security policy', () => {
     expect(canUseDevAuth({ NODE_ENV: 'test' })).toBe(false);
   });
 
-  it('extracts company ids from common InsForge user metadata shapes', () => {
+  // This test previously asserted that company ids were harvested from
+  // user_metadata / app_metadata / company_ids — i.e. it locked in the
+  // vulnerability. On Supabase-compatible backends user_metadata is writable by
+  // the account holder, so honouring it let an attacker set
+  // user_metadata.company_id = "<victim>" and read or write another tenant's
+  // data through /api/companies/:id/*. The contract is now inverted: only the
+  // server-resolved company_id (set by requireCompanyAccess from a
+  // `WHERE user_id = $1` lookup) is authoritative.
+  // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-4).
+  it('ignores client-writable metadata and trusts only the server-resolved company id', () => {
     const ids = getAuthorizedCompanyIds({
       company_id: 'company-a',
       company_ids: ['company-b'],
@@ -33,7 +42,16 @@ describe('server security policy', () => {
       app_metadata: { company_ids: ['company-d'] },
     });
 
-    expect(ids).toEqual(['company-a', 'company-b', 'company-c', 'company-d']);
+    expect(ids).toEqual(['company-a']);
+  });
+
+  it('refuses a company id injected through user_metadata', () => {
+    const result = resolveAuthorizedCompanyId(
+      { company_id: 'company-a', user_metadata: { company_id: 'victim-company' } },
+      'victim-company'
+    );
+
+    expect(result).toEqual({ ok: false, status: 403, error: 'Forbidden' });
   });
 
   it('rejects cross-tenant company access', () => {

@@ -130,7 +130,16 @@ export default function Signup() {
     <AuthShell>
       <AuthHeading
         title="Start your free trial"
-        subtitle="14-day free trial · No card required · Cancel anytime. Most teams are up and running quickly."
+        subtitle={
+          // Arriving with ?plan= means the next hop is Stripe Checkout, which
+          // collects a card — "No card required" must not appear on that path.
+          // Also drops "up and running quickly" (claims.ts marks it unverified,
+          // review overdue 2026-08-15).
+          // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, E-8).
+          searchParams.get('plan')
+            ? '14-day free trial on monthly Starter and Growth plans · Cancel anytime before the trial ends. A payment method is required to start a trial from a selected plan.'
+            : '14-day free trial · No card required · Cancel anytime.'
+        }
       />
 
       <div className="card space-y-3">
