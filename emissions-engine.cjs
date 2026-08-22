@@ -8,7 +8,7 @@
 // not Scope 2; location-based Scope 2 is consumption x grid factor. The old
 // 4.75% gross-up also existed only on this side, so it was a second reason the
 // two paths disagreed. Scope 3 Cat 3 accounting for T&D is not built yet.
-const { factorFor, getSource } = require('./emission-factors.cjs');
+const { factorFor, getSource, getCategory } = require('./emission-factors.cjs');
 
 const CONFIDENCE_BY_CATEGORY = {
   stationary_combustion: 90,
@@ -23,6 +23,14 @@ const CONFIDENCE_BY_CATEGORY = {
   business_travel: 72,
   employee_commuting: 75,
   leased_assets: 70,
+  // These catalog categories were missing, so their rows silently fell to the
+  // `|| 70` default and dragged the reported confidence_score around for
+  // reasons no one could trace back to a source.
+  process_emissions: 80,
+  fugitive_emissions: 85,
+  purchased_heat_steam: 90,
+  transportation: 72,
+  precalculated: 85,
 };
 
 function normalizeKey(value) {
@@ -56,6 +64,18 @@ function factorForEntry(entry) {
   }
   if (unit === 't_co2e' || unit === 'tco2e' || unit === 'tonnes_co2e' || unit === 'tonne_co2e') {
     return { factor: 1, category: category || 'precalculated' };
+  }
+
+  // The declared scope is untrusted input. Without this check a Scope 3
+  // activity could be booked as Scope 1 (misfiling by_scope totals in customer
+  // reports) and, worse, could slip past the Scope 3 paywall, which gates on
+  // the declared label rather than on what the activity actually is. The
+  // catalog knows each category's real scope; make them agree.
+  const catalogCategory = getCategory(category);
+  if (catalogCategory && Number(catalogCategory.scope) !== Number(scope.replace('scope', ''))) {
+    throw new Error(
+      `Category "${entry.category}" is Scope ${catalogCategory.scope}, not ${entry.scope}.`
+    );
   }
 
   // The catalog is kg CO2e per unit; this engine reports tonnes.
@@ -119,7 +139,12 @@ function calculateEntry(entry) {
     normalized_category: category,
     co2e_tonnes: co2e,
     factor: factor.factor,
-    confidence: Number(entry.confidence) || CONFIDENCE_BY_CATEGORY[category] || 70,
+    // `Number(x) || default` treats an explicit confidence of 0 as "unset" and
+    // silently replaces it with the category default — the one value a user
+    // sets deliberately to mean "do not trust this row".
+    confidence: Number.isFinite(Number(entry.confidence)) && entry.confidence !== null && entry.confidence !== ''
+      ? Number(entry.confidence)
+      : (CONFIDENCE_BY_CATEGORY[category] || 70),
   };
 }
 
@@ -148,7 +173,9 @@ function summarizeEntries(entries, options = {}) {
   }
 
   const total = round(byScope.scope1 + byScope.scope2 + byScope.scope3);
-  const confidence = calculated.length ? Math.round(confidenceTotal / calculated.length) : 100;
+  // An empty inventory used to report confidence 100 — "no data, total
+  // confidence" — which flows straight into the dashboard's confidence_score.
+  const confidence = calculated.length ? Math.round(confidenceTotal / calculated.length) : 0;
 
   const result = {
     company_id: options.companyId || options.company_id || null,
@@ -176,7 +203,12 @@ function buildTrend(entries, options = {}) {
   const monthly = monthNames.map(function (month, index) {
     const monthEntries = entries.filter(function (entry) {
       const date = entry.created_at ? new Date(entry.created_at) : null;
-      return date && date.getMonth() === index && date.getFullYear() === year;
+      // getMonth()/getFullYear() are LOCAL-time accessors on a UTC timestamp.
+      // The CSV route stores date-only values as UTC midnight, so on any
+      // server west of UTC every row dated the 1st of a month was bucketed
+      // into the previous month, and Jan-1 rows into the previous year —
+      // making the same data produce different charts per deploy region.
+      return date && date.getUTCMonth() === index && date.getUTCFullYear() === year;
     });
     const summary = summarizeEntries(monthEntries, { companyId: options.companyId });
     return {
@@ -219,7 +251,10 @@ function toDashboardSummary(summary, priorSummary) {
 
   function trend(current, previous) {
     const prev = Number(previous) || 0;
-    if (prev === 0) return 0;
+    // Returning 0 for a 0 -> positive move rendered as "no change" while
+    // emissions actually went from nothing to something. null means
+    // "new, not comparable" — the UI already renders no chip for null.
+    if (prev === 0) return current > 0 ? null : 0;
     return round(((current - prev) / prev) * 100, 3);
   }
 

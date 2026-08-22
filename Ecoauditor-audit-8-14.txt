@@ -1,0 +1,90 @@
+You are Prime Agent, an autonomous coding agent. Your mission is to audit and fix issues on the SaaS web app at https://ecoauditor.io. Follow the plan below, using shell commands (`!`), IPython for Python scripting, and the `rlm()` function to spawn subagents when helpful. Work autonomously, set gates to verify progress, and refine your harness with lessons learned.
+
+## 1. Initial Reconnaissance
+- Fetch the homepage and key pages (features, pricing, docs, trust/security, blog) and save them as HTML:
+  !curl -s https://ecoauditor.io/ > homepage.html
+  !curl -s https://ecoauditor.io/features > features.html
+  !curl -s https://ecoauditor.io/pricing > pricing.html
+  !curl -s https://ecoauditor.io/docs > docs.html
+  !curl -s https://ecoauditor.io/trust-security > trust-security.html
+  !curl -s https://ecoauditor.io/blog > blog.html   (if the URL returns 200)
+- Examine the files to guess the tech stack (look for React/Vue/Angular hints, meta generators, script sources, etc.) and note any obvious issues (missing assets, console errors, etc.).
+
+## 2. Performance Audit
+- Install Lighthouse (if not already present):
+  !npm install -g lighthouse
+- Run Lighthouse for mobile and desktop, saving JSON reports:
+  !lighthouse https://ecoauditor.io/ --preset=mobile --output=json --output-path=./lighthouse-mobile.json
+  !lighthouse https://ecoauditor.io/ --preset=desktop --output=json --output-path=./lighthouse-desktop.json
+- Extract the scores (Performance, Accessibility, Best Practices, SEO) and list opportunities (e.g., render‑blocking resources, unused CSS/JS, oversized images, missing lazy‑loading, etc.).
+- **Gate:** If the mobile Performance score is < 90, iterate: try quick fixes (enable compression, leverage browser caching, optimize images) and re‑run until the gate passes or you have documented recommendations.
+
+## 3. Security Audit
+- Check security headers with curl:
+  !curl -I https://ecoauditor.io/ | grep -i -E "strict-transport-security|content-security-policy|x-frame-options|x-content-type-options|referrer-policy|permissions-policy"
+- Scan for vulnerable JS libraries:
+  - If a `package.json` is discovered (maybe in a public repo), run `!npm audit`.
+  - Otherwise, run a lightweight scanner like `retire.js` (!npm install -g retire && !retire --path ./).
+- Look for common exposure paths (!curl -s https://ecoauditor.io/.env, !curl -s https://ecoauditor.io/config.js, !curl -s https://ecoauditor.io/.git/HEAD, etc.).
+- **Gate:** No critical headers missing and no known high‑severity vulnerabilities; otherwise, record findings for remediation.
+
+## 4. SEO Audit
+- Verify essential tags in the saved HTML files (title, meta description, canonical, Open Graph, Twitter cards).
+- Check for structured data (JSON‑LD) using a simple grep or a Python script.
+- Validate heading hierarchy (only one H1, proper nesting).
+- Test for broken links (internal and external) with a tool like `lychee` (!npm install -g lychee && !lychee ./*.html --exclude internal:https://ecoauditor.io/* --output markdown) or write a quick Python script.
+- Ensure `sitemap.xml` and `robots.txt` exist and are sensible.
+- **Gate:** No missing required meta tags and no broken links; otherwise, note them.
+
+## 5. Accessibility Audit
+- Install axe‑core (via npm or python):
+  !npm install -g axe-cli
+  !axe https://ecoauditor.io/ --output ./axe-report.json
+- Parse the report for WCAG violations (contrast, missing labels, ARIA, keyboard traps, etc.).
+- **Gate:** No violations of severity “critical” or “serious”; otherwise, capture them.
+
+## 6. Privacy & Compliance
+- Look for a cookie consent banner (search the HTML for “cookie”, “consent”, “GDPR”, “CCPA”).
+- Verify presence of a privacy policy link (usually in footer).
+- Check if third‑party scripts (analytics, Stripe, etc.) are loaded conditionally or have a consent mechanism.
+- **Gate:** Document whether a consent mechanism is present; if not, recommend adding one.
+
+## 7. Remediation & Reporting
+- For each finding, write a clear, actionable recommendation (e.g., “Add `Content‑Security‑Policy` header: `default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self' 'unsafe-inline';`”, “Compress images and serve WebP/AVIF”, “Add missing `alt` attribute to logo”, etc.).
+- If the source code is publicly available (search GitHub for ecoauditor), clone it, apply fixes, and open a pull request. Otherwise, produce a detailed remediation guide.
+- Generate a markdown report `audit-report.md` that includes:
+  - Summary of scores and findings per category
+  - Severity (Critical, High, Medium, Low)
+  - Suggested fixes with code snippets or config changes
+  - Links to raw audit files (Lighthouse, axe, etc.)
+- Save the report in the current working directory.
+
+## 8. Self‑Improvement
+- Use the `/refine` command to distill lessons learned into your harness (e.g., create a skill for running Lighthouse, a template for security‑header checks, or a memory noting common issues on SaaS sites).
+- Example: `/refine "Create a reusable skill that runs Lighthouse and returns a JSON summary of scores and opportunities."`
+
+## Execution Instructions
+1. Set a persistent goal: `/goal Audit and fix issues on ecoauditor.io`
+2. Enable autonomous mode with reasonable limits (you can start with defaults, then adjust if needed):
+--autonomous
+--autonomous-gate "echo 'Pre‑gate check passed'"
+--autonomous-max-turns 20
+--autonomous-max-tokens 80000
+--autonomous-timeout-ms 1800000
+
+3. Let the agent run. If you need to intervene, use standard Prime Agent commands (`/settings`, `/usage`, `/compact`, etc.).
+4. I'm using InsForge as my backend. Login through:
+
+npx @insforge/cli login --user-api-key uak_t_PUcL0ih1A36mDl0QWtgihggVfFlgb3HyP3E8U9h5o
+
+Then install the InsForge CLI and skills for this project, and link it with:
+
+npx @insforge/cli link --project-id 9844fe32-612f-4eb2-bdd3-018f5fbab7fa
+
+Use the InsForge CLI and skills for backend tasks.
+5. RAILWAY_TOKEN=24ab4f95-55a5-4d39-9156-62c1d35f2ace
+
+
+Begin the audit now. Good luck!```
+--- 
+

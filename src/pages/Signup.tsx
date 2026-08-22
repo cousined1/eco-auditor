@@ -2,7 +2,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
 import { buildOAuthRedirectTo, type SocialAuthProvider } from '../lib/socialAuth';
-import { readIntentFromParams } from '../lib/authIntent';
+import { readIntentFromParams, destinationFor } from '../lib/authIntent';
 import {
   AuthError,
   AuthHeading,
@@ -38,7 +38,10 @@ export default function Signup() {
   const [needsVerification, setNeedsVerification] = useState(false);
 
   useNoIndex();
-  useRedirectIfAuthenticated('/app');
+  // An already-authenticated visitor arriving at /signup?plan=growth&billing=annual
+  // was bounced to a bare /app, silently dropping the plan they had just picked.
+  // Login preserves the intent; Signup now does too.
+  useRedirectIfAuthenticated(destinationFor(readIntentFromParams(searchParams)));
 
   // Only once the user has typed something — an empty field is not "wrong yet".
   const passwordInvalid = password.length > 0 && !isPasswordValid(password);

@@ -22,6 +22,9 @@ export default function Settings() {
   const [billingError, setBillingError] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingState | null>(null);
   const [billingLoading, setBillingLoading] = useState(true);
+  // Guards the money-path buttons. Without it a double-click fired two
+  // DELETE /api/subscription or two prorated PATCH /api/subscription calls.
+  const [billingBusy, setBillingBusy] = useState(false);
 
   useEffect(() => {
     async function loadBilling() {
@@ -55,16 +58,21 @@ export default function Settings() {
   }, []);
 
   const handlePortalSession = async () => {
+    if (billingBusy) return;
+    setBillingBusy(true);
     setBillingError(null);
     const result = await createBillingPortalSession();
     if (result.ok) {
       window.location.href = result.data.url;
     } else {
       setBillingError(result.error);
+      setBillingBusy(false);
     }
   };
 
   const handleChangePlan = async (planId: string, billingCycle: 'monthly' | 'annual') => {
+    if (billingBusy) return;
+    setBillingBusy(true);
     setBillingError(null);
     const result = await changeSubscription(planId, billingCycle);
     if (result.ok) {
@@ -72,10 +80,13 @@ export default function Settings() {
       window.location.reload();
     } else {
       setBillingError(result.error);
+      setBillingBusy(false);
     }
   };
 
   const handleCancel = async () => {
+    if (billingBusy) return;
+    setBillingBusy(true);
     setBillingError(null);
     const result = await cancelSubscription();
     if (result.ok) {
@@ -83,6 +94,7 @@ export default function Settings() {
       window.location.reload();
     } else {
       setBillingError(result.error);
+      setBillingBusy(false);
     }
   };
 
@@ -148,10 +160,20 @@ export default function Settings() {
                     <div className="text-xs text-risk-high">Your subscription will cancel at the end of the current period.</div>
                   </div>
                 )}
+                {/* A card-free trial has no Stripe subscription, so the
+                    portal / change / cancel routes all 404 with "No active
+                    subscription". Offering them to the most common visitor was
+                    a guaranteed dead end -- send them to checkout instead. */}
                 <div className="flex gap-2">
-                  <button onClick={() => setShowChangePlan(!showChangePlan)} className="btn-primary text-xs">Change plan</button>
-                  <button onClick={handlePortalSession} className="btn-secondary text-xs">Manage billing portal</button>
-                  <button onClick={() => setShowCancelConfirm(true)} className="btn-ghost text-xs text-risk-high">Cancel subscription</button>
+                  <button onClick={() => setShowChangePlan(!showChangePlan)} className="btn-primary text-xs">
+                    {billing.stripeSubscriptionId ? 'Change plan' : 'Choose a plan'}
+                  </button>
+                  {billing.stripeSubscriptionId && (
+                    <>
+                      <button onClick={handlePortalSession} disabled={billingBusy} className="btn-secondary text-xs disabled:opacity-50 disabled:cursor-not-allowed">Manage billing portal</button>
+                      <button onClick={() => setShowCancelConfirm(true)} disabled={billingBusy} className="btn-ghost text-xs text-risk-high disabled:opacity-50 disabled:cursor-not-allowed">Cancel subscription</button>
+                    </>
+                  )}
                 </div>
                 <p className="text-2xs text-surface-600 dark:text-surface-400 mt-2">By continuing, you agree to our <Link to="/terms" className="text-accent-text hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-accent-text hover:underline">Privacy Policy</Link>.</p>
               </div>
@@ -168,10 +190,19 @@ export default function Settings() {
                         </div>
                         {plan.id === billing.plan ? (
                           <span className="badge-green">Current</span>
+                        ) : !billing.stripeSubscriptionId ? (
+                          // No subscription yet: PATCH would 404. Start checkout.
+                          <Link
+                            to={`/app?checkout=${plan.id}_${billingCycle}`}
+                            className="btn-primary text-xs"
+                          >
+                            Subscribe
+                          </Link>
                         ) : (
                           <button
                             onClick={() => handleChangePlan(plan.id, billingCycle)}
-                            className={plan.monthly > (currentPlan?.monthly ?? 0) ? 'btn-primary text-xs' : 'btn-secondary text-xs'}
+                            disabled={billingBusy}
+                            className={`${plan.monthly > (currentPlan?.monthly ?? 0) ? 'btn-primary text-xs' : 'btn-secondary text-xs'} disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             {plan.monthly > (currentPlan?.monthly ?? 0) ? 'Upgrade' : 'Downgrade'}
                           </button>
@@ -190,7 +221,9 @@ export default function Settings() {
                     You will lose access to paid features at the end of your current period ({formattedPeriodEnd}).
                   </p>
                   <div className="flex gap-2">
-                    <button onClick={handleCancel} className="text-xs px-3 py-1.5 rounded-lg bg-risk-high text-white font-medium">Confirm cancellation</button>
+                    <button onClick={handleCancel} disabled={billingBusy} className="text-xs px-3 py-1.5 rounded-lg bg-risk-high text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                      {billingBusy ? 'Cancelling…' : 'Confirm cancellation'}
+                    </button>
                     <button onClick={() => setShowCancelConfirm(false)} className="btn-secondary text-xs">Keep my plan</button>
                   </div>
                 </div>

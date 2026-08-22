@@ -1,5 +1,5 @@
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { formatCO2e, type EmissionEntry, type Facility } from './utils';
+import { formatCO2e, entryKgCO2e, type EmissionEntry, type Facility } from './utils';
 
 interface Props {
   entries: EmissionEntry[];
@@ -16,7 +16,9 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
   // Aggregate by scope
   const scopeTotals: Record<string, number> = {};
   entries.forEach((e) => {
-    const kg = parseFloat(e.amount) || 0;
+    // entryKgCO2e, not parseFloat(amount): CSV-imported rows store raw
+    // activity amounts, not kilograms. See utils.ts.
+    const kg = entryKgCO2e(e);
     scopeTotals[e.scope] = (scopeTotals[e.scope] || 0) + kg;
   });
 
@@ -32,10 +34,11 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
   entries.forEach((e) => {
     if (e.facility_id == null) return;
     const existing = facilityMap[e.facility_id];
+    const kg = entryKgCO2e(e);
     if (!existing) {
-      facilityMap[e.facility_id] = { [e.scope]: parseFloat(e.amount) || 0 };
+      facilityMap[e.facility_id] = { [e.scope]: kg };
     } else {
-      existing[e.scope] = (existing[e.scope] ?? 0) + (parseFloat(e.amount) || 0);
+      existing[e.scope] = (existing[e.scope] ?? 0) + kg;
     }
   });
 

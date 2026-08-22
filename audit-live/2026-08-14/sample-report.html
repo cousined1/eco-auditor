@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Prevent dark-mode FOUC: apply persisted/system theme before first paint (key matches useTheme) -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('eco-theme');
+          var dark = stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) { /* storage unavailable; default theme applies */ }
+      })();
+    </script>
+
+    <!-- Primary SEO -->
+    <title>Sample Carbon Report — Eco-Auditor | See What You Get</title>
+    <meta name="description" content="See a sample Eco-Auditor carbon report — Scope 1, 2, 3 emissions breakdown, quality scores, and reviewable ledger entries." />
+    <meta name="keywords" content="carbon accounting, GHG Protocol, Scope 1 2 3 emissions, sustainability reporting, SMB carbon footprint, ESG audit" />
+    <meta name="author" content="Developer312" />
+    <meta name="robots" content="index, follow" />
+    <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity canonical links do not load executable subresources -->
+    <link rel="canonical" href="https://ecoauditor.io/sample-report/" />
+
+    <!-- Open Graph (LinkedIn, Facebook, Slack) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ecoauditor.io/sample-report/" />
+    <meta property="og:title" content="Sample Carbon Report — Eco-Auditor | See What You Get" />
+    <meta property="og:description" content="See a sample Eco-Auditor carbon report — Scope 1, 2, 3 emissions breakdown, quality scores, and reviewable ledger entries." />
+    <meta property="og:image" content="https://ecoauditor.io/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping. Reviewable Scope 1-3 emissions data for SMBs." />
+    <meta property="og:site_name" content="Eco-Auditor" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://ecoauditor.io/" />
+    <meta name="twitter:title" content="Sample Carbon Report — Eco-Auditor | See What You Get" />
+    <meta name="twitter:description" content="See a sample Eco-Auditor carbon report — Scope 1, 2, 3 emissions breakdown, quality scores, and reviewable ledger entries." />
+    <meta name="twitter:image" content="https://ecoauditor.io/og-image.png" />
+    <meta name="twitter:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping" />
+    <meta name="twitter:site" content="@developer312" />
+
+    <!-- PWA & theme -->
+    <meta name="theme-color" content="#16a34a" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14532d" media="(prefers-color-scheme: dark)" />
+    <meta name="application-name" content="Eco-Auditor" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Eco-Auditor" />
+
+    <!-- Icons & Manifest -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Performance: preconnect to font origins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://ecoauditor.io/#organization",
+          "name": "Eco-Auditor",
+          "url": "https://ecoauditor.io",
+          "logo": "https://ecoauditor.io/favicon-512x512.png",
+          "description": "Carbon accounting and sustainability reporting platform for small and mid-size businesses",
+          "parentOrganization": {
+            "@type": "Organization",
+            "name": "NIGHT LITE USA LLC"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+1-510-401-1225",
+            "contactType": "sales",
+            "email": "hello@developer312.com",
+            "availableLanguage": "English"
+          },
+          "sameAs": []
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://ecoauditor.io/#website",
+          "url": "https://ecoauditor.io",
+          "name": "Eco-Auditor",
+          "description": "GHG carbon accounting and sustainability reporting for SMBs",
+          "publisher": {
+            "@id": "https://ecoauditor.io/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://ecoauditor.io/?s={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://ecoauditor.io/#software",
+          "name": "Eco-Auditor",
+          "url": "https://ecoauditor.io",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "description": "GHG emissions tracking for Scope 1, 2, and 3. Built for SMBs facing SB 253, CBAM, and supply chain carbon disclosure requirements.",
+          "offers": {
+            "@type": "AggregateOffer",
+            "lowPrice": "149",
+            "highPrice": "999",
+            "priceCurrency": "USD",
+            "offerCount": "3"
+          },
+          "featureList": [
+            "Scope 1, 2, 3 emissions tracking",
+            "CSV activity data import",
+            "PDF emissions summary reports",
+            "GHG Protocol aligned methodology"
+          ],
+          "screenshot": "https://ecoauditor.io/favicon-192x192.png",
+          "author": {
+            "@id": "https://ecoauditor.io/#organization"
+          }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://ecoauditor.io/#webpage",
+          "url": "https://ecoauditor.io",
+          "name": "Eco-Auditor — GHG Carbon Accounting for SMBs",
+          "isPartOf": {
+            "@id": "https://ecoauditor.io/#website"
+          },
+          "about": {
+            "@id": "https://ecoauditor.io/#software"
+          },
+          "primaryImageOfPage": {
+            "@type": "ImageObject",
+            "url": "https://ecoauditor.io/og-image.png"
+          }
+        }
+      ]
+    }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DOodNPA6.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-COnpUsM8.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-D0smwchR.js">
+    <link rel="modulepreload" crossorigin href="/assets/insforge-XiO_FKZI.js">
+    <link rel="modulepreload" crossorigin href="/assets/mockData-Cbk59O6C.js">
+    <link rel="modulepreload" crossorigin href="/assets/api-eniY9yGb.js">
+    <link rel="modulepreload" crossorigin href="/assets/stripe-BLu0aCZy.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-CnzfKJ5n.css">
+  </head>
+  <body class="bg-white dark:bg-surface-950 text-surface-800 dark:text-surface-100">
+    <div id="root"><div class="min-h-screen bg-surface-50 dark:bg-surface-950"><header class="sticky top-0 z-50 border-b border-surface-200/80 dark:border-surface-800/80 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md"><div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between"><a class="flex items-center gap-2.5" href="/" data-discover="true"><svg class="w-7 h-7" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Eco-Auditor logo"><rect width="28" height="28" rx="7" fill="currentColor" class="text-brand-600"></rect><path d="M8 20V8l6 4 6-4v12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="font-semibold text-sm text-surface-900 dark:text-white tracking-tight">Eco-Auditor</span></a><nav class="hidden md:flex items-center gap-6 text-sm" aria-label="Main navigation"><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/#features" data-discover="true">Features</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/pricing" data-discover="true">Pricing</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/methodology" data-discover="true">Methodology</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/sample-report" data-discover="true">Sample Report</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/security" data-discover="true">Security</a></nav><div class="flex items-center gap-3"><button type="button" class="md:hidden p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors" aria-label="Toggle navigation menu" aria-expanded="false"><svg class="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 5.5h14M3 10h14M3 14.5h14"></path></svg></button><a class="hidden sm:inline-flex btn-secondary text-sm !py-2 !px-5" href="/signup" data-discover="true">Start Free Trial</a><a class="hidden sm:inline-flex btn-secondary text-sm !py-2 !px-5" href="/contact" data-discover="true">Book a Demo</a></div></div></header><main id="main-content" tabindex="-1"><section class="relative overflow-hidden bg-gradient-to-b from-brand-50/60 via-surface-50 to-surface-50 dark:from-brand-950/30 dark:via-surface-950 dark:to-surface-950"><div class="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center"><div class="inline-flex items-center gap-2 px-3 py-1 mb-6 rounded-full bg-brand-100/80 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-xs font-medium"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>Sample output — illustrative data</div><h1 class="text-4xl md:text-5xl font-bold text-surface-900 dark:text-white leading-tight tracking-tight">See the reports<br class="hidden sm:block"/><span class="text-brand-600 dark:text-brand-400">your team will actually use</span></h1><p class="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">Here&#x27;s what a <strong class="text-surface-700 dark:text-surface-300">mid-market manufacturing company</strong> sees after uploading their data, and the report package we&#x27;re building toward. Every figure on this page is fictional.</p></div></section><section class="max-w-5xl mx-auto px-6 pb-8"><div class="rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-lg overflow-hidden"><div class="border-b border-surface-200 dark:border-surface-800 px-6 py-4 flex items-center justify-between"><div><div class="text-xs font-medium text-brand-600 dark:text-brand-400 uppercase tracking-wider">Annual GHG Inventory Report</div><h2 class="text-base font-bold text-surface-900 dark:text-white mt-0.5">Pacific Freight Co.<!-- --> · FY <!-- -->2026</h2></div><div class="flex items-center gap-2"><span class="badge-green text-2xs">GHG Protocol aligned</span><span class="badge-gray text-2xs">DRAFT — FOR REVIEW</span></div></div><div class="px-6 py-8 text-center border-b border-surface-100 dark:border-surface-800"><p class="text-xs text-surface-500 uppercase tracking-wider mb-1">Total scope 1 + 2 + 3 emissions</p><div class="text-5xl font-bold text-surface-900 dark:text-white">12,847</div><div class="text-lg text-surface-500 mt-1">tCO2e</div><p class="text-xs text-surface-600 dark:text-surface-400 mt-2">Operational control<!-- --> boundary · Base year: <!-- -->2025</p></div><div class="px-6 py-6 border-b border-surface-100 dark:border-surface-800"><h3 class="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Emissions by Scope</h3><div class="h-6 rounded-full overflow-hidden flex mb-4"><div class="bg-red-500" style="width:27%" title="Scope 1: 27%"></div><div class="bg-blue-500" style="width:17%" title="Scope 2: 17%"></div><div class="bg-emerald-500" style="width:56%" title="Scope 3: 56%"></div></div><div class="grid grid-cols-3 gap-4 text-center"><div><div class="text-lg font-bold text-red-600 dark:text-red-400">3,421</div><div class="text-xs text-surface-500">Scope 1<!-- --> · <!-- -->27<!-- -->%</div></div><div><div class="text-lg font-bold text-blue-600 dark:text-blue-400">2,156</div><div class="text-xs text-surface-500">Scope 2<!-- --> · <!-- -->17<!-- -->%</div></div><div><div class="text-lg font-bold text-emerald-600 dark:text-emerald-400">7,270</div><div class="text-xs text-surface-500">Scope 3<!-- --> · <!-- -->56<!-- -->%</div></div></div></div><div class="px-6 py-6 border-b border-surface-100 dark:border-surface-800"><h3 class="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">Year-over-year comparison</h3><div class="grid grid-cols-2 gap-4"><div class="rounded-lg bg-surface-50 dark:bg-surface-800/50 p-4 text-center"><div class="text-xs text-surface-500">2025<!-- --> Total</div><div class="text-xl font-bold text-surface-900 dark:text-white">11,204<!-- --> <span class="text-sm font-medium text-surface-500">tCO₂e</span></div></div><div class="rounded-lg bg-surface-50 dark:bg-surface-800/50 p-4 text-center"><div class="text-xs text-surface-500">2026<!-- --> Total</div><div class="text-xl font-bold text-surface-900 dark:text-white">12,847<!-- --> <span class="text-sm font-medium text-surface-500">tCO₂e</span></div><div class="text-xs font-medium text-risk-high mt-1">+14.7%<!-- --> vs prior year</div></div></div></div><div class="px-6 py-6"><h3 class="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Data quality breakdown</h3><div class="space-y-3"><div><div class="flex items-center justify-between text-xs mb-1"><span class="text-surface-700 dark:text-surface-300">Metered electricity (97%)</span><span class="font-medium text-surface-800 dark:text-surface-200">34<!-- -->%</span></div><div class="h-2 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden"><div class="h-full rounded-full bg-brand-500" style="width:34%"></div></div></div><div><div class="flex items-center justify-between text-xs mb-1"><span class="text-surface-700 dark:text-surface-300">Metered fuel (88–90%)</span><span class="font-medium text-surface-800 dark:text-surface-200">25<!-- -->%</span></div><div class="h-2 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden"><div class="h-full rounded-full bg-brand-400" style="width:25%"></div></div></div><div><div class="flex items-center justify-between text-xs mb-1"><span class="text-surface-700 dark:text-surface-300">Activity-based Scope 3 (72–75%)</span><span class="font-medium text-surface-800 dark:text-surface-200">24<!-- -->%</span></div><div class="h-2 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden"><div class="h-full rounded-full bg-amber-400" style="width:24%"></div></div></div><div><div class="flex items-center justify-between text-xs mb-1"><span class="text-surface-700 dark:text-surface-300">Spend-based Scope 3 (65%)</span><span class="font-medium text-surface-800 dark:text-surface-200">17<!-- -->%</span></div><div class="h-2 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden"><div class="h-full rounded-full bg-orange-400" style="width:17%"></div></div></div></div><p class="text-xs text-surface-600 dark:text-surface-400 mt-3">59% of total emissions backed by primary source data or better. 17% flagged for improvement.</p></div></div></section><section class="max-w-5xl mx-auto px-6 py-12"><h2 class="text-2xl font-bold text-surface-900 dark:text-white text-center mb-3">What the report package includes</h2><p class="text-sm text-surface-500 text-center max-w-2xl mx-auto mb-10">The generated PDF is available today. The detail ledger and evidence exports illustrated on this page are on the roadmap — the columns below say which is which.</p><div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="card"><h3 class="text-sm font-semibold text-surface-900 dark:text-white mb-3">Generated PDF — available today</h3><ul class="space-y-2"><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Total emissions across Scope 1, 2, and 3</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Scope breakdown</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Overall data-confidence score</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Methodology and factor basis</li></ul></div><div class="card"><h3 class="text-sm font-semibold text-surface-900 dark:text-white mb-3">In the app — available today</h3><ul class="space-y-2"><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Every imported entry with its activity type</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>The emission factor applied and its published dataset</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Confidence score per entry</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Timestamp per entry</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>12-month emissions trend</li></ul></div><div class="card"><h3 class="text-sm font-semibold text-surface-900 dark:text-white mb-3">Roadmap</h3><ul class="space-y-2"><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Ledger export (CSV)</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Evidence index linking entries to source documents</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Reviewer sign-off per entry</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Version history with diffs</li><li class="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400"><svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Framework-specific filing templates</li></ul></div></div></section><section class="max-w-5xl mx-auto px-6 py-12 border-t border-surface-200 dark:border-surface-800"><div class="text-center mb-10"><h2 class="text-2xl font-bold text-surface-900 dark:text-white">Export in the formats your stakeholders need</h2><p class="mt-3 text-surface-500 max-w-xl mx-auto">No proprietary formats. These sample files illustrate the target package — the PDF summary is what Eco-Auditor generates today; the ledger, factor register, and evidence index are on the roadmap.</p></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto"><a href="/sample-report/pacific-freight-fy2026.pdf" download="" class="card flex items-center gap-3 hover:shadow-md transition-shadow group"><svg class="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9-9 0 0 0-9-9" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="flex-1 min-w-0"><h3 class="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Sample report (PDF)</h3><p class="text-2xs text-surface-500">Executive summary · Fictional data · ~3 KB</p></div><span class="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span></a><a href="/sample-report/pacific-freight-activity-data.csv" download="" class="card flex items-center gap-3 hover:shadow-md transition-shadow group"><svg class="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9-9 0 0 0-9-9" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="flex-1 min-w-0"><h3 class="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Activity data (CSV)</h3><p class="text-2xs text-surface-500">Detailed ledger · Fictional data · 11 rows</p></div><span class="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span></a><a href="/sample-report/pacific-freight-factor-register.csv" download="" class="card flex items-center gap-3 hover:shadow-md transition-shadow group"><svg class="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6 0v6m-6 0h12M4.5 4.5h15v3h-15v-3z" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="flex-1 min-w-0"><h3 class="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Factor register (CSV)</h3><p class="text-2xs text-surface-500">Source, version, geography, effective period · 5 factors</p></div><span class="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span></a><a href="/sample-report/pacific-freight-evidence-index.csv" download="" class="card flex items-center gap-3 hover:shadow-md transition-shadow group"><svg class="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="flex-1 min-w-0"><h3 class="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Evidence index (CSV)</h3><p class="text-2xs text-surface-500">Source references + data-quality level per entry · 11 entries</p></div><span class="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span></a></div><p class="text-center mt-6 text-2xs text-surface-600 dark:text-surface-400">All sample data is fictional and clearly labeled as illustrative. No real customer data is represented.</p></section><section class="max-w-5xl mx-auto px-6 py-16"><div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 dark:from-brand-700 dark:to-brand-900 px-8 py-12 text-center"><div class="relative"><h2 class="text-xl md:text-2xl font-bold text-white mb-3">Ready to see your own report?</h2><p class="text-brand-100 max-w-lg mx-auto mb-6 text-sm">Import your activity data by CSV and we&#x27;ll build your carbon inventory. Start your 14-day free trial.</p><div class="flex flex-col sm:flex-row items-center justify-center gap-3"><a class="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg" href="/signup" data-discover="true">Start Free Trial</a><a class="inline-flex items-center justify-center px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-lg transition-colors border border-white/20" href="/methodology" data-discover="true">View Methodology</a></div></div></div></section></main></div></div>
+  </body>
+</html>

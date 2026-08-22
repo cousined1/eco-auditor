@@ -39,12 +39,12 @@ describe('server billing helpers', () => {
     expect(planFromPriceId('price_unknown', STRIPE_ENV)).toBeNull();
   });
 
-  it('allows annual Starter and Growth price IDs to start trials', () => {
+  it('limits trials to monthly Starter and Growth price IDs', () => {
+    // Annual plans bill the full year up front, so they are deliberately not
+    // trial-eligible. Pricing.tsx hides the trial CTA on annual to match.
     expect(trialEligiblePriceIds(STRIPE_ENV)).toEqual(new Set([
       'price_starter_monthly',
-      'price_starter_annual',
       'price_growth_monthly',
-      'price_growth_annual',
     ]));
   });
 

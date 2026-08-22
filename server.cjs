@@ -182,9 +182,9 @@ async function seedBlogPosts(pool) {
       meta_title: 'Carbon Accounting Software for SMBs (2026 Guide) | Eco-Auditor',
       meta_description: 'A buyer\'s guide to carbon accounting software for small and mid-sized businesses. Compare features, pricing models, and must-have capabilities for 2026 compliance.',
       primary_keyword: 'carbon accounting software SMB',
-      body_html: '<h2>Why SMBs Need Carbon Accounting Software Now</h2><p>Carbon accounting used to be a spreadsheet exercise managed by an external consultant once a year. In 2026, that approach no longer holds up. Regulatory pressure from SB 253, CBAM, and SEC climate disclosure rules means emissions data needs to be audit-ready, continuously updated, and defensible.</p><p>For SMBs, the challenge is finding software that fits your budget and team size without sacrificing the rigor that enterprise customers and regulators expect. Here is what to look for.</p><h2>Must-Have Features for SMB Carbon Accounting</h2><h3>1. Pre-loaded emission factor libraries</h3><p>Your software should ship with emission factors from EPA, eGRID, DEFRA, and the GHG Protocol — not require you to research and input them manually. Factors should be versioned, sourced, and updated at least quarterly.</p><h3>2. Scope 1, 2, and 3 support</h3><p>Many tools handle Scope 1 and 2 well but treat Scope 3 as an afterthought. For SMBs in supply chains of regulated companies, Scope 3 is where the scrutiny is. Look for spend-based Category 1 calculation, freight estimation, and a screening template.</p><h3>3. Audit-ready documentation</h3><p>Every calculation should be traceable to its source data and emission factor. Look for audit trails that record who entered data, when it was modified, and which factors were applied.</p><h3>4. Customer-ready reporting</h3><p>Can the tool export reports in the formats your enterprise customers request? CDP, GRI, TCFD, and custom supplier questionnaire formats should all be supported.</p><h3>5. Supply chain survey tools</h3><p>The best way to improve Scope 3 data quality is to collect primary data from your suppliers. Look for tools that let you send a single survey link and auto-calculate supplier contributions.</p><h2>Pricing Models: What Makes Sense for SMBs</h2><ul><li><strong>Per-facility pricing:</strong> Charged based on the number of facilities. Gets expensive for distributed operations.</li><li><strong>Per-user pricing:</strong> Charged per seat. Best for teams where only a few people need access.</li><li><strong>Tiered plans:</strong> Fixed monthly or annual price with feature gates. Best for SMBs — predictable cost, no surprises.</li></ul><p>Eco-Auditor uses tiered pricing (Starter, Growth, Pro) with no per-facility or per-user penalties.</p><h2>Red Flags to Watch For</h2><ul><li><strong>"AI-generated" emission estimates with no methodology:</strong> If a tool gives you a carbon number without showing the underlying factors, it is not defensible.</li><li><strong>No Scope 3 support:</strong> Tools that only cover Scope 1 and 2 leave you unprepared for supply chain reporting requests.</li><li><strong>Annual-only factor updates:</strong> Emission factors change as grids decarbonize. If your tool updates once a year, your numbers are stale within months.</li><li><strong>No data export:</strong> If you cannot export your raw data, you are locked in.</li></ul><h2>The Spreadsheet Question</h2><p>Many SMBs start with Excel. That is fine for a first-pass estimate, but spreadsheets break down fast: no version control on emission factors, no audit trail, no validation, no factor updates. If you are spending more than two hours a month maintaining a carbon spreadsheet, dedicated software will pay for itself.</p><h2>How Eco-Auditor Compares</h2><ul><li><strong>Pre-loaded factors:</strong> EPA, eGRID, DEFRA, GHG Protocol — updated quarterly.</li><li><strong>All three scopes:</strong> Scope 1, 2, and 3 with spend-based methods and screening templates.</li><li><strong>Audit-ready:</strong> Every calculation links to source data, factor version, and methodology.</li><li><strong>Customer-ready exports:</strong> CDP, GRI, TCFD, and custom formats.</li><li><strong>Supply chain surveys:</strong> Send one link, auto-calculate supplier contributions.</li><li><strong>Tiered pricing:</strong> Starter at $49/month, no per-facility or per-user penalties.</li></ul><h2>Key Takeaways</h2><ul><li>Carbon accounting software is no longer optional for SMBs in regulated supply chains.</li><li>Look for pre-loaded emission factors, full Scope 3 support, audit trails, and customer-ready reporting.</li><li>Avoid tools with opaque estimates, no Scope 3, or no data export.</li><li>Tiered pricing without per-facility penalties is the SMB-friendly model.</li></ul>',
+      body_html: '<h2>Why SMBs Need Carbon Accounting Software Now</h2><p>Carbon accounting used to be a spreadsheet exercise managed by an external consultant once a year. In 2026, that approach no longer holds up. Regulatory pressure from SB 253, CBAM, and SEC climate disclosure rules means emissions data needs to be audit-ready, continuously updated, and defensible.</p><p>For SMBs, the challenge is finding software that fits your budget and team size without sacrificing the rigor that enterprise customers and regulators expect. Here is what to look for.</p><h2>Must-Have Features for SMB Carbon Accounting</h2><h3>1. Pre-loaded emission factor libraries</h3><p>Your software should ship with emission factors from EPA, eGRID, DEFRA, and the GHG Protocol — not require you to research and input them manually. Factors should be versioned, sourced, and updated at least quarterly.</p><h3>2. Scope 1, 2, and 3 support</h3><p>Many tools handle Scope 1 and 2 well but treat Scope 3 as an afterthought. For SMBs in supply chains of regulated companies, Scope 3 is where the scrutiny is. Look for spend-based Category 1 calculation, freight estimation, and a screening template.</p><h3>3. Audit-ready documentation</h3><p>Every calculation should be traceable to its source data and emission factor. Look for audit trails that record who entered data, when it was modified, and which factors were applied.</p><h3>4. Customer-ready reporting</h3><p>Can the tool export reports in the formats your enterprise customers request? CDP, GRI, TCFD, and custom supplier questionnaire formats should all be supported.</p><h3>5. Supply chain survey tools</h3><p>The best way to improve Scope 3 data quality is to collect primary data from your suppliers. Look for tools that let you send a single survey link and auto-calculate supplier contributions.</p><h2>Pricing Models: What Makes Sense for SMBs</h2><ul><li><strong>Per-facility pricing:</strong> Charged based on the number of facilities. Gets expensive for distributed operations.</li><li><strong>Per-user pricing:</strong> Charged per seat. Best for teams where only a few people need access.</li><li><strong>Tiered plans:</strong> Fixed monthly or annual price with feature gates. Best for SMBs — predictable cost, no surprises.</li></ul><p>Eco-Auditor uses tiered pricing (Starter, Growth, Pro) with no per-facility or per-user penalties.</p><h2>Red Flags to Watch For</h2><ul><li><strong>"AI-generated" emission estimates with no methodology:</strong> If a tool gives you a carbon number without showing the underlying factors, it is not defensible.</li><li><strong>No Scope 3 support:</strong> Tools that only cover Scope 1 and 2 leave you unprepared for supply chain reporting requests.</li><li><strong>Annual-only factor updates:</strong> Emission factors change as grids decarbonize. If your tool updates once a year, your numbers are stale within months.</li><li><strong>No data export:</strong> If you cannot export your raw data, you are locked in.</li></ul><h2>The Spreadsheet Question</h2><p>Many SMBs start with Excel. That is fine for a first-pass estimate, but spreadsheets break down fast: no version control on emission factors, no audit trail, no validation, no factor updates. If you are spending more than two hours a month maintaining a carbon spreadsheet, dedicated software will pay for itself.</p><h2>How Eco-Auditor Compares</h2><ul><li><strong>Pre-loaded factors:</strong> EPA, eGRID, DEFRA, GHG Protocol — updated quarterly.</li><li><strong>All three scopes:</strong> Scope 1, 2, and 3 with spend-based methods and screening templates.</li><li><strong>Audit-ready:</strong> Every calculation links to source data, factor version, and methodology.</li><li><strong>Customer-ready exports:</strong> CDP, GRI, TCFD, and custom formats.</li><li><strong>Supply chain surveys:</strong> Send one link, auto-calculate supplier contributions.</li><li><strong>Tiered pricing:</strong> Starter at $149/month, no per-facility or per-user penalties.</li></ul><h2>Key Takeaways</h2><ul><li>Carbon accounting software is no longer optional for SMBs in regulated supply chains.</li><li>Look for pre-loaded emission factors, full Scope 3 support, audit trails, and customer-ready reporting.</li><li>Avoid tools with opaque estimates, no Scope 3, or no data export.</li><li>Tiered pricing without per-facility penalties is the SMB-friendly model.</li></ul>',
       faq: JSON.stringify([
-        { question: 'How much does carbon accounting software cost for an SMB?', answer: 'Carbon accounting software for SMBs typically ranges from $49 to $500 per month. Eco-Auditor offers tiered plans starting at $49/month with no per-facility or per-user penalties.' },
+        { question: 'How much does carbon accounting software cost for an SMB?', answer: 'Carbon accounting software for SMBs typically ranges from $149 to $999 per month. Eco-Auditor offers tiered plans starting at $149/month with no per-facility or per-user penalties.' },
         { question: 'Can I use Excel for carbon accounting?', answer: 'Excel works for a first-pass estimate but breaks down due to lack of version control, audit trails, emission factor updates, and validation. Dedicated software saves time and reduces errors.' },
         { question: 'What emission factors should carbon accounting software include?', answer: 'Look for EPA, eGRID, DEFRA, and GHG Protocol factors. They should be versioned, sourced, and updated at least quarterly.' },
         { question: 'Do SMBs need Scope 3 reporting software?', answer: 'Yes. Enterprise customers in regulated supply chains require Scope 3 data from their suppliers. Look for software with spend-based Category 1 calculation and screening templates.' },
@@ -367,6 +367,14 @@ const rateLimitMax = 120;
 const rateLimitStore = new Map();
 
 app.use(function (req, res, next) {
+  // Stripe delivers every webhook for the account from a small pool of egress
+  // IPs, so a burst (>120/min during a billing run or a retry backlog) would
+  // trip this shared per-IP limiter and 429 signed, already-authenticated
+  // deliveries — which Stripe records as failures and retries, amplifying the
+  // backlog. The webhook route verifies its own signature and Stripe paces its
+  // own retries, so exempt it.
+  if (req.path === '/api/webhook') return next();
+
   // Key on req.ip, which honors `trust proxy` above. Parsing the leftmost
   // X-Forwarded-For entry directly is client-spoofable (rate-limit bypass
   // and unbounded store growth from forged keys).
@@ -485,8 +493,14 @@ app.get('/health', async function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  const payload = await healthPayload();
-  res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
+  // A health probe must never be the thing that kills the process.
+  try {
+    const payload = await healthPayload();
+    res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
+  } catch (err) {
+    log('error', 'Health payload failed', { error: String(err) });
+    res.status(503).json({ status: 'degraded', error: 'health check failed' });
+  }
 });
 
 // ─── /api/health — godmythos HR #24 §0 mandatory health route (AF-2) ───
@@ -497,16 +511,24 @@ app.get('/api/health', async function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  const payload = await healthPayload();
-  res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
+  try {
+    const payload = await healthPayload();
+    res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
+  } catch (err) {
+    log('error', 'Health payload failed', { error: String(err) });
+    res.status(503).json({ status: 'degraded', error: 'health check failed' });
+  }
 });
 
 // ─── InsForge config endpoint (for auth) ───
 app.get('/api/insforge-config', function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.json({
-    url: process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL || null,
-    anonKey: process.env.INSFORGE_ANON_KEY || process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || null,
+    // These were NEXT_PUBLIC_*/INSFORGE_URL names left over from a Next.js
+    // scaffold; this is a Vite app and authGuard reads INSFORGE_BASE_URL, so
+    // the endpoint returned {url:null, anonKey:null} on every real deploy.
+    url: process.env.INSFORGE_BASE_URL || process.env.VITE_INSFORGE_BASE_URL || null,
+    anonKey: process.env.INSFORGE_ANON_KEY || process.env.VITE_INSFORGE_ANON_KEY || null,
   });
 });
 
@@ -596,7 +618,10 @@ app.get('/api/trial-status', authGuard, async function (req, res) {
     return res.json({ trial: isActive, trialEndsAt, source: 'db' });
   } catch (err) {
     log('error', 'Trial status check failed', { error: String(err), userId: req.user.id });
-    return res.json({ trial: true, trialEndsAt: null, source: 'error-fallback' });
+    // Fail closed on the UI hint. Returning trial:true here told an expired
+    // user their trial was still active; 503 lets the client retry instead of
+    // caching a wrong answer. (Data access is gated separately by requirePlan.)
+    return res.status(503).json({ error: 'Trial status unavailable', source: 'error-fallback' });
   }
 });
 
@@ -815,7 +840,14 @@ async function queryWithRlsBypass(text, params) {
     await client.query('COMMIT');
     return result;
   } catch (err) {
-    await client.query('ROLLBACK');
+    // If the connection is already dead the ROLLBACK throws too, and an
+    // unguarded await here would replace the real failure with a useless
+    // "connection terminated" — losing the diagnostic every time it matters.
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      log('warn', 'ROLLBACK failed after query error', { error: String(rollbackErr) });
+    }
     throw err;
   } finally {
     client.release();
@@ -897,7 +929,16 @@ async function syncSubscriptionRecord(record, eventCreatedAt) {
      WHERE user_id = $1
        AND ($9::timestamptz IS NULL
             OR subscription_event_at IS NULL
-            OR subscription_event_at <= $9::timestamptz)`,
+            OR subscription_event_at < $9::timestamptz
+            -- Stripe's event.created has 1-second resolution and one operation
+            -- routinely emits several events in the same second (e.g.
+            -- subscription.updated + subscription.deleted). A plain <= let the
+            -- last-arriving same-second event win, which could overwrite a
+            -- 'canceled' status back to 'active' and hand a canceled customer
+            -- continued access. Ties may still refresh a row, but never
+            -- resurrect a cancellation.
+            OR ($9::timestamptz = subscription_event_at
+                AND subscription_status IS DISTINCT FROM 'canceled'))`,
     [userId, record.stripeCustomerId, record.stripeSubscriptionId, record.status,
      record.plan, record.billingCycle, record.currentPeriodEnd, record.cancelAtPeriodEnd, eventAt]
   );
@@ -1018,9 +1059,18 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
     // e.g. a proration invoice failing and flipping the sub to past_due.
     const mutatedAt = Math.floor(Date.now() / 1000);
     const updated = await stripe.subscriptions.update(subscription.id, updateParams);
-    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), mutatedAt);
+    // syncSubscriptionRecord RETURNS {ok:false} for mapping/provisioning
+    // failures rather than throwing. Dropping that result reported an
+    // unqualified success while the local entitlement still showed the old
+    // plan, so the client had no reason to re-poll.
+    const syncResult = await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), mutatedAt);
+    if (!syncResult || !syncResult.ok) {
+      log('error', 'Plan change not yet reflected locally', {
+        reason: syncResult && syncResult.reason, subId: updated.id, userId: req.user.id,
+      });
+    }
     log('info', 'Subscription changed', { subId: updated.id, planId, billing, userId: req.user.id });
-    return res.json({ success: true, plan: planId, billing });
+    return res.json({ success: true, plan: planId, billing, synced: Boolean(syncResult && syncResult.ok) });
   } catch (err) {
     log('error', 'Subscription change failed', { error: String(err) });
     return res.status(500).json({ error: 'Subscription change failed' });
@@ -1036,9 +1086,14 @@ app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async fu
     }
     const canceledAt = Math.floor(Date.now() / 1000);
     const updated = await stripe.subscriptions.update(subscription.id, { cancel_at_period_end: true });
-    await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), canceledAt);
+    const syncResult = await syncSubscriptionRecord(subscriptionRecordFromStripe(updated, process.env), canceledAt);
+    if (!syncResult || !syncResult.ok) {
+      log('error', 'Cancellation not yet reflected locally', {
+        reason: syncResult && syncResult.reason, subId: updated.id, userId: req.user.id,
+      });
+    }
     log('info', 'Subscription set to cancel at period end', { subId: updated.id, userId: req.user.id });
-    return res.json({ success: true, cancelAtPeriodEnd: true });
+    return res.json({ success: true, cancelAtPeriodEnd: true, synced: Boolean(syncResult && syncResult.ok) });
   } catch (err) {
     log('error', 'Subscription cancel failed', { error: String(err) });
     return res.status(500).json({ error: 'Cancellation failed' });
@@ -1049,41 +1104,52 @@ app.get('/api/checkout', function (_req, res) {
   res.status(404).json({ error: 'Not found' });
 });
 
+// Resolve a Stripe price id from env, accepting the VITE_-prefixed alias.
+// /api/config/prices used to apply this fallback while ALLOWED_PRICE_IDS and
+// planFromPriceId read only the unprefixed names — so a deploy that set only
+// VITE_STRIPE_PRICE_* advertised price ids that /api/checkout then rejected
+// with "Invalid price selection" on every purchase. One resolver, used by both.
+function resolvePriceId(name) {
+  return process.env[name] || process.env['VITE_' + name] || null;
+}
+
 // ─── Public config endpoint for Stripe price IDs (frontend fetches these at runtime) ───
 app.get('/api/config/prices', function (_req, res) {
   res.setHeader('Cache-Control', 'public, max-age=300'); // 5 min client-side cache
   res.json({
     starter: {
-      monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || process.env.VITE_STRIPE_PRICE_STARTER_MONTHLY || null,
-      annual:  process.env.STRIPE_PRICE_STARTER_ANNUAL  || process.env.VITE_STRIPE_PRICE_STARTER_ANNUAL  || null,
+      monthly: resolvePriceId('STRIPE_PRICE_STARTER_MONTHLY'),
+      annual:  resolvePriceId('STRIPE_PRICE_STARTER_ANNUAL'),
     },
     growth: {
-      monthly: process.env.STRIPE_PRICE_GROWTH_MONTHLY || process.env.VITE_STRIPE_PRICE_GROWTH_MONTHLY || null,
-      annual:  process.env.STRIPE_PRICE_GROWTH_ANNUAL  || process.env.VITE_STRIPE_PRICE_GROWTH_ANNUAL  || null,
+      monthly: resolvePriceId('STRIPE_PRICE_GROWTH_MONTHLY'),
+      annual:  resolvePriceId('STRIPE_PRICE_GROWTH_ANNUAL'),
     },
     pro: {
-      monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || process.env.VITE_STRIPE_PRICE_PRO_MONTHLY || null,
-      annual:  process.env.STRIPE_PRICE_PRO_ANNUAL  || process.env.VITE_STRIPE_PRICE_PRO_ANNUAL  || null,
+      monthly: resolvePriceId('STRIPE_PRICE_PRO_MONTHLY'),
+      annual:  resolvePriceId('STRIPE_PRICE_PRO_ANNUAL'),
     },
-    pk: process.env.VITE_STRIPE_PK || null,
+    pk: process.env.VITE_STRIPE_PK || process.env.STRIPE_PK || null,
   });
 });
 
 // Allowed Stripe price IDs (prevents client-controlled price injection)
 const ALLOWED_PRICE_IDS = new Set([
-  process.env.STRIPE_PRICE_STARTER_MONTHLY,
-  process.env.STRIPE_PRICE_STARTER_ANNUAL,
-  process.env.STRIPE_PRICE_GROWTH_MONTHLY,
-  process.env.STRIPE_PRICE_GROWTH_ANNUAL,
-  process.env.STRIPE_PRICE_PRO_MONTHLY,
-  process.env.STRIPE_PRICE_PRO_ANNUAL,
+  resolvePriceId('STRIPE_PRICE_STARTER_MONTHLY'),
+  resolvePriceId('STRIPE_PRICE_STARTER_ANNUAL'),
+  resolvePriceId('STRIPE_PRICE_GROWTH_MONTHLY'),
+  resolvePriceId('STRIPE_PRICE_GROWTH_ANNUAL'),
+  resolvePriceId('STRIPE_PRICE_PRO_MONTHLY'),
+  resolvePriceId('STRIPE_PRICE_PRO_ANNUAL'),
 ].filter(Boolean));
 
-// Plans eligible for trial (prevent trial abuse on higher tiers)
-const TRIAL_ELIGIBLE_PLANS = new Set([
-  process.env.STRIPE_PRICE_STARTER_MONTHLY,
-  process.env.STRIPE_PRICE_GROWTH_MONTHLY,
-].filter(Boolean));
+// Plans eligible for trial (prevent trial abuse on higher tiers).
+// Single source of truth: server-billing.cjs. This used to be a second,
+// hand-maintained Set here while `trialEligiblePriceIds` sat imported and
+// unused — the two had already drifted (the module included annual prices,
+// this Set did not), so the module's own passing test asserted a policy the
+// server did not implement.
+const TRIAL_ELIGIBLE_PLANS = trialEligiblePriceIds(process.env);
 
 app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function (req, res) {
   try {
@@ -1532,7 +1598,7 @@ async function getBotResponse(message, state = {}) {
     }
     if (state.step === 'time') {
       // Save lead (sanitized — state is client-controlled)
-      await writeChatLead({
+      const demoSaved = await writeChatLead({
         type: 'demo_request',
         name: state.name,
         email: state.email,
@@ -1540,7 +1606,16 @@ async function getBotResponse(message, state = {}) {
         preferredDate: state.date,
         preferredTime: message,
       });
-      
+      // writeChatLead returns false when the payload is rejected or both the
+      // DB and file fallbacks fail. Confirming a booking we never recorded
+      // loses the lead silently.
+      if (!demoSaved) {
+        return {
+          response: `I couldn't save your demo request just now. Please email hello@developer312.com with your preferred time and we'll get you booked.`,
+          state,
+        };
+      }
+
       // Generate PrismDeck presentation link
       const prismDeckUrl = `https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor&company=${encodeURIComponent(state.company)}&email=${encodeURIComponent(state.email)}`;
       
@@ -1553,8 +1628,11 @@ async function getBotResponse(message, state = {}) {
 
   if (state.flow === 'contact') {
     if (!state.name) {
+      // The name has just been captured from `message`; asking for it again
+      // (the old copy) made every user repeat it, and the repeat was then
+      // rejected as an invalid email.
       return {
-        response: `Thanks for reaching out! What's your name?`,
+        response: `Thanks, ${message}! What's your email address?`,
         state: { ...state, name: message, step: 'email' }
       };
     }
@@ -1572,12 +1650,18 @@ async function getBotResponse(message, state = {}) {
       };
     }
     if (state.step === 'message') {
-      await writeChatLead({
+      const contactSaved = await writeChatLead({
         type: 'contact_request',
         name: state.name,
         email: state.email,
         message: message,
       });
+      if (!contactSaved) {
+        return {
+          response: `I couldn't send that just now. Please email hello@developer312.com directly and our team will pick it up.`,
+          state,
+        };
+      }
       return {
         response: `✅ Message sent!\n\nOur sales team will contact you at ${state.email} within 24 hours.\n\nIs there anything else I can help you with?`,
         state: {}
@@ -1636,18 +1720,26 @@ app.post('/api/chat', express.json({ limit: '16kb' }), chatRateLimit, async func
 
   // Use salesbot engine first
   // Salesbot engine v2
-  const botResult = await getBotResponse(message.trim(), state);
-  
-  // If we have a specific flow response, return it immediately
-  if (botResult.response) {
-    return res.json({
-      success: true,
-      response: botResult.response,
-      state: botResult.state || state,
-      quickReplies: !botResult.state?.flow ? ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales'] : undefined
-    });
+  // Previously an unguarded await plus a bare `if (botResult.response)` meant
+  // any throw took the process down (unhandledRejection -> process.exit) and
+  // any empty response left the request hanging with no reply at all.
+  const FALLBACK_REPLY = "I'm having trouble answering that right now. You can reach us at hello@developer312.com and we'll follow up.";
+  let botResult;
+  try {
+    botResult = await getBotResponse(message.trim(), state);
+  } catch (err) {
+    log('error', 'Chat bot response failed', { error: String(err) });
+    return res.status(500).json({ success: false, error: 'Chat is temporarily unavailable' });
   }
 
+  const reply = (botResult && botResult.response) || FALLBACK_REPLY;
+  const nextState = (botResult && botResult.state) || state;
+  return res.json({
+    success: true,
+    response: reply,
+    state: nextState,
+    quickReplies: !nextState?.flow ? ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales'] : undefined
+  });
 });
 
 // ─── LEADS API ───
@@ -1970,11 +2062,17 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
 
       // Carry the row's own date into created_at when valid, so imported
       // historical data is attributed to the right period (not the import time).
-      var createdAt = new Date().toISOString();
+      // The activity date is ALSO stored in its own column now: overwriting
+      // created_at alone destroyed the real import timestamp, so there was no
+      // audit trail of when data entered the system.
+      var importedAt = new Date().toISOString();
+      var createdAt = importedAt;
+      var activityDate = null;
       if (row.date) {
         var parsedDate = Date.parse(row.date);
         if (Number.isFinite(parsedDate)) {
           createdAt = new Date(parsedDate).toISOString();
+          activityDate = new Date(parsedDate).toISOString().slice(0, 10);
         } else {
           rowWarnings.push('Row ' + rowNum + ': Unparseable date "' + row.date + '" — using import time');
         }
@@ -1992,9 +2090,13 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
           unit: String(row.unit || ''),
           method: String(row.method || 'calculation'),
           co2e_tonnes: calculated.co2e_tonnes,
+          // Persist the computed result so consumers never have to re-derive
+          // it from the polymorphic `amount` column.
+          co2e_kg: Number(calculated.co2e_tonnes) * 1000,
           factor: String(calculated.factor),
           confidence: Number(calculated.confidence),
           date: row.date || null,
+          activity_date: activityDate,
           notes: row.notes || null,
           created_at: createdAt,
         };
@@ -2011,7 +2113,10 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     if (entries.length > 0) {
       if (pgPool) {
         try {
-          var cols = ['company_id', 'facility_id', 'scope', 'category', 'source', 'amount', 'unit', 'factor', 'method', 'confidence', 'created_at'];
+          // co2e_kg / activity_date / notes were computed per row and then
+          // dropped on the floor here — notes (a documented CSV column) was
+          // silently discarded and the computed CO2e was thrown away.
+          var cols = ['company_id', 'facility_id', 'scope', 'category', 'source', 'amount', 'unit', 'factor', 'method', 'confidence', 'co2e_kg', 'activity_date', 'notes', 'created_at'];
           var valueGroups = [];
           var insertParams = [];
           var p = 1;
@@ -2020,7 +2125,8 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
             valueGroups.push('(' + placeholders.join(', ') + ')');
             insertParams.push(
               e.company_id, e.facility_id, e.scope, e.category, e.source,
-              e.amount, e.unit, e.factor, e.method, e.confidence, e.created_at
+              e.amount, e.unit, e.factor, e.method, e.confidence,
+              e.co2e_kg, e.activity_date, e.notes, e.created_at
             );
           });
           await queryWithRlsBypass(
@@ -2068,11 +2174,16 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
 });
 
 app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
-  const job = ingestJobs.get(req.params.job_id);
-  if (!job) return res.status(404).json({ success: false, error: 'Ingest job not found' });
-  const companyId = await requireCompanyAccess(req, res, job.company_id);
-  if (!companyId) return;
-  return res.json({ success: true, data: job });
+  try {
+    const job = ingestJobs.get(req.params.job_id);
+    if (!job) return res.status(404).json({ success: false, error: 'Ingest job not found' });
+    const companyId = await requireCompanyAccess(req, res, job.company_id);
+    if (!companyId) return;
+    return res.json({ success: true, data: job });
+  } catch (err) {
+    log('error', 'Ingest status lookup failed', { error: String(err) });
+    return res.status(500).json({ success: false, error: 'Failed to load ingest status' });
+  }
 });
 
 // requirePlan added: these reads return the customer's own paid data, so an
@@ -2083,8 +2194,17 @@ app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
 app.get('/api/companies/:id/facilities', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
-  const facilities = await loadFacilities(companyId);
-  return res.json({ success: true, data: facilities });
+  // loadFacilities throws in production when the data store is unavailable.
+  // Express 4 does not catch async handler rejections, and the process-level
+  // unhandledRejection handler calls process.exit(1) — so an unguarded await
+  // here turns one transient DB error into a full outage for every tenant.
+  try {
+    const facilities = await loadFacilities(companyId);
+    return res.json({ success: true, data: facilities });
+  } catch (err) {
+    log('error', 'Facilities list failed', { error: String(err), companyId });
+    return res.status(500).json({ success: false, error: 'Failed to load facilities' });
+  }
 });
 
 app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
@@ -2138,10 +2258,17 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
 
 app.get('/api/facilities/:id/emissions', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
-    const facility = await loadFacilityById(req.params.id);
-    if (!facility) return res.status(404).json({ success: false, error: 'Facility not found' });
-    const companyId = await requireCompanyAccess(req, res, facility.company_id);
+    // Resolve the caller's own company FIRST. Loading the facility before the
+    // tenant check made the response an existence oracle: a foreign-but-real
+    // facility id returned 403 while a nonexistent one returned 404, letting
+    // any authenticated user enumerate which sequential ids exist across all
+    // tenants. Both cases now return an identical 404.
+    const companyId = await requireCompanyAccess(req, res, null);
     if (!companyId) return;
+    const facility = await loadFacilityById(req.params.id);
+    if (!facility || String(facility.company_id) !== String(companyId)) {
+      return res.status(404).json({ success: false, error: 'Facility not found' });
+    }
     const entries = await loadEmissionEntries(companyId);
     const result = buildFacilityEmissions([facility], entries);
     return res.json({ success: true, data: result[0] });
@@ -2152,9 +2279,26 @@ app.get('/api/facilities/:id/emissions', apiAuthGuard, requirePlan('starter'), a
 });
 
 app.get('/api/companies/:id/compliance', apiAuthGuard, requirePlan('starter'), async function (req, res) {
-  const companyId = await requireCompanyAccess(req, res, req.params.id);
-  if (!companyId) return;
-  return res.json({ success: true, data: getComplianceStatus(getCompany(companyId)) });
+  try {
+    const companyId = await requireCompanyAccess(req, res, req.params.id);
+    if (!companyId) return;
+    // getCompany() only resolves the in-memory sample fixtures. Real company
+    // rows carry no revenue/employees/region (see initial-schema.sql), so it
+    // used to fall through to a {revenue:0, employees:0, region:'CA'} stub and
+    // return "not_applicable" for every real tenant — a confidently wrong
+    // compliance verdict. Answer honestly until those fields are modelled.
+    const company = sampleCompanies[companyId];
+    if (!company) {
+      return res.status(501).json({
+        success: false,
+        error: 'Compliance profiling needs your company revenue, headcount, and operating regions. Add them in Settings to enable this report.',
+      });
+    }
+    return res.json({ success: true, data: getComplianceStatus(company) });
+  } catch (err) {
+    log('error', 'Compliance status failed', { error: String(err) });
+    return res.status(500).json({ success: false, error: 'Failed to load compliance status' });
+  }
 });
 
 app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
@@ -2177,9 +2321,35 @@ app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
 });
 
 app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
-  const companyId = await requireCompanyAccess(req, res, req.body && req.body.company_id);
-  if (!companyId) return;
-  return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: new Date().toISOString() } });
+  try {
+    const companyId = await requireCompanyAccess(req, res, req.body && req.body.company_id);
+    if (!companyId) return;
+    // Previously this echoed {status:'completed'} for ANY :id without writing
+    // anything — including report ids belonging to other tenants. Sign-off is
+    // an audit-trail action; it must actually persist and must be scoped to
+    // the caller's own company.
+    if (!/^\d+$/.test(String(req.params.id))) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Sign-off is unavailable while the data store is offline' });
+    }
+    const signedAt = new Date().toISOString();
+    const result = await queryWithRlsBypass(
+      `UPDATE public.reports
+          SET signoff = 'completed', last_updated = $3
+        WHERE id = $1 AND company_id = $2
+        RETURNING id`,
+      [req.params.id, companyId, signedAt]
+    );
+    if (!result || result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+    return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: signedAt } });
+  } catch (err) {
+    log('error', 'Compliance signoff failed', { error: String(err) });
+    return res.status(500).json({ success: false, error: 'Failed to record sign-off' });
+  }
 });
 
 app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {

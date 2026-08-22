@@ -31,6 +31,8 @@ export default function Pricing() {
   const [billing, setBilling] = useState<BillingCycle>('annual');
   const [showComparison, setShowComparison] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // Plan id whose checkout is in flight, or null. Blocks double-submit.
+  const [checkoutPending, setCheckoutPending] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs';
@@ -51,6 +53,10 @@ export default function Pricing() {
   }, []);
 
   const handleCheckout = async (planId: string, billingCycle: BillingCycle, trial: boolean | undefined) => {
+    // Without this guard a double-click created two Stripe checkout sessions
+    // before window.location.assign won the race.
+    if (checkoutPending) return;
+    setCheckoutPending(planId);
     setCheckoutError(null);
     const token = await getAuthToken();
     if (!token) {
@@ -62,6 +68,7 @@ export default function Pricing() {
       window.location.assign(result.data.url);
     } else {
       setCheckoutError(result.error);
+      setCheckoutPending(null);
     }
   };
 
@@ -162,13 +169,16 @@ export default function Pricing() {
               <div className="p-5 pt-0 space-y-2">
                 <button
                   onClick={() => handleCheckout(plan.id, billing, trialEligible)}
-                  className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  disabled={checkoutPending !== null}
+                  className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     isPopular
                       ? 'bg-brand-600 hover:bg-brand-700 text-white'
                       : 'bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-800 dark:text-surface-200'
                   }`}
                 >
-                  {trialEligible ? 'Start free trial' : 'Get started'}
+                  {checkoutPending === plan.id
+                    ? 'Redirecting…'
+                    : trialEligible ? 'Start free trial' : 'Get started'}
                 </button>
                 <Link to="/demo" className="block w-full py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-center">
                   Book a Demo

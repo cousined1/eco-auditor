@@ -76,7 +76,11 @@ function validateFixture(fixture) {
   if (typeof s1 !== 'number' || typeof s2 !== 'number' || typeof s3 !== 'number' || typeof total !== 'number') {
     throw new Error('metrics.scope{1,2,3}.value and metrics.total must be numbers');
   }
-  if (s1 + s2 + s3 !== total) {
+  // Exact float equality on decimal tonnes is a trap: 91.8 + 44.1 + 300.3
+  // evaluates to 436.20000000000005, so a perfectly consistent one-decimal
+  // fixture would throw and break the build. Compare with a tolerance well
+  // below the reporting precision instead.
+  if (Math.abs(s1 + s2 + s3 - total) > 0.005) {
     throw new Error('Scope sums (' + s1 + '+' + s2 + '+' + s3 + '=' + (s1 + s2 + s3) + ') do not match total (' + total + ')');
   }
 

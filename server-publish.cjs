@@ -123,11 +123,21 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
     if (posts.length > MAX_POSTS) {
       return res.status(400).json({ error: `posts may contain at most ${MAX_POSTS} entries` });
     }
+    // A slug repeated inside one batch makes the single-transaction upsert fail
+    // with "ON CONFLICT DO UPDATE command cannot affect row a second time",
+    // which surfaced as an opaque 500 that the caller would retry forever.
+    // Reject it up front as the client error it is.
+    const seenSlugs = new Set();
     for (let i = 0; i < posts.length; i += 1) {
       const problem = validatePost(posts[i], i);
       if (problem) {
         return res.status(400).json({ error: problem });
       }
+      const slug = posts[i].slug;
+      if (seenSlugs.has(slug)) {
+        return res.status(400).json({ error: `posts[${i}].slug "${slug}" duplicates an earlier post in this request` });
+      }
+      seenSlugs.add(slug);
     }
 
     const requestId = typeof body.requestId === 'string' && body.requestId.trim() !== ''

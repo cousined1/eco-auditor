@@ -53,6 +53,14 @@ export default function Demo() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Enter a valid email address.';
     if (!form.company.trim()) errors.company = 'Company is required.';
     if (!form.goal) errors.goal = 'Select what you want to get out of the demo.';
+    // The leads table caps message at 1000 chars, and `details` below prepends
+    // goal/facilities/deadline to the message -- so the effective budget for
+    // free text is smaller than the column. Cap at 800 to leave room, and
+    // mirror the name/company caps too. Previously an over-long message hit
+    // the DB CHECK and the raw constraint error was shown to the prospect.
+    if (form.message.length > 800) errors.message = 'Please keep your notes under 800 characters.';
+    if (form.name.length > 120) errors.name = 'Please keep your name under 120 characters.';
+    if (form.company.length > 160) errors.company = 'Please keep the company name under 160 characters.';
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -68,7 +76,7 @@ export default function Demo() {
       form.facilityCount ? `Facilities: ${form.facilityCount}` : '',
       form.reportingDeadline ? `Deadline: ${form.reportingDeadline}` : '',
       form.message,
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n').slice(0, 1000); // hard stop at the column limit
 
     if (!isInsForgeConfigured) {
       setSubmitError('Our demo form is temporarily unavailable. Please email hello@developer312.com to book.');
@@ -253,6 +261,7 @@ export default function Demo() {
                       id="demo-message"
                       className="input"
                       rows={3}
+                      maxLength={800}
                       placeholder="Current tools, blockers, specific frameworks…"
                       value={form.message}
                       onChange={(e) => setForm({ ...form, message: e.target.value })}

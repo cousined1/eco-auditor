@@ -93,16 +93,37 @@ export default function DataIntake() {
           collected.push({ name: file.name, status: 'failed', detail: up?.message || 'CSV import requires an active plan' });
           continue;
         }
+        // The server caps the body at 100kb; a 413 comes back as HTML, not
+        // JSON, so res.json() threw and the user saw
+        // "Unexpected token 'P'... is not valid JSON" instead of the reason.
+        if (res.status === 413) {
+          collected.push({
+            name: file.name,
+            status: 'failed',
+            detail: 'File is larger than the 100 KB import limit — split it into smaller files and retry',
+          });
+          continue;
+        }
+        if (!res.ok && !(res.headers.get('content-type') || '').includes('json')) {
+          collected.push({ name: file.name, status: 'failed', detail: `Import failed (HTTP ${res.status})` });
+          continue;
+        }
         const data = await res.json();
 
         if (data.success) {
-          setCsvResult({ imported: data.imported, total_rows: data.total_rows, errors: data.errors || [], warnings: data.warnings || [] });
+          const rowErrors: string[] = data.errors || [];
+          const rowWarnings: string[] = data.warnings || [];
+          setCsvResult({ imported: data.imported, total_rows: data.total_rows, errors: rowErrors, warnings: rowWarnings });
           collected.push({
             name: file.name,
             // A partial import is not a success: some rows did not land, and on
             // an emissions inventory that difference is the whole point.
             status: data.imported === data.total_rows ? 'imported' : 'failed',
-            detail: `${data.imported} of ${data.total_rows} rows imported`,
+            // setCsvResult holds only ONE file's diagnostics, so in a multi-file
+            // batch the last file overwrote the earlier ones and the specific
+            // failing rows vanished. Carry them into this file's own outcome.
+            detail: `${data.imported} of ${data.total_rows} rows imported`
+              + (rowErrors.length ? ` — ${rowErrors.slice(0, 3).join('; ')}${rowErrors.length > 3 ? ` (+${rowErrors.length - 3} more)` : ''}` : ''),
           });
         } else {
           collected.push({ name: file.name, status: 'failed', detail: data.error || 'Import failed' });

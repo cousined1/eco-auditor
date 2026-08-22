@@ -1,0 +1,462 @@
+--- a/server.cjs
++++ b/server.cjs
+@@ -39,6 +39,15 @@
+ 
+ // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
+ 
++// ─── Public base URL ───
++// Every Stripe redirect (checkout success/cancel, billing portal return) is
++// built from this. If it is wrong, a customer who has just paid is bounced to a
++// dead URL and /api/checkout/verify — the reconciliation that rescues a late
++// webhook — never runs. Production boot refuses to start without it rather than
++// silently shipping localhost redirects to real buyers.
++// See ecoauditor-mvp-readiness-audit-2026-08-20.md ("Config gaps").
++const APP_BASE_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
++
+ // ─── Stripe SDK (lazy init) ───
+ let stripe = null;
+ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+@@ -925,13 +934,24 @@
+ }
+ 
+ // Plan-tier enforcement: requires an active trial or subscription at or above
+-// minPlanId. Skips enforcement when no DB is configured (dev mode) or the
+-// company row does not exist yet (trial is provisioned on first data access).
++// minPlanId. Skips enforcement when no DB is configured (dev mode).
++//
++// Provisions the company row (and with it the 14-day trial) when the user does
++// not have one yet. This MUST happen here rather than in the route handlers:
++// every handler that reaches ensureCompanyForUser via requireCompanyAccess sits
++// BEHIND this middleware, so deferring provisioning to "first data access" made
++// it unreachable — a brand new signup had no company row, planAccessDecision
++// denied the null state, and the user was 402'd off their own free trial within
++// seconds of signing up. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-1).
+ function requirePlan(minPlanId) {
+   return async function (req, res, next) {
+     if (!pgPool) return next();
+     try {
+-      const state = await loadBillingState(req.user.id);
++      let state = await loadBillingState(req.user.id);
++      if (!state) {
++        await ensureCompanyForUser(req.user);
++        state = await loadBillingState(req.user.id);
++      }
+       const decision = planAccessDecision(state, minPlanId);
+       if (!decision.allowed) return res.status(decision.status).json(decision.body);
+       req.billing = state;
+@@ -1078,12 +1098,32 @@
+ 
+     const customerId = await ensureStripeCustomer(req.user.id, req.user.email);
+ 
++    // Never open a second subscription for a customer who already has one.
++    // Without this, an existing subscriber who revisits /pricing and clicks a
++    // plan gets a SECOND concurrent Stripe subscription (e.g. $399 + $999/mo),
++    // and because syncSubscriptionRecord keys on the company rather than the
++    // subscription id, their entitlement then flaps between the two.
++    // Plan changes belong on PATCH /api/subscription.
++    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-3).
++    const existingSubscription = await findActiveSubscription(customerId);
++    if (existingSubscription) {
++      log('warn', 'Rejected checkout for customer with an existing subscription', {
++        userId: req.user.id,
++        subscriptionId: existingSubscription.id,
++        status: existingSubscription.status,
++      });
++      return res.status(409).json({
++        error: 'You already have an active subscription. Change your plan from Settings instead.',
++        code: 'subscription_exists',
++      });
++    }
++
+     const sessionParams = {
+       mode: 'subscription',
+       customer: customerId,
+       line_items: [{ price: priceId, quantity: 1 }],
+-      success_url: (process.env.APP_URL || 'http://localhost:3000') + '/app?session_id={CHECKOUT_SESSION_ID}',
+-      cancel_url: (process.env.APP_URL || 'http://localhost:3000') + '/pricing',
++      success_url: APP_BASE_URL + '/app?session_id={CHECKOUT_SESSION_ID}',
++      cancel_url: APP_BASE_URL + '/pricing',
+     };
+ 
+     // Only allow a trial on eligible plans, and only once per customer — a
+@@ -1161,7 +1201,7 @@
+ 
+     const session = await stripe.billingPortal.sessions.create({
+       customer: customerId,
+-      return_url: (process.env.APP_URL || 'http://localhost:3000') + '/app/settings',
++      return_url: APP_BASE_URL + '/app/settings',
+     });
+     return res.json({ url: session.url });
+   } catch (err) {
+@@ -1414,7 +1454,7 @@
+ const ECOAUDITOR_KB = [
+   {
+     pattern: /pricing|cost|how much|plan/i,
+-    response: "We offer three plans:\n\n• **Starter** — $149/mo for basic carbon tracking\n• **Growth** — $399/mo for full Scope 1/2/3 reporting\n• **Pro** — $999/mo for multi-facility teams\n\nAll plans include a 14-day free trial. Would you like me to help you choose the right plan?"
++    response: "We offer three plans:\n\n• **Starter** — $149/mo for basic carbon tracking\n• **Growth** — $399/mo for full Scope 1/2/3 reporting\n• **Pro** — $999/mo for multi-facility teams\n\nStarter and Growth include a 14-day free trial on monthly billing. Would you like me to help you choose the right plan?"
+   },
+   {
+     pattern: /demo|book a demo|schedule a call|talk to sales/i,
+@@ -1446,7 +1486,7 @@
+   },
+   {
+     pattern: /smb|small business|startup|affordable/i,
+-    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $149/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial today!"
++    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $149/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial on a monthly Starter or Growth plan today!"
+   },
+   {
+     pattern: /integration|api|connect|erp|salesforce/i,
+@@ -2373,6 +2413,34 @@
+   if (process.env.NODE_ENV === 'production' && INSFORGE_BASE_URL && !process.env.DATABASE_URL) {
+     throw new Error('DATABASE_URL is required when InsForge authentication is configured');
+   }
++
++  // Half-configured billing is worse than no billing: the site stays up and
++  // looks healthy while real customers hit dead redirects, unverifiable
++  // webhooks, or "Invalid plan selection" on every buy button. Fail loudly at
++  // boot instead of discovering it from a support ticket.
++  if (process.env.NODE_ENV === 'production' && STRIPE_SECRET_KEY) {
++    if (!process.env.APP_URL) {
++      throw new Error(
++        'APP_URL is required when STRIPE_SECRET_KEY is set — Stripe would redirect paying customers to http://localhost:3000'
++      );
++    }
++    if (!STRIPE_WEBHOOK_SECRET) {
++      throw new Error(
++        'STRIPE_WEBHOOK_SECRET is required when STRIPE_SECRET_KEY is set — without it every Stripe webhook is rejected with 503 and paying customers lose access at their first renewal'
++      );
++    }
++    const missingPrices = [
++      'STRIPE_PRICE_STARTER_MONTHLY',
++      'STRIPE_PRICE_STARTER_ANNUAL',
++      'STRIPE_PRICE_GROWTH_MONTHLY',
++      'STRIPE_PRICE_GROWTH_ANNUAL',
++      'STRIPE_PRICE_PRO_MONTHLY',
++      'STRIPE_PRICE_PRO_ANNUAL',
++    ].filter(function (name) { return !process.env[name]; });
++    if (missingPrices.length) {
++      log('warn', 'Stripe price IDs missing — those plans cannot be purchased', { missing: missingPrices });
++    }
++  }
+   if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
+     const database = await probeDatabase();
+     if (!database.ok) throw new Error('DATABASE_URL is configured but unreachable');
+--- a/server-security.cjs
++++ b/server-security.cjs
+@@ -43,28 +43,26 @@
+   if (text) target.add(text);
+ }
+ 
++// The ONLY trusted source of a caller's company is the value the server itself
++// resolved from the database by user_id (requireCompanyAccess sets
++// user.company_id from `SELECT id FROM companies WHERE user_id = $1` before
++// calling resolveAuthorizedCompanyId).
++//
++// This deliberately does NOT read user_metadata / app_metadata / company_ids.
++// On Supabase-compatible backends (InsForge included) user_metadata is writable
++// by the account holder via signUp({ options: { data } }) and updateUser({ data }).
++// Honouring it here meant an attacker could set user_metadata.company_id = "5",
++// then walk sequential integer ids and read or write another tenant's emissions,
++// facilities and generated reports through /api/companies/:id/*.
++// The data model is strictly one company per user (ensureCompanyForUser), so
++// nothing legitimate needs the extra claims.
++// See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-4).
+ function getAuthorizedCompanyIds(user) {
+   const ids = new Set();
+   if (!user || typeof user !== 'object') return [];
+ 
+   addStringValues(ids, user.company_id);
+   addStringValues(ids, user.companyId);
+-  addStringValues(ids, user.company_ids);
+-  addStringValues(ids, user.companyIds);
+-
+-  if (user.user_metadata && typeof user.user_metadata === 'object') {
+-    addStringValues(ids, user.user_metadata.company_id);
+-    addStringValues(ids, user.user_metadata.companyId);
+-    addStringValues(ids, user.user_metadata.company_ids);
+-    addStringValues(ids, user.user_metadata.companyIds);
+-  }
+-
+-  if (user.app_metadata && typeof user.app_metadata === 'object') {
+-    addStringValues(ids, user.app_metadata.company_id);
+-    addStringValues(ids, user.app_metadata.companyId);
+-    addStringValues(ids, user.app_metadata.company_ids);
+-    addStringValues(ids, user.app_metadata.companyIds);
+-  }
+ 
+   return Array.from(ids);
+ }
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -11,11 +11,17 @@
+ ARG VITE_STRIPE_PK
+ ARG VITE_INSFORGE_BASE_URL
+ ARG VITE_INSFORGE_ANON_KEY
++# VITE_GTM_ID must be a BUILD arg, not a runtime Railway variable: Vite inlines
++# it into the bundle at build time. Without it here, GTM_ID is '' in the image
++# and analytics silently never loads — no pageviews, no conversions, no way to
++# attribute ad spend. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-5).
++ARG VITE_GTM_ID
+ 
+ COPY . .
+ ENV VITE_STRIPE_PK=$VITE_STRIPE_PK
+ ENV VITE_INSFORGE_BASE_URL=$VITE_INSFORGE_BASE_URL
+ ENV VITE_INSFORGE_ANON_KEY=$VITE_INSFORGE_ANON_KEY
++ENV VITE_GTM_ID=$VITE_GTM_ID
+ RUN npm run build
+ 
+ # ─── Stage 2: Production ───
+--- a/railway.toml
++++ b/railway.toml
+@@ -14,6 +14,13 @@
+ name = "VITE_INSFORGE_ANON_KEY"
+ value = "${VITE_INSFORGE_ANON_KEY}"
+ 
++# Vite inlines this into the bundle at build time — setting VITE_GTM_ID only as
++# a runtime variable in the Railway dashboard has no effect. Without it here,
++# GTM never loads in production and no ad spend can be attributed.
++[[build.args]]
++name = "VITE_GTM_ID"
++value = "${VITE_GTM_ID}"
++
+ [deploy]
+ startCommand = "node server.cjs"
+ restartPolicyType = "ON_FAILURE"
+--- a/railway.env.example
++++ b/railway.env.example
+@@ -21,6 +21,23 @@
+ # InsForge anonymous key (Vite embeds this at build time)
+ VITE_INSFORGE_ANON_KEY=your-insforge-anon-key
+ 
++# Postgres connection string. Production boot HARD-FAILS without this whenever
++# InsForge auth is configured (server.cjs startServer) — omitting it gives you a
++# crash-looping deploy, not a degraded one.
++DATABASE_URL=postgresql://user:password@host:5432/dbname
++
++# Public base URL of the deployed app, no trailing slash. Every Stripe redirect
++# is built from it (checkout success/cancel, billing portal return). If unset,
++# the server refuses to boot when STRIPE_SECRET_KEY is present — previously it
++# silently fell back to http://localhost:3000 and bounced paying customers to a
++# dead URL, which also skipped the /api/checkout/verify reconciliation.
++APP_URL=https://ecoauditor.io
++
++# Google Tag Manager container ID.
++# MUST also be passed as a Docker BUILD ARG (see railway.toml) — Vite inlines it
++# at build time, so setting it here alone leaves analytics dead in production.
++VITE_GTM_ID=GTM-XXXXXXX
++
+ # ─── Stripe (required for billing) ───
+ 
+ # Stripe publishable key (Vite embeds this at build time)
+--- a/.env.example
++++ b/.env.example
+@@ -11,9 +11,20 @@
+ # -----------------------------------------------------------------------------
+ # Your GTM container ID (e.g., GTM-XXXXXX)
+ # Leave empty to disable GTM
++# NOTE: Vite inlines this at build time. For the Docker/Railway deploy it must
++# also be declared as a build ARG (Dockerfile + railway.toml) — a runtime-only
++# environment variable leaves GTM disabled in the shipped bundle.
+ VITE_GTM_ID=GTM-PS2XR44V
+ 
+ # -----------------------------------------------------------------------------
++# Public base URL (required in production when Stripe is configured)
++# -----------------------------------------------------------------------------
++# No trailing slash. Used to build every Stripe redirect (checkout success and
++# cancel, billing portal return). Production boot fails without it when
++# STRIPE_SECRET_KEY is set, so paying customers are never sent to localhost.
++APP_URL=http://localhost:3000
++
++# -----------------------------------------------------------------------------
+ # InsForge Backend (required)
+ # Find these in your InsForge project dashboard → Settings → API
+ # -----------------------------------------------------------------------------
+--- a/scripts/prerender.mjs
++++ b/scripts/prerender.mjs
+@@ -75,7 +75,12 @@
+   },
+   '/pricing': {
+     title: 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs',
+-    description: 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly plans, no card required.',
++    // "no card required" removed — starting a trial from /pricing goes through
++    // Stripe Checkout, which collects a card. Annual pricing added because the
++    // page defaults to the annual toggle and displayed $124/$333/$833 while this
++    // description advertised $149/$399/$999.
++    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, L-2).
++    description: 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo — or from $124/mo billed annually. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly Starter and Growth plans.',
+   },
+   '/sample-report': {
+     title: 'Sample Carbon Report — Eco-Auditor | See What You Get',
+@@ -87,7 +92,10 @@
+   },
+   '/signup': {
+     title: 'Start Your Free Trial — Eco-Auditor',
+-    description: 'Start your 14-day free Eco-Auditor trial. No card required. Cancel anytime before the trial ends; the workspace becomes read-only until you select a paid plan.',
++    // "read-only" was wrong: at trial end without a paid plan the dashboard and
++    // calculation APIs return 402 — access is paused, not read-only (claims.ts).
++    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-6).
++    description: 'Start your 14-day free Eco-Auditor trial. No card required when you sign up directly. Cancel anytime before the trial ends; access is paused until you select a paid plan.',
+   },
+   '/demo': {
+     title: 'Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough',
+--- a/src/pages/Signup.tsx
++++ b/src/pages/Signup.tsx
+@@ -130,7 +130,16 @@
+     <AuthShell>
+       <AuthHeading
+         title="Start your free trial"
+-        subtitle="14-day free trial · No card required · Cancel anytime. Most teams are up and running quickly."
++        subtitle={
++          // Arriving with ?plan= means the next hop is Stripe Checkout, which
++          // collects a card — "No card required" must not appear on that path.
++          // Also drops "up and running quickly" (claims.ts marks it unverified,
++          // review overdue 2026-08-15).
++          // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, E-8).
++          searchParams.get('plan')
++            ? '14-day free trial on monthly Starter and Growth plans · Cancel anytime before the trial ends. A payment method is required to start a trial from a selected plan.'
++            : '14-day free trial · No card required · Cancel anytime.'
++        }
+       />
+ 
+       <div className="card space-y-3">
+--- a/src/pages/Pricing.tsx
++++ b/src/pages/Pricing.tsx
+@@ -264,7 +264,13 @@
+         {[
+           { title: 'Get reviewable records without enterprise-software overhead', desc: 'Scope 1–3 tracking, methodology documentation, and reviewable records — without a six-figure platform.' },
+           { title: 'Contract readiness, not just compliance', desc: 'Large-company disclosure rules are cascading through supply chains. Be ready when your customers ask.' },
+-          { title: 'Cheaper than a single consultant engagement', desc: 'Typical consultant fees for a basic GHG inventory: $15K–$40K. Eco-Auditor Growth plan: $3,990/year.' },
++          // The "$15K–$40K typical consultant fees" comparison was removed:
++          // claims.ts marks it status:'unverified', caveat "Remove if a
++          // defensible source cannot be cited", review_due 2026-08-15 (passed).
++          // Objective comparative price claims need substantiation before they
++          // run in paid advertising. Restore only with a citable source recorded
++          // in claims.ts. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-8).
++          { title: 'Predictable subscription pricing', desc: 'A flat annual subscription instead of a scoped consulting engagement — Eco-Auditor Growth is $3,990/year.' },
+         ].map((item) => (
+           <div key={item.title} className="card">
+             <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">{item.title}</h4>
+--- a/src/pages/TermsOfService.tsx
++++ b/src/pages/TermsOfService.tsx
+@@ -109,7 +109,18 @@
+ 
+         <Sec id="trials-termination" title="9. Trials, Cancellation, Suspension, and Termination" onScroll={setActiveSection}>
+           <ul>
+-            <li><strong>Free trials:</strong> We may offer 14-day free trials on eligible monthly plans. No payment method is required to start a trial. During the trial, the workspace is fully editable. If you do not add a payment method and select a paid plan before the trial ends, the workspace becomes read-only — no automatic charge occurs. If you add a payment method and choose a paid plan, the selected subscription begins after the trial period and you authorize the charge at that time</li>
++            {/*
++              Rewritten to match actual behaviour. The previous text said "No
++              payment method is required to start a trial" and "no automatic
++              charge occurs" for ALL trials — but a trial started from the
++              pricing page creates a Stripe Checkout subscription with
++              trial_period_days: 14, which collects a card and auto-converts at
++              trial end. Publishing terms that deny an auto-converting trial is
++              negative-option / state auto-renewal exposure.
++              *** HAVE COUNSEL REVIEW THIS WORDING BEFORE PUBLISHING. ***
++              See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-6).
++            */}
++            <li><strong>Free trials:</strong> We may offer 14-day free trials on eligible monthly plans. There are two ways to start one. <em>If you sign up directly without selecting a plan</em>, no payment method is required; if you do not select a paid plan before the trial ends, access to the workspace is paused until you do, and no charge occurs. <em>If you start a trial by selecting a plan</em>, you will be asked for a payment method at checkout, and unless you cancel before the trial ends the selected subscription begins automatically at the end of the trial period and you authorize the charge at that time. You may cancel at any point during the trial from your account settings</li>
+             <li><strong>Cancellation:</strong> You may cancel your subscription at any time through your account settings or by contacting us. Cancellation prevents future charges but does not result in a refund for the current billing period</li>
+             <li><strong>Suspension:</strong> We may suspend access to the Service for overdue payments, Terms violations, or suspected fraudulent activity</li>
+             <li><strong>Termination:</strong> We may terminate your account for material breach of these Terms with notice. Upon termination, your right to access the Service ceases immediately</li>
+--- a/src/pages/MethodologyPublic.tsx
++++ b/src/pages/MethodologyPublic.tsx
+@@ -1,6 +1,10 @@
+ import { Link } from 'react-router-dom';
+ import { useEffect } from 'react';
+ import Header from '../components/Header';
++// Privacy/Terms/DPA links live in Footer. Without it these pages had no legal
++// links at all — Google and Meta both require an accessible privacy policy
++// from the ad destination. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-9).
++import Footer from '../components/Footer';
+ import { factorLabel } from '@/lib/emission-factors/registry';
+ 
+ const METHODOLOGY_SCHEMA = {
+@@ -298,6 +302,7 @@
+         </div>
+       </section>
+       </main>
++      <Footer />
+     </div>
+   );
+ }
+--- a/src/pages/Security.tsx
++++ b/src/pages/Security.tsx
+@@ -1,6 +1,10 @@
+ import { Link } from 'react-router-dom';
+ import { useEffect } from 'react';
+ import Header from '../components/Header';
++// Privacy/Terms/DPA links live in Footer. Without it these pages had no legal
++// links at all — Google and Meta both require an accessible privacy policy
++// from the ad destination. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-9).
++import Footer from '../components/Footer';
+ import { trustFacts, renderFact } from '@/content/trust-facts';
+ 
+ const SCHEMA = {
+@@ -169,6 +173,7 @@
+         </div>
+       </section>
+       </main>
++      <Footer />
+     </div>
+   );
+ }
+--- a/src/pages/SampleReport.tsx
++++ b/src/pages/SampleReport.tsx
+@@ -1,6 +1,10 @@
+ import { Link } from 'react-router-dom';
+ import { useEffect } from 'react';
+ import Header from '../components/Header';
++// Privacy/Terms/DPA links live in Footer. Without it these pages had no legal
++// links at all — Google and Meta both require an accessible privacy policy
++// from the ad destination. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-9).
++import Footer from '../components/Footer';
+ import { summarizeQuality } from '../lib/reports/quality-summary';
+ import fixture from '../lib/reports/sample-report-fixture.json';
+ 
+@@ -264,6 +268,7 @@
+         </div>
+       </section>
+       </main>
++      <Footer />
+     </div>
+   );
+ }
+\ No newline at end of file
+--- a/tests/server-security.test.ts
++++ b/tests/server-security.test.ts
+@@ -25,7 +25,16 @@
+     expect(canUseDevAuth({ NODE_ENV: 'test' })).toBe(false);
+   });
+ 
+-  it('extracts company ids from common InsForge user metadata shapes', () => {
++  // This test previously asserted that company ids were harvested from
++  // user_metadata / app_metadata / company_ids — i.e. it locked in the
++  // vulnerability. On Supabase-compatible backends user_metadata is writable by
++  // the account holder, so honouring it let an attacker set
++  // user_metadata.company_id = "<victim>" and read or write another tenant's
++  // data through /api/companies/:id/*. The contract is now inverted: only the
++  // server-resolved company_id (set by requireCompanyAccess from a
++  // `WHERE user_id = $1` lookup) is authoritative.
++  // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-4).
++  it('ignores client-writable metadata and trusts only the server-resolved company id', () => {
+     const ids = getAuthorizedCompanyIds({
+       company_id: 'company-a',
+       company_ids: ['company-b'],
+@@ -33,7 +42,16 @@
+       app_metadata: { company_ids: ['company-d'] },
+     });
+ 
+-    expect(ids).toEqual(['company-a', 'company-b', 'company-c', 'company-d']);
++    expect(ids).toEqual(['company-a']);
++  });
++
++  it('refuses a company id injected through user_metadata', () => {
++    const result = resolveAuthorizedCompanyId(
++      { company_id: 'company-a', user_metadata: { company_id: 'victim-company' } },
++      'victim-company'
++    );
++
++    expect(result).toEqual({ ok: false, status: 403, error: 'Forbidden' });
+   });
+ 
+   it('rejects cross-tenant company access', () => {
