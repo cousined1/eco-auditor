@@ -97,6 +97,13 @@ if (process.env.DATABASE_URL) {
       );
       CREATE INDEX IF NOT EXISTS blog_posts_target_idx ON blog_posts(target);
       CREATE INDEX IF NOT EXISTS blog_posts_published_at_idx ON blog_posts(published_at DESC);
+      -- Same deny-by-default RLS model as every other table (see
+      -- initial-schema.sql). blog_posts is the only public-content table with
+      -- none, so its exposure depended entirely on the PostgREST role grants
+      -- of the moment. No policies: reads/writes go through the Express
+      -- server, which connects as the table owner (exempt from non-FORCE RLS)
+      -- and authenticates /api/publish with the deploy token.
+      ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
     `).then(() => pgPool.query('SELECT count(*) FROM blog_posts'))
     .then((r) => {
       if (parseInt(r.rows[0].count) === 0) {
@@ -2390,10 +2397,19 @@ app.get('/api/reports/:id/download', apiAuthGuard, requirePlan('starter'), async
     let period = null;
 
     if (pgPool && /^\d+$/.test(req.params.id)) {
-      const { rows } = await pgPool.query('SELECT company_id, period FROM reports WHERE id = $1', [req.params.id]);
-      if (rows.length === 0) return res.status(404).json({ success: false, error: 'Report not found' });
-      companyId = await requireCompanyAccess(req, res, rows[0].company_id);
+      // Resolve the caller's own company FIRST, then look the report up
+      // scoped to it. Fetching the row before the tenant check returned 404
+      // for a nonexistent id but 403 for a foreign-but-real one, letting any
+      // authenticated user enumerate which sequential report ids exist across
+      // all tenants (same oracle the facilities route closed). Both cases now
+      // return an identical 404.
+      companyId = await requireCompanyAccess(req, res, null);
       if (!companyId) return;
+      const { rows } = await pgPool.query(
+        'SELECT company_id, period FROM reports WHERE id = $1 AND company_id = $2',
+        [req.params.id, companyId]
+      );
+      if (rows.length === 0) return res.status(404).json({ success: false, error: 'Report not found' });
       period = rows[0].period;
     } else {
       // Dev / no-DB fallback: serve the in-memory PDF captured at generate time.
