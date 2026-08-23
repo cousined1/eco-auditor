@@ -20,7 +20,19 @@ export default function AuthCallback() {
     let cancelled = false;
 
     async function finishOAuth() {
-      const { data, error: sessionError } = await insforge.auth.getCurrentUser();
+      // getCurrentUser follows the {data, error} SDK shape for normal
+      // failures, but a thrown fault (network drop mid-callback) must still
+      // surface here — an escaping rejection left this page on its spinner
+      // forever with no recovery link.
+      const { data, error: sessionError } = await insforge.auth
+        .getCurrentUser()
+        .catch((thrown) => ({
+          data: null,
+          error:
+            thrown instanceof Error
+              ? thrown
+              : new Error('We could not finish signing you in.'),
+        }));
       if (cancelled) return;
 
       if (sessionError || !data?.user) {

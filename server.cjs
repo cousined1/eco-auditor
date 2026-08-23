@@ -15,6 +15,7 @@ const {
 const {
   buildSecurityHeaders,
   canUseDevAuth,
+  classifyApiFailure,
   resolveAuthorizedCompanyId,
   sanitizeChatState,
   sanitizeLeadPayload,
@@ -1939,7 +1940,14 @@ app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'),
     log('info', 'Calculator API completed', { companyId: companyId, period: period, entries: entries.length });
     return res.json(summary);
   } catch (err) {
-    return res.status(400).json({ error: String(err.message || err) });
+    // Engine validation errors are client 400s; a DB outage surfacing through
+    // loadEmissionEntries must not be mislabeled as bad input (nor leak the
+    // driver message). classifyApiFailure splits the two.
+    const failure = classifyApiFailure(err);
+    if (failure.status >= 500) {
+      log('error', 'Calculate failed on infrastructure', { error: String(err.message || err), userId: req.user && req.user.id });
+    }
+    return res.status(failure.status).json({ error: failure.message });
   }
 });
 
@@ -2176,7 +2184,14 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       warnings: importWarnings,
     });
   } catch (err) {
-    return res.status(400).json({ success: false, error: String(err.message || err) });
+    // Same split as /api/calculate: CSV header/parse validation is a 400 with
+    // a user-facing message; a quota-count or store failure behind this point
+    // is infrastructure and must not be echoed back as bad input.
+    const failure = classifyApiFailure(err);
+    if (failure.status >= 500) {
+      log('error', 'CSV ingest failed on infrastructure', { error: String(err.message || err), companyId });
+    }
+    return res.status(failure.status).json({ success: false, error: failure.message });
   }
 });
 
@@ -2386,8 +2401,11 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, re
     generatedReports.set(reportId, { id: reportId, company_id: companyId, period: period, pdf: pdf });
     return res.json({ success: true, report_id: reportId, download_url: `/api/reports/${reportId}/download` });
   } catch (err) {
-    log('error', 'Report generation failed', { error: String(err) });
-    return res.status(500).json({ success: false, error: String(err.message || err) });
+    // Every throw on this route is infrastructure (store read, report insert)
+    // or an internal engine fault — there is no user-input validation path —
+    // so respond generically instead of echoing the internal error string.
+    log('error', 'Report generation failed', { error: String(err), companyId: req.params.id });
+    return res.status(500).json({ success: false, error: 'Failed to generate report' });
   }
 });
 

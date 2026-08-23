@@ -54,10 +54,15 @@ export default function CarbonCalculator() {
 
         setCompany(companyData as Company);
 
-        const { data: facilityData } = await insforge.database
+        // Same contract as the company query above: a failed facilities read
+        // must surface through setError, not silently render an empty list
+        // that looks like "no facilities yet".
+        const { data: facilityData, error: facilityError } = await insforge.database
           .from('facilities')
           .select('*')
           .eq('company_id', (companyData as Company).id);
+
+        if (facilityError) throw facilityError;
 
         setFacilities((facilityData as Facility[]) ?? []);
         await loadEntries((companyData as Company).id);

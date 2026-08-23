@@ -129,6 +129,35 @@ function sanitizeLeadPayload(payload) {
 const CHAT_FLOWS = new Set(['demo', 'contact']);
 const CHAT_STEPS = new Set(['name', 'email', 'company', 'date', 'time', 'message']);
 
+// Postgres error codes that indicate an infrastructure outage rather than bad
+// client input (connection failures, auth to the DB, resource exhaustion).
+// Anything else with a `code` is a driver-level fault, also treated as infra.
+const PG_INFRA_CODES = new Set([
+  'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET', 'EPIPE',
+  '53300', // too_many_connections
+  '57P01', // admin_shutdown
+  '57P03', // cannot_connect_now
+  '08000', '08001', '08003', '08006', '08007', '08P01', // connection_exception family
+]);
+
+/**
+ * Classifies a caught error from an async API handler chain into the response
+ * the client should receive. Engine/CSV validation errors are genuine 400s
+ * whose message is user-facing; data-store and driver faults must NOT be
+ * reported as bad input (that mislabels outages) nor echoed verbatim (that
+ * leaks SQL and connection details). Returns { status, message }.
+ */
+function classifyApiFailure(err) {
+  const raw = err instanceof Error ? err.message : String(err && err.message ? err.message : err);
+  if (/data store unavailable/i.test(raw)) {
+    return { status: 503, message: 'Data store temporarily unavailable. Please retry.' };
+  }
+  if (err && typeof err === 'object' && err.code !== undefined && PG_INFRA_CODES.has(String(err.code))) {
+    return { status: 503, message: 'Data store temporarily unavailable. Please retry.' };
+  }
+  return { status: 400, message: raw };
+}
+
 function sanitizeChatState(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
 
@@ -153,6 +182,7 @@ function sanitizeChatState(value) {
 module.exports = {
   buildSecurityHeaders,
   canUseDevAuth,
+  classifyApiFailure,
   getAuthorizedCompanyIds,
   resolveAuthorizedCompanyId,
   sanitizeChatState,

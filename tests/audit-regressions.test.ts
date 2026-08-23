@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
+import { startSocialSignIn } from '../src/lib/socialAuth';
 
 const require = createRequire(import.meta.url);
 const { calculateEntry, summarizeEntries, buildTrend, toDashboardSummary } =
@@ -150,5 +151,80 @@ describe('D-10 trial eligibility has one source of truth', () => {
     expect(trialEligiblePriceIds(env)).toEqual(
       new Set(['price_starter_monthly', 'price_growth_monthly'])
     );
+  });
+});
+
+// --- F-01: startSocialSignIn resolved instead of catching SDK throws, so a
+// network failure during "Continue with Google" escaped every caller's error
+// handling and left the provider button pending with no feedback.
+describe('F-01 startSocialSignIn converts thrown SDK faults into failed results', () => {
+  it('resolves {ok:false} when signInWithOAuth throws', async () => {
+    const result = await startSocialSignIn({
+      provider: 'google',
+      redirectTo: 'https://ecoauditor.io/auth/callback',
+      auth: {
+        signInWithOAuth: async () => {
+          throw new Error('Network request failed');
+        },
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('Network request failed');
+  });
+
+  it('resolves {ok:false} with a fallback message for non-Error throws', async () => {
+    const result = await startSocialSignIn({
+      provider: 'apple',
+      redirectTo: 'https://ecoauditor.io/auth/callback',
+      auth: {
+        signInWithOAuth: async () => {
+          throw undefined;
+        },
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/Unable to start apple sign in/);
+  });
+
+  it('still resolves {ok:true} on success', async () => {
+    const result = await startSocialSignIn({
+      provider: 'azure',
+      redirectTo: 'https://ecoauditor.io/auth/callback',
+      auth: { signInWithOAuth: async () => ({ data: {}, error: null }) },
+    });
+    expect(result.ok).toBe(true);
+  });
+});
+
+// --- F-02: /api/calculate and /api/ingest/csv returned HTTP 400 with the raw
+// driver message for ANY thrown error, so a database outage was reported as
+// bad client input and leaked SQL/connection details to the browser.
+describe('F-02 classifyApiFailure separates infra outages from input validation', () => {
+  const { classifyApiFailure } = require('../server-security.cjs');
+
+  it('maps data-store failures to a generic 503', () => {
+    const failure = classifyApiFailure(new Error('Emission data store unavailable'));
+    expect(failure.status).toBe(503);
+    expect(failure.message).not.toMatch(/Emission/);
+    expect(failure.message).toMatch(/temporarily unavailable/i);
+  });
+
+  it('maps Postgres connection faults to a generic 503', () => {
+    const err = Object.assign(new Error('connect ECONNREFUSED 10.0.0.1:5432'), { code: 'ECONNREFUSED' });
+    const failure = classifyApiFailure(err);
+    expect(failure.status).toBe(503);
+    expect(failure.message).not.toContain('10.0.0.1');
+  });
+
+  it('keeps engine validation errors as 400s with their user-facing message', () => {
+    const failure = classifyApiFailure(new Error('Row 3: Unknown category "foo"'));
+    expect(failure.status).toBe(400);
+    expect(failure.message).toContain('Row 3');
+  });
+
+  it('treats non-Error values as 400 messages without crashing', () => {
+    const failure = classifyApiFailure('CSV file is empty');
+    expect(failure.status).toBe(400);
+    expect(failure.message).toBe('CSV file is empty');
   });
 });
