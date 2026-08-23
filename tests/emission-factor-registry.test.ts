@@ -14,7 +14,11 @@ describe('emission-factor registry (P0-04)', () => {
     // EPA/eGRID/IPCC are wired into utils.ts (calculateEmissions) and must be
     // verified:true. GLEC + EXIOBASE are roadmap-only (not consumed by the
     // calculator) and must be verified:false so they render the sentinel.
-    const wired = new Set(['epa-efh-2025', 'epa-egrid-2023', 'ipcc-ar6-gwp100']);
+    // 'ipcc-ar6-gwp100' was a stale id: the registry entry is
+    // 'ipcc-ar5-gwp100' (the catalog is AR5 throughout), so this set matched
+    // nothing for IPCC and its verified flag went unasserted entirely --
+    // flipping it to false would have passed.
+    const wired = new Set(['epa-efh-2025', 'epa-egrid-2023', 'ipcc-ar5-gwp100']);
     const roadmap = new Set(['glec-v3', 'exiobase-3.8']);
     for (const e of EMISSION_FACTOR_REGISTRY) {
       if (wired.has(e.id)) {

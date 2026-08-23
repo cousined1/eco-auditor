@@ -58,11 +58,14 @@ function factorFor(categoryKey, sourceKey, unit) {
   return match ? match.factor : null;
 }
 
-// Only what other modules actually consume. normalizeKey and getCategory stay
-// internal — the client adapter has its own copies, and re-exporting them here
-// just widened the surface without a caller.
+// Only what other modules actually consume. normalizeKey stays internal — the
+// client adapter has its own copy. getCategory is exported so the engine can
+// check a row's declared scope against the catalog's scope for that category
+// (see factorForEntry): scope used to be taken from untrusted input, which both
+// misfiled totals and let a Scope 3 activity be relabeled past the paywall.
 module.exports = {
   CATALOG,
+  getCategory,
   getSource,
   factorFor,
 };

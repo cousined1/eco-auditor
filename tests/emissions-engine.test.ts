@@ -227,8 +227,13 @@ describe('H5: buildTrend covers 12 months and filters by year', () => {
     const total2026 = monthly.reduce((sum, m) => sum + m.scope1 + m.scope2 + m.scope3, 0);
     const monthly2025 = buildTrend(entries, { period: 'monthly', year: 2025 });
     // The 2025 Oct entry (5000 therms) must show in 2025, not 2026.
-    expect(monthly2025[9].scope1).toBeGreaterThan(0);
-    expect(monthly[9].scope1).toBeLessThan(monthly2025[9].scope1 + monthly[9].scope1);
+    // The old assertion here -- monthly[9] < monthly2025[9] + monthly[9] --
+    // is a tautology whenever monthly2025[9] > 0, so it could never fail and
+    // tested nothing. Pin the actual values instead:
+    //   2026 Oct = 2000 therms x 5.306 kg = 10.612 t
+    //   2025 Oct = 5000 therms x 5.306 kg = 26.53 t
+    expect(monthly2025[9].scope1).toBeCloseTo(26.53, 3);
+    expect(monthly[9].scope1).toBeCloseTo(10.612, 3);
     expect(total2026).toBeGreaterThan(0);
   });
 

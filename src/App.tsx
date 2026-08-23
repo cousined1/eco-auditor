@@ -250,7 +250,13 @@ function AppContent() {
       }
       setUser(null);
       setAuthStatus('anon');
-      navigate('/login', { replace: true });
+      // Preserve where the user was so re-login returns them there. Login
+      // already honors ?redirect=; sending a bare /login discarded the deep
+      // link and any pending ?checkout= intent on a mid-session expiry.
+      const returnTo = encodeURIComponent(
+        window.location.pathname + window.location.search
+      );
+      navigate(`/login?redirect=${returnTo}`, { replace: true });
     };
     const revalidate = async () => {
       const ok = await isSessionValid();
@@ -374,7 +380,8 @@ function AppContent() {
       );
     }
     if (authStatus === 'anon') {
-      return <Navigate to="/login" replace />;
+      const returnTo = encodeURIComponent(locationInfo.pathname + locationInfo.search);
+      return <Navigate to={`/login?redirect=${returnTo}`} replace />;
     }
     return (
       <div className="flex h-screen overflow-hidden bg-surface-50 dark:bg-surface-950">

@@ -14,6 +14,13 @@ value = "${VITE_INSFORGE_BASE_URL}"
 name = "VITE_INSFORGE_ANON_KEY"
 value = "${VITE_INSFORGE_ANON_KEY}"
 
+# Vite inlines this into the bundle at build time — setting VITE_GTM_ID only as
+# a runtime variable in the Railway dashboard has no effect. Without it here,
+# GTM never loads in production and no ad spend can be attributed.
+[[build.args]]
+name = "VITE_GTM_ID"
+value = "${VITE_GTM_ID}"
+
 [deploy]
 startCommand = "node server.cjs"
 restartPolicyType = "ON_FAILURE"

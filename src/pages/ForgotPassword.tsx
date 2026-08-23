@@ -119,6 +119,25 @@ export default function ForgotPassword() {
 
         <div className="card space-y-3">
           <form onSubmit={(e) => void handleReset(e)} className="space-y-3">
+            {/* The email is required to exchange the code, but a user who
+                arrives via "I already have a code" (new tab, or after closing
+                the page) has no `email` in state. Without this field the
+                exchange was called with an empty email and always failed with
+                "That code is not valid or has expired" -- for a valid code. */}
+            <div>
+              <label htmlFor="reset-step-email" className="sr-only">Email address</label>
+              <input
+                id="reset-step-email"
+                type="email"
+                autoComplete="email"
+                required
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting}
+                className={authInputClass}
+              />
+            </div>
             <div>
               <label htmlFor="reset-code" className="sr-only">Reset code</label>
               <input
@@ -163,7 +182,7 @@ export default function ForgotPassword() {
             </PasswordInput>
             <button
               type="submit"
-              disabled={submitting || !code.trim() || !isPasswordValid(password) || password !== confirm}
+              disabled={submitting || !email.trim() || !code.trim() || !isPasswordValid(password) || password !== confirm}
               className="btn-primary w-full flex items-center justify-center gap-2"
             >
               <SubmitLabel submitting={submitting} idle="Set new password" busy="Saving…" />

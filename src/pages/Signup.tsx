@@ -2,7 +2,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
 import { buildOAuthRedirectTo, type SocialAuthProvider } from '../lib/socialAuth';
-import { readIntentFromParams } from '../lib/authIntent';
+import { readIntentFromParams, destinationFor } from '../lib/authIntent';
 import {
   AuthError,
   AuthHeading,
@@ -38,7 +38,10 @@ export default function Signup() {
   const [needsVerification, setNeedsVerification] = useState(false);
 
   useNoIndex();
-  useRedirectIfAuthenticated('/app');
+  // An already-authenticated visitor arriving at /signup?plan=growth&billing=annual
+  // was bounced to a bare /app, silently dropping the plan they had just picked.
+  // Login preserves the intent; Signup now does too.
+  useRedirectIfAuthenticated(destinationFor(readIntentFromParams(searchParams)));
 
   // Only once the user has typed something — an empty field is not "wrong yet".
   const passwordInvalid = password.length > 0 && !isPasswordValid(password);
@@ -130,7 +133,16 @@ export default function Signup() {
     <AuthShell>
       <AuthHeading
         title="Start your free trial"
-        subtitle="14-day free trial · No card required · Cancel anytime. Most teams are up and running quickly."
+        subtitle={
+          // Arriving with ?plan= means the next hop is Stripe Checkout, which
+          // collects a card — "No card required" must not appear on that path.
+          // Also drops "up and running quickly" (claims.ts marks it unverified,
+          // review overdue 2026-08-15).
+          // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, E-8).
+          searchParams.get('plan')
+            ? '14-day free trial on monthly Starter and Growth plans · Cancel anytime before the trial ends. A payment method is required to start a trial from a selected plan.'
+            : '14-day free trial · No card required · Cancel anytime.'
+        }
       />
 
       <div className="card space-y-3">

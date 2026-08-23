@@ -40,9 +40,23 @@ export async function startSocialSignIn({
   redirectTo: string;
   auth: OAuthAuthClient;
 }): Promise<SocialSignInResult> {
-  const { error } = await auth.signInWithOAuth({ provider, redirectTo });
-  if (error) {
-    return { ok: false, error: error.message || `Unable to start ${provider} sign in.` };
+  // Contract: always resolves to a SocialSignInResult, never throws. The SDK
+  // normally reports failures via {data, error}, but can also THROW (network
+  // failure, misconfigured client) — an escaping throw bypassed every caller's
+  // error handling and left the provider button pending with no feedback.
+  try {
+    const { error } = await auth.signInWithOAuth({ provider, redirectTo });
+    if (error) {
+      return { ok: false, error: error.message || `Unable to start ${provider} sign in.` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error && err.message
+          ? err.message
+          : `Unable to start ${provider} sign in.`,
+    };
   }
-  return { ok: true };
 }

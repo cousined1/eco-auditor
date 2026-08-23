@@ -4,6 +4,10 @@
 // that took no unit — so the form's Unit selector was decorative.
 // Re-exports trimmed to what the calculator components actually import.
 // Anything else should be imported from @/lib/emission-factors/factors direct.
+// `export { x } from '...'` re-exports without binding x locally, so
+// entryKgCO2e below needs its own import.
+import { calculateEmissions } from '@/lib/emission-factors/factors';
+
 export {
   calculateEmissions,
   categoriesForScope,
@@ -47,4 +51,30 @@ export interface Facility {
 export function formatCO2e(kg: number): string {
   if (kg >= 1000) return `${(kg / 1000).toFixed(1)} t`;
   return `${kg.toFixed(1)} kg`;
+}
+
+/**
+ * kg CO2e for a stored entry, whichever write path produced it.
+ *
+ * `emission_entries.amount` is polymorphic. The in-app calculator stores an
+ * already-computed value (`amount = calculatedKg, unit = 'kg CO2e'`), while the
+ * CSV ingest stores the RAW activity amount with its activity unit
+ * (`amount = 50000, unit = 'therms'`). The server engine handles both via a
+ * unit-aware passthrough; the client used to read `parseFloat(amount)` blindly,
+ * so every imported row was rendered as if its activity amount were kilograms —
+ * showing "50.0 t" for a row that is really 265.3 t, and disagreeing with the
+ * main dashboard for the same data.
+ *
+ * Mirrors the passthrough rules in emissions-engine.cjs factorForEntry().
+ * Returns 0 when the factor lookup misses, matching the previous
+ * `parseFloat(...) || 0` behavior for unresolvable rows.
+ */
+export function entryKgCO2e(e: Pick<EmissionEntry, 'amount' | 'unit' | 'category' | 'source'>): number {
+  const amount = parseFloat(e.amount) || 0;
+  const unit = String(e.unit || '').trim().toLowerCase().replace(/[\s/-]+/g, '_');
+  if (unit === 'kg_co2e' || unit === 'kgco2e') return amount;
+  if (unit === 't_co2e' || unit === 'tco2e' || unit === 'tonnes_co2e' || unit === 'tonne_co2e') {
+    return amount * 1000;
+  }
+  return calculateEmissions(e.category, e.source, amount, e.unit) ?? 0;
 }

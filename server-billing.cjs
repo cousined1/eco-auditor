@@ -36,12 +36,14 @@ function planFromPriceId(priceId, env) {
   return null;
 }
 
+// Trials are honored on MONTHLY Starter/Growth only. Annual plans are billed
+// up front at $1,490/$3,990, so a 14-day trial there is a materially different
+// (and much more abusable) offer. This is the single source of truth: server.cjs
+// consumes it, and src/pages/Pricing.tsx only shows the trial CTA for monthly.
 function trialEligiblePriceIds(env) {
   return new Set([
     env.STRIPE_PRICE_STARTER_MONTHLY,
-    env.STRIPE_PRICE_STARTER_ANNUAL,
     env.STRIPE_PRICE_GROWTH_MONTHLY,
-    env.STRIPE_PRICE_GROWTH_ANNUAL,
   ].filter(Boolean));
 }
 

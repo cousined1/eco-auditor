@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Prevent dark-mode FOUC: apply persisted/system theme before first paint (key matches useTheme) -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('eco-theme');
+          var dark = stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) { /* storage unavailable; default theme applies */ }
+      })();
+    </script>
+
+    <!-- Primary SEO -->
+    <title>Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough</title>
+    <meta name="description" content="Book a 25–30 minute Eco-Auditor demo. Tell us your goal — Scope 1/2 baseline, Scope 3 supplier collection, SB 253 readiness, or customer carbon-data requests." />
+    <meta name="keywords" content="carbon accounting, GHG Protocol, Scope 1 2 3 emissions, sustainability reporting, SMB carbon footprint, ESG audit" />
+    <meta name="author" content="Developer312" />
+    <meta name="robots" content="index, follow" />
+    <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity canonical links do not load executable subresources -->
+    <link rel="canonical" href="https://ecoauditor.io/demo/" />
+
+    <!-- Open Graph (LinkedIn, Facebook, Slack) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ecoauditor.io/demo/" />
+    <meta property="og:title" content="Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough" />
+    <meta property="og:description" content="Book a 25–30 minute Eco-Auditor demo. Tell us your goal — Scope 1/2 baseline, Scope 3 supplier collection, SB 253 readiness, or customer carbon-data requests." />
+    <meta property="og:image" content="https://ecoauditor.io/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping. Reviewable Scope 1-3 emissions data for SMBs." />
+    <meta property="og:site_name" content="Eco-Auditor" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://ecoauditor.io/" />
+    <meta name="twitter:title" content="Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough" />
+    <meta name="twitter:description" content="Book a 25–30 minute Eco-Auditor demo. Tell us your goal — Scope 1/2 baseline, Scope 3 supplier collection, SB 253 readiness, or customer carbon-data requests." />
+    <meta name="twitter:image" content="https://ecoauditor.io/og-image.png" />
+    <meta name="twitter:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping" />
+    <meta name="twitter:site" content="@developer312" />
+
+    <!-- PWA & theme -->
+    <meta name="theme-color" content="#16a34a" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14532d" media="(prefers-color-scheme: dark)" />
+    <meta name="application-name" content="Eco-Auditor" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Eco-Auditor" />
+
+    <!-- Icons & Manifest -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Performance: preconnect to font origins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://ecoauditor.io/#organization",
+          "name": "Eco-Auditor",
+          "url": "https://ecoauditor.io",
+          "logo": "https://ecoauditor.io/favicon-512x512.png",
+          "description": "Carbon accounting and sustainability reporting platform for small and mid-size businesses",
+          "parentOrganization": {
+            "@type": "Organization",
+            "name": "NIGHT LITE USA LLC"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+1-510-401-1225",
+            "contactType": "sales",
+            "email": "hello@developer312.com",
+            "availableLanguage": "English"
+          },
+          "sameAs": []
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://ecoauditor.io/#website",
+          "url": "https://ecoauditor.io",
+          "name": "Eco-Auditor",
+          "description": "GHG carbon accounting and sustainability reporting for SMBs",
+          "publisher": {
+            "@id": "https://ecoauditor.io/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://ecoauditor.io/?s={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://ecoauditor.io/#software",
+          "name": "Eco-Auditor",
+          "url": "https://ecoauditor.io",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "description": "GHG emissions tracking for Scope 1, 2, and 3. Built for SMBs facing SB 253, CBAM, and supply chain carbon disclosure requirements.",
+          "offers": {
+            "@type": "AggregateOffer",
+            "lowPrice": "149",
+            "highPrice": "999",
+            "priceCurrency": "USD",
+            "offerCount": "3"
+          },
+          "featureList": [
+            "Scope 1, 2, 3 emissions tracking",
+            "CSV activity data import",
+            "PDF emissions summary reports",
+            "GHG Protocol aligned methodology"
+          ],
+          "screenshot": "https://ecoauditor.io/favicon-192x192.png",
+          "author": {
+            "@id": "https://ecoauditor.io/#organization"
+          }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://ecoauditor.io/#webpage",
+          "url": "https://ecoauditor.io",
+          "name": "Eco-Auditor — GHG Carbon Accounting for SMBs",
+          "isPartOf": {
+            "@id": "https://ecoauditor.io/#website"
+          },
+          "about": {
+            "@id": "https://ecoauditor.io/#software"
+          },
+          "primaryImageOfPage": {
+            "@type": "ImageObject",
+            "url": "https://ecoauditor.io/og-image.png"
+          }
+        }
+      ]
+    }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DOodNPA6.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-COnpUsM8.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-D0smwchR.js">
+    <link rel="modulepreload" crossorigin href="/assets/insforge-XiO_FKZI.js">
+    <link rel="modulepreload" crossorigin href="/assets/mockData-Cbk59O6C.js">
+    <link rel="modulepreload" crossorigin href="/assets/api-eniY9yGb.js">
+    <link rel="modulepreload" crossorigin href="/assets/stripe-BLu0aCZy.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-CnzfKJ5n.css">
+  </head>
+  <body class="bg-white dark:bg-surface-950 text-surface-800 dark:text-surface-100">
+    <div id="root"><div class="min-h-screen bg-surface-50 dark:bg-surface-950"><header class="sticky top-0 z-50 border-b border-surface-200/80 dark:border-surface-800/80 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md"><div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between"><a class="flex items-center gap-2.5" href="/" data-discover="true"><svg class="w-7 h-7" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Eco-Auditor logo"><rect width="28" height="28" rx="7" fill="currentColor" class="text-brand-600"></rect><path d="M8 20V8l6 4 6-4v12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="font-semibold text-sm text-surface-900 dark:text-white tracking-tight">Eco-Auditor</span></a><nav class="hidden md:flex items-center gap-6 text-sm" aria-label="Main navigation"><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/#features" data-discover="true">Features</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/pricing" data-discover="true">Pricing</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/methodology" data-discover="true">Methodology</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/sample-report" data-discover="true">Sample Report</a><a class="inline-flex items-center no-underline text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors" href="/security" data-discover="true">Security</a></nav><div class="flex items-center gap-3"><button type="button" class="md:hidden p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors" aria-label="Toggle navigation menu" aria-expanded="false"><svg class="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 5.5h14M3 10h14M3 14.5h14"></path></svg></button><a class="hidden sm:inline-flex btn-secondary text-sm !py-2 !px-5" href="/signup" data-discover="true">Start Free Trial</a><a class="hidden sm:inline-flex btn-secondary text-sm !py-2 !px-5" href="/contact" data-discover="true">Book a Demo</a></div></div></header><main id="main-content" tabindex="-1"><section class="relative overflow-hidden bg-gradient-to-b from-brand-50/60 via-surface-50 to-surface-50 dark:from-brand-950/30 dark:via-surface-950 dark:to-surface-950"><div class="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center"><div class="inline-flex items-center gap-2 px-3 py-1 mb-6 rounded-full bg-brand-100/80 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-xs font-medium"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>25–30 minutes · No slides-for-slides-sake</div><h1 class="text-4xl md:text-5xl font-bold text-surface-900 dark:text-white leading-tight tracking-tight">Book a demo</h1><p class="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-2xl mx-auto leading-relaxed">A focused walkthrough of Eco-Auditor against your reporting objective. Tell us what you need and we’ll show you the path — not a generic pitch.</p><div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-surface-500"><a class="text-accent-text hover:underline" href="/sample-report" data-discover="true">View the sample report first</a><span class="hidden sm:inline text-surface-300">·</span><a class="text-accent-text hover:underline" href="/methodology" data-discover="true">Read the methodology</a></div></div></section><section class="max-w-5xl mx-auto px-6 py-12"><div class="grid grid-cols-1 lg:grid-cols-2 gap-8"><div class="card"><h2 class="text-lg font-bold text-surface-900 dark:text-white mb-4">What we cover</h2><ol class="space-y-3"><li class="flex items-start gap-3"><span class="text-xs font-mono text-brand-600 dark:text-brand-400 flex-shrink-0 w-10 pt-0.5">0:00</span><span class="text-sm text-surface-700 dark:text-surface-300">Your reporting objective and current workflow</span></li><li class="flex items-start gap-3"><span class="text-xs font-mono text-brand-600 dark:text-brand-400 flex-shrink-0 w-10 pt-0.5">0:05</span><span class="text-sm text-surface-700 dark:text-surface-300">Live tour: CSV intake, factor application, data-quality scoring</span></li><li class="flex items-start gap-3"><span class="text-xs font-mono text-brand-600 dark:text-brand-400 flex-shrink-0 w-10 pt-0.5">0:15</span><span class="text-sm text-surface-700 dark:text-surface-300">Sample report walkthrough and evidence index</span></li><li class="flex items-start gap-3"><span class="text-xs font-mono text-brand-600 dark:text-brand-400 flex-shrink-0 w-10 pt-0.5">0:22</span><span class="text-sm text-surface-700 dark:text-surface-300">Plan fit, pricing, and next steps</span></li><li class="flex items-start gap-3"><span class="text-xs font-mono text-brand-600 dark:text-brand-400 flex-shrink-0 w-10 pt-0.5">0:28</span><span class="text-sm text-surface-700 dark:text-surface-300">Your questions</span></li></ol><div class="mt-6 pt-6 border-t border-surface-200 dark:border-surface-700"><h3 class="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">What happens after you submit</h3><p class="text-xs text-surface-500">We typically respond within one business day with a calendar link or a direct time proposal. You won’t be added to a marketing list.</p></div></div><div class="card"><h2 class="text-lg font-bold text-surface-900 dark:text-white mb-1">Tell us about your goal</h2><p class="text-xs text-surface-500 mb-5">All fields marked with * are required.</p><form class="space-y-4" noValidate=""><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label for="demo-name" class="block text-xs text-surface-500 mb-1">Full name *</label><input id="demo-name" class="input" placeholder="Jane Smith" aria-invalid="false" value=""/></div><div><label for="demo-email" class="block text-xs text-surface-500 mb-1">Work email *</label><input id="demo-email" type="email" class="input" placeholder="jane@acme.com" aria-invalid="false" value=""/></div></div><div><label for="demo-company" class="block text-xs text-surface-500 mb-1">Company *</label><input id="demo-company" class="input" placeholder="Acme Corp" aria-invalid="false" value=""/></div><fieldset><legend class="block text-xs text-surface-500 mb-2">What do you want out of the demo? *</legend><div class="space-y-2"><label class="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300 cursor-pointer"><input type="radio" class="mt-0.5" name="demo-goal" value="customer-rfp"/>Customer or RFP emissions-data request</label><label class="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300 cursor-pointer"><input type="radio" class="mt-0.5" name="demo-goal" value="scope-1-2-baseline"/>Scope 1 and 2 baseline</label><label class="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300 cursor-pointer"><input type="radio" class="mt-0.5" name="demo-goal" value="supplier-scope-3"/>Supplier / Scope 3 data collection</label><label class="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300 cursor-pointer"><input type="radio" class="mt-0.5" name="demo-goal" value="sb253-readiness"/>California SB 253 readiness</label><label class="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300 cursor-pointer"><input type="radio" class="mt-0.5" name="demo-goal" value="internal-tracking"/>Internal emissions tracking</label><label class="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300 cursor-pointer"><input type="radio" class="mt-0.5" name="demo-goal" value="consultant-workflow"/>Consultant / accounting workflow</label></div></fieldset><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label for="demo-facilities" class="block text-xs text-surface-500 mb-1">Facility count (optional)</label><input id="demo-facilities" class="input" placeholder="e.g. 3" value=""/></div><div><label for="demo-deadline" class="block text-xs text-surface-500 mb-1">Reporting deadline (optional)</label><input id="demo-deadline" class="input" placeholder="e.g. Q4 2026" value=""/></div></div><div><label for="demo-message" class="block text-xs text-surface-500 mb-1">Anything else? (optional)</label><textarea id="demo-message" class="input" rows="3" placeholder="Current tools, blockers, specific frameworks…"></textarea></div><button type="submit" class="btn-primary w-full">Request demo</button><p class="text-2xs text-surface-600 dark:text-surface-400 text-center">By submitting, you agree to our <a class="text-accent-text hover:underline" href="/terms" data-discover="true">Terms</a> and <a class="text-accent-text hover:underline" href="/privacy" data-discover="true">Privacy Policy</a>.</p></form></div></div></section></main><footer aria-label="Site footer" class="border-t border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900"><div class="max-w-7xl mx-auto px-6 py-8"><div class="grid grid-cols-2 md:grid-cols-4 gap-8"><div><div class="flex items-center gap-2 mb-3"><svg class="w-6 h-6" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="28" height="28" rx="7" fill="currentColor" class="text-brand-600"></rect><path d="M8 20V8l6 4 6-4v12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="text-sm font-semibold text-surface-900 dark:text-white">Eco-Auditor</span></div><p class="text-xs text-surface-500 leading-relaxed">Carbon accounting for companies that need reviewable emissions data, not enterprise software.</p></div><nav aria-label="Product links"><h4 class="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Product</h4><ul class="space-y-1.5"><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/" data-discover="true">Home</a></li><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/pricing" data-discover="true">Pricing</a></li><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/methodology" data-discover="true">Methodology</a></li><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/blog" data-discover="true">Blog</a></li><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/sample-report" data-discover="true">Sample Report</a></li></ul></nav><nav aria-label="Trust and legal links"><h4 class="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Trust</h4><ul class="space-y-1.5"><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/security" data-discover="true">Security &amp; Trust</a></li><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/privacy" data-discover="true">Privacy Policy</a></li><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/terms" data-discover="true">Terms of Service</a></li><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/dpa" data-discover="true">Data Processing Addendum</a></li></ul></nav><nav aria-label="Contact links"><h4 class="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Contact</h4><ul class="space-y-1.5"><li><a class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors" href="/contact" data-discover="true">Contact Us</a></li><li><a href="mailto:support@ecoauditor.io" aria-label="Email support at support@ecoauditor.io" class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">support@ecoauditor.io</a></li><li><a href="mailto:security@ecoauditor.io" aria-label="Email the security team at security@ecoauditor.io" class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">security@ecoauditor.io</a></li><li><a href="mailto:privacy@ecoauditor.io" aria-label="Email the privacy team at privacy@ecoauditor.io" class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">privacy@ecoauditor.io</a></li><li><a href="tel:+15104011225" aria-label="Call us at (510) 401-1225" class="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">(510) 401-1225</a></li></ul></nav></div><div class="mt-6 pt-6 border-t border-surface-200 dark:border-surface-800 flex flex-col md:flex-row items-center justify-between gap-3"><p class="text-2xs text-surface-600 dark:text-surface-400">© <!-- -->2026<!-- --> Eco-Auditor, a product operated by Developer312, a subsidiary of NIGHT LITE USA LLC. All rights reserved.</p><button type="button" class="text-2xs text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200 transition-colors underline-offset-2 hover:underline">Cookie preferences</button></div><div class="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800"><div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-surface-500"><span class="font-medium text-surface-600 dark:text-surface-400">Eco-Auditor suite:</span><a href="https://provenance-os.com" target="_blank" rel="noopener noreferrer" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">ProvenanceOS</a><span class="text-surface-300">·</span><a href="https://sim-2-real.com" target="_blank" rel="noopener noreferrer" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Sim2Real</a></div></div></div></footer></div></div>
+  </body>
+</html>

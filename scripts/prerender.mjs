@@ -75,7 +75,12 @@ const HEAD = {
   },
   '/pricing': {
     title: 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs',
-    description: 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly plans, no card required.',
+    // "no card required" removed — starting a trial from /pricing goes through
+    // Stripe Checkout, which collects a card. Annual pricing added because the
+    // page defaults to the annual toggle and displayed $124/$333/$833 while this
+    // description advertised $149/$399/$999.
+    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, L-2).
+    description: 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo — or from $124/mo billed annually. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly Starter and Growth plans.',
   },
   '/sample-report': {
     title: 'Sample Carbon Report — Eco-Auditor | See What You Get',
@@ -87,7 +92,10 @@ const HEAD = {
   },
   '/signup': {
     title: 'Start Your Free Trial — Eco-Auditor',
-    description: 'Start your 14-day free Eco-Auditor trial. No card required. Cancel anytime before the trial ends; the workspace becomes read-only until you select a paid plan.',
+    // "read-only" was wrong: at trial end without a paid plan the dashboard and
+    // calculation APIs return 402 — access is paused, not read-only (claims.ts).
+    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-6).
+    description: 'Start your 14-day free Eco-Auditor trial. No card required when you sign up directly. Cancel anytime before the trial ends; access is paused until you select a paid plan.',
   },
   '/demo': {
     title: 'Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough',

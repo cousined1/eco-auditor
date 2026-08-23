@@ -32,6 +32,12 @@ export default function ContactUs() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Enter a valid email address.';
     if (!form.subject) errors.subject = 'Select a topic.';
     if (!form.message.trim()) errors.message = 'Tell us what you need.';
+    // Mirror the leads table CHECK constraints (name<=120, company<=160,
+    // message<=1000). Without these the DB rejected the row and the raw
+    // constraint-violation text was shown to the prospect, losing the lead.
+    else if (form.message.length > 1000) errors.message = 'Please keep your message under 1,000 characters.';
+    if (form.name.length > 120) errors.name = 'Please keep your name under 120 characters.';
+    if (form.company.length > 160) errors.company = 'Please keep the company name under 160 characters.';
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -143,6 +149,7 @@ export default function ContactUs() {
                     <input
                       id="contact-name"
                       className="input"
+                      maxLength={120}
                       placeholder="Jane Smith"
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -156,6 +163,7 @@ export default function ContactUs() {
                     <input
                       id="contact-company"
                       className="input"
+                      maxLength={160}
                       placeholder="Acme Corp"
                       value={form.company}
                       onChange={(e) => setForm({ ...form, company: e.target.value })}
@@ -204,6 +212,7 @@ export default function ContactUs() {
                     id="contact-message"
                     className="input"
                     rows={4}
+                    maxLength={1000}
                     placeholder="How can we help?"
                     value={form.message}
                     onChange={(e) => setForm({ ...form, message: e.target.value })}

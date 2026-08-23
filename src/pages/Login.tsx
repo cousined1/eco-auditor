@@ -2,7 +2,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
 import { type SocialAuthProvider } from '../lib/socialAuth';
-import { readIntentFromParams } from '../lib/authIntent';
+import { readIntentFromParams, destinationFor } from '../lib/authIntent';
 import {
   AuthError,
   AuthHeading,
@@ -24,15 +24,16 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get('redirect');
-  const plan = searchParams.get('plan');
-  const billing = searchParams.get('billing');
+  // Use the shared intent reader so the email path defaults `billing` exactly
+  // the way the OAuth path does. Requiring BOTH plan and billing here meant
+  // /login?plan=growth resumed checkout after "Continue with Google" but
+  // dropped the sale after an email sign-in on the very same URL.
+  const intent = readIntentFromParams(searchParams);
   // Only same-origin paths: `//evil.com` is a protocol-relative URL, not a path.
   const safeRedirect =
     redirect && redirect.startsWith('/') && !redirect.startsWith('//')
       ? redirect
-      : plan && billing
-        ? `/app?checkout=${plan}_${billing}`
-        : '/app';
+      : destinationFor(intent);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

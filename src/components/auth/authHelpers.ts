@@ -68,13 +68,25 @@ export async function startProviderSignIn(
   intent?: AuthIntent | null,
 ): Promise<void> {
   saveAuthIntent(intent ?? null);
-  const result = await startSocialSignIn({
-    provider,
-    redirectTo: buildOAuthRedirectTo(window.location.origin, '/auth/callback'),
-    auth: insforge.auth,
-  });
-  if (!result.ok) {
+  // startSocialSignIn is contracted never to throw; this guard keeps an
+  // unexpected failure (or a saveAuthIntent/session fault) from leaving the
+  // caller's provider button stuck in its pending state with no feedback.
+  try {
+    const result = await startSocialSignIn({
+      provider,
+      redirectTo: buildOAuthRedirectTo(window.location.origin, '/auth/callback'),
+      auth: insforge.auth,
+    });
+    if (!result.ok) {
+      saveAuthIntent(null);
+      onError(result.error);
+    }
+  } catch (err) {
     saveAuthIntent(null);
-    onError(result.error);
+    onError(
+      err instanceof Error && err.message
+        ? err.message
+        : `Unable to start ${provider} sign in.`,
+    );
   }
 }

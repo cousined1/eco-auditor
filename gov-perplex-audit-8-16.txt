@@ -1,0 +1,197 @@
+ Broad public activation remains fail-closed: production currently reports activation mode paused, with the shared limiter
+ and trusted client-IP configuration still unconfigured.
+
+Act as a principal product engineer, senior UX strategist, accessibility auditor, compliance-focused SaaS reviewer, and conversion optimizer.
+
+You are working on GovSecure AI, a FedRAMP continuous ATO / continuous monitoring SaaS platform for government agencies, contractors, ISSOs, security teams, and procurement-conscious buyers.
+
+Product context:
+GovSecure AI helps agencies and regulated teams keep evidence, documentation, controls, monitoring, and authorization artifacts in one tamper-evident system so they stay audit-ready while modernizing. The customer must immediately feel that this product is credible, secure, serious, efficient, and designed for regulated environments.
+
+Mission:
+Audit and fix everything in this codebase that prevents GovSecure AI from delivering a truly production-grade, customer-ready experience.
+
+Success standard:
+A first-time visitor, evaluator, design partner, or buyer should be able to:
+- understand what GovSecure AI does within seconds,
+- trust the product enough to continue,
+- navigate without confusion,
+- complete the core workflow without friction,
+- see evidence of security seriousness and procurement readiness,
+- use the product smoothly on desktop and mobile,
+- recover from errors cleanly,
+- never encounter low-trust, low-polish, broken, vague, or unfinished moments.
+
+Do not treat this as a cosmetic pass.
+Treat this as a full customer experience hardening pass across product, UX, onboarding, states, messaging, trust signals, responsiveness, and code paths that create customer-facing friction.
+
+Operate in this order:
+
+1. AUDIT FIRST
+Perform a full audit of the customer journey, including:
+- landing / homepage clarity,
+- product messaging,
+- signup / contact / demo / onboarding flow,
+- dashboard or application shell,
+- primary activation workflow,
+- security / compliance / trust pages,
+- pricing or CTA paths if present,
+- empty states, error states, and success moments,
+- mobile experience,
+- accessibility,
+- performance and perceived speed.
+
+Identify all issues and classify them:
+- Critical = blocks trust, task completion, or creates serious credibility risk
+- High = meaningfully hurts activation, usability, or buyer confidence
+- Medium = causes friction, confusion, or visible lack of polish
+- Low = minor polish or maintainability issues with limited customer impact
+
+2. IMPLEMENT FIXES
+Make the code changes directly.
+Prefer root-cause fixes over band-aids.
+Preserve working architecture where possible, but refactor when necessary to eliminate customer-facing fragility.
+Do not stop after obvious issues; keep going until the app feels intentionally designed and customer-safe.
+
+3. VERIFY
+Re-run an end-to-end validation after changes.
+Check for runtime issues, broken links, dead CTAs, inconsistent components, hydration issues, loading issues, accessibility regressions, and mobile regressions.
+Confirm the primary workflow is coherent and complete.
+
+Audit and fix across these categories:
+
+A. Positioning and first impression
+- Make the homepage and first screens instantly answer:
+  - What is GovSecure AI?
+  - Who is it for?
+  - Why is it different?
+  - What should I do next?
+- Eliminate vague, inflated, generic AI/SaaS copy.
+- Replace weak copy with specific, regulated-market messaging.
+- Ensure the product feels credible to agency buyers, contractors, ISSOs, 3PAOs, security reviewers, and procurement stakeholders.
+
+B. Trust and procurement readiness
+- Fix anything that makes the product look immature, unsafe, generic, or incomplete.
+- Strengthen trust signals through clarity, consistency, stable interactions, evidence of seriousness, and better presentation of security/compliance information.
+- Improve pages, components, and copy related to security posture, compliance roadmap, authorization readiness, auditability, and buyer reassurance.
+- Make trust visible without making unsupported claims.
+- Avoid overstating certifications or readiness that the product does not actually have.
+
+C. Core journey and activation
+- Audit the full path from landing to first meaningful action.
+- Remove dead ends, hesitation points, hidden next steps, confusing forms, or unclear onboarding.
+- Make the primary CTA obvious and the first successful workflow easy to complete.
+- Reduce time-to-value and time-to-confidence.
+
+D. Application UX
+- Improve information hierarchy, navigation, page titles, dashboards, tables, detail views, cards, and actions so the app feels like a serious enterprise-grade vertical SaaS.
+- Remove clutter, ambiguity, and inconsistent interaction patterns.
+- Ensure every screen clearly communicates purpose, status, and next action.
+
+E. Empty / loading / error / success states
+- Design all states intentionally.
+- Empty states must explain what belongs here and provide the best next action.
+- Loading states must feel responsive and avoid layout shift.
+- Errors must be clear, specific, and actionable.
+- Success states should create confidence and confirm completion.
+
+F. Forms and workflows
+- Fix labels, helper text, validation behavior, defaults, disabled states, field grouping, and submission feedback.
+- Ensure forms are clear for regulated-business users, not startup-consumer style.
+- Remove frustration, ambiguity, and rework from every input flow.
+
+G. UI polish and consistency
+- Fix typography hierarchy, spacing, alignment, contrast, broken layouts, inconsistent components, poor responsive behavior, weak hover/focus/active states, awkward modals, and visual noise.
+- Make the product feel premium, stable, and deliberate.
+- Align the look and feel with a serious government/compliance SaaS product.
+
+H. Accessibility
+- Fix heading hierarchy, focus management, semantic markup, labels, contrast, keyboard flows, touch targets, and reduced motion support.
+- Ensure key flows are accessible in real use, not only nominally compliant.
+
+I. Mobile and responsive quality
+- Treat mobile as first-class.
+- Fix cramped layouts, sticky collisions, dialog issues, tiny controls, overflow, and poor table behavior.
+- Ensure all key CTAs and workflows still work on phone widths.
+
+J. Performance and perceived speed
+- Improve slow-feeling interactions, unnecessary rerenders, heavy components, unstable loading patterns, and layout shifts.
+- Prioritize perceived speed in landing, onboarding, and key application flows.
+
+K. Customer-facing code quality
+- Fix implementation issues that leak into UX: dead buttons, inconsistent state handling, broken loading paths, duplicate UI logic, fragile component contracts, or poor error boundaries.
+- Remove obviously dead code if it contributes to confusion or regressions.
+
+GovSecure-specific quality bar:
+The product should feel:
+- procurement-safe,
+- security-conscious,
+- audit-friendly,
+- enterprise credible,
+- calm and clear,
+- operationally mature,
+- trustworthy enough for a regulated buyer conversation.
+
+Avoid:
+- generic AI startup language,
+- hypey claims,
+- consumer-app tone,
+- low-trust placeholders,
+- empty dashboards without guidance,
+- “coming soon” style UX unless intentionally framed,
+- decorative polish without functional clarity.
+
+Decision rules:
+- Optimize for customer trust, activation, and clarity.
+- Use the least complex solution that fully fixes the problem.
+- Do not add unnecessary abstractions.
+- Do not make unsupported compliance or authorization claims.
+- Preserve the current product direction unless it clearly harms trust or usability.
+- When in doubt, choose the option that would make a cautious government buyer feel more confident.
+
+Required deliverables:
+
+1. Customer Experience Audit
+For each issue include:
+- ID
+- severity
+- page/component/path
+- problem
+- customer impact
+- likely root cause
+- fix applied
+
+2. Fix Plan
+- prioritized implementation sequence
+- what was tackled first and why
+
+3. Implemented Changes
+- exact files changed
+- concise explanation of what changed
+- note any copy changes that improve trust, clarity, or conversion
+
+4. Verification
+- confirm key flows reviewed
+- confirm mobile/responsive checks
+- confirm accessibility checks
+- confirm no obvious regressions
+
+5. Remaining Risks
+- unresolved issues
+- assumptions made
+- lower-priority next improvements
+
+6. I'm using InsForge as my backend. Login through:
+
+npx @insforge/cli login --user-api-key uak_t_PUcL0ih1A36mDl0QWtgihggVfFlgb3HyP3E8U9h5o
+
+Then install the InsForge CLI and skills for this project, and link it with:
+
+npx @insforge/cli link --project-id 2f97c425-ddca-405e-8cfd-1180b3e467dc
+
+Use the InsForge CLI and skills for backend tasks.
+
+7. RAILWAY_TOKEN=f7919030-a563-4d84-8aea-d4c2ef65e9fd
+
+Final instruction:
+Assume GovSecure AI is being reviewed tomorrow by a serious potential customer that includes a security stakeholder, an ISSO, and a procurement-minded evaluator. Remove every obvious reason they would hesitate, distrust the product, get confused, or fail to move forward.
