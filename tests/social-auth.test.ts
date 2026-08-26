@@ -7,7 +7,7 @@ import {
 
 describe('social auth helpers', () => {
   it('offers Google, Microsoft, and Apple providers for EcoAuditor login', () => {
-    expect(SOCIAL_AUTH_PROVIDERS.map((provider) => provider.id)).toEqual(['google', 'azure', 'apple']);
+    expect(SOCIAL_AUTH_PROVIDERS.map((provider) => provider.id)).toEqual(['google', 'microsoft', 'apple']);
     expect(SOCIAL_AUTH_PROVIDERS[0]).toMatchObject({ label: 'Continue with Google' });
     expect(SOCIAL_AUTH_PROVIDERS[1]).toMatchObject({ label: 'Continue with Microsoft' });
     expect(SOCIAL_AUTH_PROVIDERS[2]).toMatchObject({ label: 'Continue with Apple' });

@@ -129,7 +129,7 @@ function ProviderIcon({ provider }: { readonly provider: SocialAuthProvider }) {
     );
   }
 
-  if (provider === 'azure') {
+  if (provider === 'microsoft') {
     return (
       <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="#F25022" d="M1 1h10v10H1z" />

@@ -188,7 +188,7 @@ describe('F-01 startSocialSignIn converts thrown SDK faults into failed results'
 
   it('still resolves {ok:true} on success', async () => {
     const result = await startSocialSignIn({
-      provider: 'azure',
+      provider: 'microsoft',
       redirectTo: 'https://ecoauditor.io/auth/callback',
       auth: { signInWithOAuth: async () => ({ data: {}, error: null }) },
     });
