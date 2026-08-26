@@ -1,4 +1,4 @@
-export type SocialAuthProvider = 'google' | 'apple' | 'microsoft';
+export type SocialAuthProvider = 'google' | 'apple' | 'entra';
 
 export type SocialAuthProviderConfig = {
   id: SocialAuthProvider;
@@ -8,10 +8,12 @@ export type SocialAuthProviderConfig = {
 
 export const SOCIAL_AUTH_PROVIDERS: SocialAuthProviderConfig[] = [
   { id: 'google', label: 'Continue with Google', shortLabel: 'Google' },
-  // 'microsoft' is an InsForge CUSTOM OIDC provider (Entra External ID tenant
-  // ecoauditor.ciamlogin.com); the SDK routes non-built-in keys to
-  // /api/auth/oauth/custom/<key> automatically.
-  { id: 'microsoft', label: 'Continue with Microsoft', shortLabel: 'Microsoft' },
+  // 'entra' is an InsForge CUSTOM OIDC provider (Entra External ID tenant
+  // ecoauditor.ciamlogin.com). The key must NOT be 'microsoft': that name is in
+  // the SDK's built-in provider enum, so the SDK would route it to the
+  // unconfigured built-in /api/auth/oauth/microsoft instead of
+  // /api/auth/oauth/custom/entra.
+  { id: 'entra', label: 'Continue with Microsoft', shortLabel: 'Microsoft' },
   { id: 'apple', label: 'Continue with Apple', shortLabel: 'Apple' },
 ];
 
