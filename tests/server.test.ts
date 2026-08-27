@@ -6,8 +6,12 @@
  * reimplementing server logic in the test file (CodeRabbit audit finding).
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { buildSecurityHeaders } from '../server-security.cjs';
 import { resolvePlanPriceId } from '../server-billing.cjs';
+
+const serverSource = readFileSync(resolve('server.cjs'), 'utf8');
 
 // ─── Security Headers (tests actual server module) ───
 
@@ -226,5 +230,13 @@ describe('Billing endpoint guards', () => {
     const allowedPrices = new Set(['price_starter_mo', 'price_growth_mo']);
     const fakePrice = 'price_attack_inject';
     expect(allowedPrices.has(fakePrice)).toBe(false);
+  });
+});
+
+describe('Railway runtime schema', () => {
+  it('creates the consent audit table before accepting consent records', () => {
+    expect(serverSource).toContain('CREATE TABLE IF NOT EXISTS public.consent_records');
+    expect(serverSource.indexOf('CREATE TABLE IF NOT EXISTS public.consent_records'))
+      .toBeLessThan(serverSource.indexOf('INSERT INTO public.consent_records'));
   });
 });

@@ -76,7 +76,7 @@ if (process.env.DATABASE_URL) {
       connectionTimeoutMillis: 3000,
       query_timeout: 3000,
     });
-    // Auto-migrate + auto-seed: ensure blog_posts table exists and has content.
+    // Auto-migrate Railway-owned runtime tables, then seed public blog content.
     pgPool.query(`
       CREATE TABLE IF NOT EXISTS blog_posts (
         id          TEXT PRIMARY KEY,
@@ -105,6 +105,22 @@ if (process.env.DATABASE_URL) {
       -- server, which connects as the table owner (exempt from non-FORCE RLS)
       -- and authenticates /api/publish with the deploy token.
       ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
+
+      CREATE TABLE IF NOT EXISTS public.consent_records (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        visitor_id TEXT,
+        consent JSONB NOT NULL,
+        policy_version TEXT NOT NULL,
+        method TEXT NOT NULL CHECK (char_length(method) BETWEEN 1 AND 40),
+        gpc BOOLEAN NOT NULL DEFAULT false,
+        dnt BOOLEAN NOT NULL DEFAULT false,
+        user_agent TEXT,
+        ip_hash TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_consent_records_visitor_id
+        ON public.consent_records(visitor_id);
+      ALTER TABLE public.consent_records ENABLE ROW LEVEL SECURITY;
     `).then(() => pgPool.query('SELECT count(*) FROM blog_posts'))
     .then((r) => {
       if (parseInt(r.rows[0].count) === 0) {
@@ -113,9 +129,9 @@ if (process.env.DATABASE_URL) {
       }
       log('info', 'blog_posts table already has ' + r.rows[0].count + ' rows');
     })
-    .then(() => { log('info', 'blog_posts migration + seed complete'); })
+    .then(() => { log('info', 'Runtime table migration + blog seed complete'); })
     .catch((migErr) => {
-      log('error', 'blog_posts migration/seed failed:', migErr.message);
+      log('error', 'Runtime table migration/blog seed failed:', migErr.message);
     });
   } catch (err) {
     // pg package not installed — billing routes that need user lookup will return 503
