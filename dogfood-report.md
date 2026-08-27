@@ -23,3 +23,7 @@ The public marketing, legal, blog, and authentication routes rendered coherently
 - Build under test: 14/14 prerendered routes, 25/25 test files, 220/220 tests.
 
 The final release gate requires fresh production captures after deployment so authentication configuration and the two fixed global controls are observed on the exact live build.
+
+## Production closeout
+
+Fresh production captures at merge SHA `5b493e3dceb36e784b91c2be1a1eb9afe75650fa` passed two independent visual reviews. Auth pages had no configuration warning, the full signup form was visible, unresolved consent hid chat, and the shared demo CTA reached `/demo`. The later `53be5f9` follow-up changed only Railway runtime table provisioning; its consent endpoint returned 202 with no deployment errors and did not change UI assets.
