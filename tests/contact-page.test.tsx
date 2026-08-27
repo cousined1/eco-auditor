@@ -12,8 +12,14 @@ import { resolve } from 'node:path';
 
 const CONTACT_PATH = resolve('src/pages/ContactUs.tsx');
 const FOOTER_PATH = resolve('src/components/Footer.tsx');
+const DEMO_PATH = resolve('src/pages/Demo.tsx');
+const HEADER_PATH = resolve('src/components/Header.tsx');
+const CHAT_PATH = resolve('src/components/ChatbotWidget.tsx');
 const contactSrc = readFileSync(CONTACT_PATH, 'utf8');
 const footerSrc = readFileSync(FOOTER_PATH, 'utf8');
+const demoSrc = readFileSync(DEMO_PATH, 'utf8');
+const headerSrc = readFileSync(HEADER_PATH, 'utf8');
+const chatSrc = readFileSync(CHAT_PATH, 'utf8');
 
 describe('ContactUs /contact page (P1-06, P1-13)', () => {
   it('does not render a standalone copyright card in the right column (P1-06)', () => {
@@ -37,6 +43,25 @@ describe('ContactUs /contact page (P1-06, P1-13)', () => {
     // The developer312 address still routes mail; it's just no longer the
     // first/only customer-facing identity.
     expect(contactSrc).toContain('hello@developer312.com');
+  });
+
+  it('submits public forms through the protected server endpoint instead of anonymous table writes', () => {
+    expect(contactSrc).toContain('submitLead');
+    expect(demoSrc).toContain('submitLead');
+    expect(contactSrc).not.toContain("database.from('leads')");
+    expect(demoSrc).not.toContain("database.from('leads')");
+  });
+});
+
+describe('marketing conversion routes', () => {
+  it('sends the shared Book a Demo CTA to the dedicated demo form', () => {
+    expect(headerSrc).toContain("{ label: 'Book a Demo', href: '/demo', variant: 'secondary' }");
+    expect(headerSrc).not.toContain("{ label: 'Book a Demo', href: '/contact', variant: 'secondary' }");
+  });
+
+  it('keeps the chat launcher hidden while cookie consent is unresolved', () => {
+    expect(chatSrc).toContain('useConsent');
+    expect(chatSrc).toContain('if (!consentState.hasConsented) return null;');
   });
 });
 

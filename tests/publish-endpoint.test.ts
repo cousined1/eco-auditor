@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { createPublishHandler } = require('../server-publish.cjs');
+const { sanitizeBlogHtml } = require('../server-publish.cjs');
 
 const TOKEN = 'deploy-token-value';
 const ORIGIN = 'https://ecoauditor.io';
@@ -132,6 +133,29 @@ describe('POST /api/publish — validation', () => {
     const res = makeRes();
     await h(makeReq({ posts: [] }), res);
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('blog HTML trust boundary', () => {
+  it('keeps supported formatting while removing executable markup and attributes', () => {
+    const dirty = '<h2 onclick="alert(1)">Safe heading</h2><script>alert(1)</script><p>Body <strong>copy</strong></p><img src=x onerror=alert(2)>';
+    const clean = sanitizeBlogHtml(dirty);
+
+    expect(clean).toContain('<h2>Safe heading</h2>');
+    expect(clean).toContain('<p>Body <strong>copy</strong></p>');
+    expect(clean).not.toMatch(/script|onclick|onerror|<img/iu);
+  });
+
+  it('stores only sanitized HTML in the blog row', async () => {
+    const { h, queries } = handler();
+    const body = `<h2>Safe heading</h2><p>${'body text '.repeat(20)}</p><svg onload="alert(1)"></svg>`;
+
+    await h(makeReq({ posts: [validPost({ body })] }), makeRes());
+
+    const insert = queries.find((q) => q.text.includes('INSERT INTO blog_posts'))!;
+    const values = insert.values as unknown[];
+    expect(values[7]).toContain('<h2>Safe heading</h2>');
+    expect(values[7]).not.toMatch(/svg|onload/iu);
   });
 });
 

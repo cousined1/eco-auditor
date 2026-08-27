@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { useConsent } from '../lib/consent-context';
 
 /**
  * Dialog shell for the chat panel.
@@ -77,6 +78,7 @@ export default function ChatWidget({
   position = 'bottom-right',
   welcomeMessage = "Hi! 👋 I'm your EcoAuditor sales assistant. I can help you with pricing, book a demo, or answer questions about carbon accounting and emissions reporting. What would you like to explore?",
 }: ChatWidgetProps) {
+  const { consentState } = useConsent();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -185,6 +187,8 @@ export default function ChatWidget({
   const positionStyle = position === 'bottom-right'
     ? { right: '20px', bottom: '20px' }
     : { left: '20px', bottom: '20px' };
+
+  if (!consentState.hasConsented) return null;
 
   return (
     <div style={{ position: 'fixed', ...positionStyle, zIndex: 9999, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
