@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import { insforge, isInsForgeConfigured } from '../lib/insforge';
+import { submitLead } from '../lib/leads';
 
 const DEMO_GOALS = [
   { id: 'customer-rfp', label: 'Customer or RFP emissions-data request' },
@@ -78,28 +78,19 @@ export default function Demo() {
       form.message,
     ].filter(Boolean).join('\n').slice(0, 1000); // hard stop at the column limit
 
-    if (!isInsForgeConfigured) {
-      setSubmitError('Our demo form is temporarily unavailable. Please email hello@developer312.com to book.');
-      setSubmitting(false);
-      return;
-    }
-
     try {
-      const { error } = await insforge.database.from('leads').insert([{
+      await submitLead({
         type: 'demo',
         name: form.name,
         email: form.email,
         company: form.company,
         message: details,
         source: 'demo',
-      }]);
-      if (error) {
-        setSubmitError(error.message || 'We couldn’t send your request right now. You can also email hello@developer312.com.');
-        return;
-      }
+      });
       setSubmitted(true);
-    } catch {
-      setSubmitError('We couldn’t send your request right now. You can also email hello@developer312.com.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'We couldn’t send your request right now.';
+      setSubmitError(`${message} You can also email hello@developer312.com.`);
     } finally {
       setSubmitting(false);
     }

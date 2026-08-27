@@ -90,7 +90,7 @@ const DEFAULT_CTA: Record<HeaderVariant, CtaAction[]> = {
   ],
   marketing: [
     { label: 'Start Free Trial', href: '/signup', variant: 'primary' },
-    { label: 'Book a Demo', href: '/contact', variant: 'secondary' },
+    { label: 'Book a Demo', href: '/demo', variant: 'secondary' },
   ],
   legal: [
   ],

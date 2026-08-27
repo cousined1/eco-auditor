@@ -83,7 +83,7 @@ const VARIANTS = {
     ],
     cta: [
       { label: 'Start Free Trial', href: '/signup', variant: 'primary' },
-      { label: 'Book a Demo', href: '/contact', variant: 'secondary' },
+      { label: 'Book a Demo', href: '/demo', variant: 'secondary' },
     ],
     sticky: true,
     themeToggle: true,

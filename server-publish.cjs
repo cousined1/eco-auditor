@@ -29,6 +29,12 @@ const MAX_POSTS = 10;
 const MIN_BODY_LENGTH = 100;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const UNDEFINED_TABLE = '42P01';
+const SAFE_HTML_TAGS = new Set([
+  'a', 'b', 'blockquote', 'br', 'code', 'em', 'figcaption', 'figure', 'h1', 'h2',
+  'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'li', 'ol', 'p', 'pre', 'strong', 'table',
+  'tbody', 'td', 'th', 'thead', 'tr', 'ul',
+]);
+const VOID_HTML_TAGS = new Set(['br', 'hr']);
 
 // Columns the caller does not send. `cta` is JSONB NOT NULL with no default,
 // and BlogPost.tsx renders the CTA only when `cta.href` is set, so an empty
@@ -36,6 +42,23 @@ const UNDEFINED_TABLE = '42P01';
 // ship a link that may 404.
 const EMPTY_JSON = '[]';
 const EMPTY_CTA = '{}';
+
+/**
+ * Rebuild publisher HTML from an intentionally small formatting allowlist.
+ * Attributes are discarded, including URLs, styles, and event handlers. This
+ * keeps the blog renderer useful without letting a compromised publisher token
+ * persist executable markup that BlogPost.tsx later renders as HTML.
+ */
+function sanitizeBlogHtml(input) {
+  return String(input).replace(/<\/?[^>]+>/gu, (token) => {
+    const match = token.match(/^<\s*(\/?)\s*([a-z][a-z0-9]*)/iu);
+    if (!match) return '';
+    const tag = match[2].toLowerCase();
+    if (!SAFE_HTML_TAGS.has(tag)) return '';
+    if (VOID_HTML_TAGS.has(tag)) return `<${tag}>`;
+    return match[1] ? `</${tag}>` : `<${tag}>`;
+  });
+}
 
 function timingSafeEqualString(a, b) {
   const left = Buffer.from(String(a), 'utf8');
@@ -174,7 +197,7 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
             post.title,
             post.title,
             post.description,
-            post.body,
+            sanitizeBlogHtml(post.body),
             primaryKeywordOf(post),
             EMPTY_JSON,
             EMPTY_JSON,
@@ -219,5 +242,6 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
 
 module.exports = {
   createPublishHandler,
+  sanitizeBlogHtml,
   __testing: { validatePost, bearerToken, timingSafeEqualString, primaryKeywordOf },
 };

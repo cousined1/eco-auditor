@@ -24,7 +24,7 @@ export default function Footer() {
 
           {/* Product nav */}
           <nav aria-label="Product links">
-            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Product</h4>
+            <h3 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Product</h3>
             <ul className="space-y-1.5">
               <li><Link to="/" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Home</Link></li>
               <li><Link to="/pricing" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Pricing</Link></li>
@@ -36,7 +36,7 @@ export default function Footer() {
 
           {/* Trust & Legal nav */}
           <nav aria-label="Trust and legal links">
-            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Trust</h4>
+            <h3 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Trust</h3>
             <ul className="space-y-1.5">
               <li><Link to="/security" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Security & Trust</Link></li>
               <li><Link to="/privacy" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Privacy Policy</Link></li>
@@ -47,7 +47,7 @@ export default function Footer() {
 
           {/* Contact nav */}
           <nav aria-label="Contact links">
-            <h4 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Contact</h4>
+            <h3 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Contact</h3>
             <ul className="space-y-1.5">
               <li><Link to="/contact" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Contact Us</Link></li>
               {/* P1-13: customer-facing Eco-Auditor-domain identities. These route

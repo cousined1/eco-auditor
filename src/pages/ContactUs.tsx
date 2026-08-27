@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { insforge, isInsForgeConfigured } from '../lib/insforge';
+import { submitLead } from '../lib/leads';
 
 type TopicValue = 'sales' | 'billing' | 'product' | 'legal' | 'dpa' | 'security' | 'support' | 'other';
 
@@ -49,28 +49,18 @@ export default function ContactUs() {
 
     setSubmitting(true);
 
-    if (!isInsForgeConfigured) {
-      setSubmitError('Our contact form is temporarily unavailable.');
-      setSubmitting(false);
-      return;
-    }
-
     try {
-      const { error } = await insforge.database.from('leads').insert([{
+      await submitLead({
         type: form.subject,
         name: form.name,
         email: form.email,
         company: form.company,
         message: form.message,
         source: 'contact',
-      }]);
-      if (error) {
-        setSubmitError(error.message || 'We couldn’t send your message right now.');
-        return;
-      }
+      });
       setSubmitted(true);
-    } catch {
-      setSubmitError('We couldn’t send your message right now.');
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'We couldn’t send your message right now.');
     } finally {
       setSubmitting(false);
     }

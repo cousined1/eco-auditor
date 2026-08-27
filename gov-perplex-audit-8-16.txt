@@ -191,7 +191,7 @@ npx @insforge/cli link --project-id 2f97c425-ddca-405e-8cfd-1180b3e467dc
 
 Use the InsForge CLI and skills for backend tasks.
 
-7. RAILWAY_TOKEN=f7919030-a563-4d84-8aea-d4c2ef65e9fd
+7. RAILWAY_TOKEN=<REDACTED>
 
 Final instruction:
 Assume GovSecure AI is being reviewed tomorrow by a serious potential customer that includes a security stakeholder, an ISSO, and a procurement-minded evaluator. Remove every obvious reason they would hesitate, distrust the product, get confused, or fail to move forward.

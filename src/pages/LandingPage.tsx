@@ -111,7 +111,7 @@ export default function LandingPage() {
             Large-company disclosure rules are cascading through supply chains. Your buyers, lenders, and regulators increasingly want reviewable emissions data. Eco-Auditor gets you there — without enterprise complexity or consultant fees.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/signup" className="btn-primary !px-8 !py-3 text-base font-semibold shadow-lg shadow-brand-600/20">
+            <Link to="/signup" data-cta="primary" className="btn-primary !px-8 !py-3 text-base font-semibold shadow-lg shadow-brand-600/20">
               Start Free Trial
             </Link>
             <Link to="/demo" className="btn-secondary !px-8 !py-3 text-base">Book a Demo</Link>
@@ -122,6 +122,7 @@ export default function LandingPage() {
 
       {/* ─── 3-Step Quick-Start Workflow (P0-3, P0-6) ─── */}
       <section className="max-w-5xl mx-auto px-6 py-12">
+        <h2 className="sr-only">How Eco-Auditor works</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             {

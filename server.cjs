@@ -36,7 +36,7 @@ const {
   buildReportText,
   createSimplePdf,
 } = require('./src/lib/reports/report-generator.cjs');
-const { createPublishHandler } = require('./server-publish.cjs');
+const { createPublishHandler, sanitizeBlogHtml } = require('./server-publish.cjs');
 
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
@@ -550,7 +550,7 @@ app.get('/api/blog-posts', async function (_req, res) {
     const { rows } = await pgPool.query(
       'SELECT id, slug, title, meta_title, meta_description, body_html, primary_keyword, faq, internal_links, external_links, cta, content_score, geo_score, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 50'
     );
-    res.json({ posts: rows });
+    res.json({ posts: rows.map((row) => ({ ...row, body_html: sanitizeBlogHtml(row.body_html) })) });
   } catch (err) {
     if (err.code === '42P01') { // table does not exist
       return res.json({ posts: [] });
@@ -573,7 +573,7 @@ app.get('/api/blog-posts/:slug', async function (req, res) {
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    res.json({ post: rows[0] });
+    res.json({ post: { ...rows[0], body_html: sanitizeBlogHtml(rows[0].body_html) } });
   } catch (err) {
     if (err.code === '42P01') { // table does not exist
       return res.status(404).json({ error: 'Post not found' });
