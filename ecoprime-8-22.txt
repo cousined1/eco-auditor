@@ -11,7 +11,7 @@ Then install the InsForge CLI and skills for this project, and link it with:
 npx @insforge/cli link --project-id 9844fe32-612f-4eb2-bdd3-018f5fbab7fa
 
 Use the InsForge CLI and skills for backend tasks.
-RAILWAY_TOKEN=24ab4f95-55a5-4d39-9156-62c1d35f2ace
+RAILWAY_TOKEN=<REDACTED>
 
 Your target is the EcoAuditor.io codebase and, if safely accessible, the public production site at:
 https://ecoauditor.io
