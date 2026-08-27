@@ -8,6 +8,7 @@ BLOCKED (5 blockers)
 - **Audit window:** 2026-08-26, production plus a local production build, America/Los_Angeles.
 - **Checklist:** `saas-launch-audit-skill-v2 (1).md`, full MVP gate.
 - **Repository:** branch `audit/full-launch-2026-08-26`, starting commit `972b44b914ea69c2edf3ddf3c2ae6219526ee6f8`. The workspace was already dirty; pre-existing changes in `findings.sarif`, `src/lib/socialAuth.ts`, and `tests/social-auth.test.ts` were preserved and excluded from this audit's commits.
+- **Released:** PR #22 merged at `5b493e3dceb36e784b91c2be1a1eb9afe75650fa`; production QA exposed a Railway consent-storage mismatch, fixed by PR #23 and deployed at `53be5f98cf11fc46496b3a798691c6b91db9484e`.
 - **Verdict:** **BLOCKED (5 blockers)**. The build, public journeys, protected API behavior, migrations, accessibility, mobile layout, domain/TLS, dependency audit, and security headers have verified evidence. A full launch remains blocked because controlled authentication/tenant tests, historical credential rotation evidence, provider-backed billing tests, a recovery drill, and operational alert ownership are not evidenced.
 
 This is a truthful release audit, not a declaration that the five human/provider gates passed. The remediations applied in this session reduce immediate web and database risk but do not waive those gates.
@@ -84,6 +85,7 @@ Additional non-gating observations: the SEO crawl returned all audited routes su
 | A11Y-001 | `src/pages/LandingPage.tsx`, `src/components/Footer.tsx` | Corrected heading hierarchy and marked the primary hero CTA | Axe: 0 violations; keyboard check |
 | UX-001 | `scripts/build-partials.js`, `src/components/Header.tsx`, `tests/contact-page.test.tsx` | Routed shared “Book a Demo” CTA to `/demo` | Focused navigation regression test |
 | UX-002 | `src/components/ChatbotWidget.tsx`, `tests/contact-page.test.tsx` | Suppressed chat until consent resolves, preventing mobile overlay collision | Focused consent regression test and mobile inspection |
+| OPS-002 | `server.cjs`, `tests/server.test.ts` | Provisioned the Railway-owned consent audit table before accepting consent writes | Regression red/green; runtime migration log; production consent POST 202; no deployment errors |
 
 ## 8. Human actions
 
@@ -110,10 +112,13 @@ The provider-specific steps, safety constraints, owners, completion evidence, an
 | Browser route/axe/mobile checks | production baseline + local candidate | 0 axe violations; critical public routes render | Auth provider lifecycle not exercised |
 | InsForge advisor/schema/branch dry-run | production + isolated branch | 2 public-write criticals identified and staged for removal; 0 merge conflicts | Production merge occurs only after code deployment |
 | Backup create | InsForge production | `pre-launch-audit-2026-08-26` completed | Restore not exercised |
+| Production release | Railway | PR #22 SHA healthy; follow-up PR #23 SHA healthy | Railway configuration-as-code deprecation warning is non-blocking |
+| Consent persistence probe | Railway production | Synthetic reject-all record returned 202; runtime migration completed; 0 deployment error logs | One synthetic audit record was intentionally created |
+| `npm run db:migrate:check` | InsForge production | 10 migrations current; both release migrations applied | Branch-merge API failed server-side; repository migration runner applied the identical reviewed files |
 
 ## 11. Changed-file review
 
-Audit-owned changes are limited to the files listed in “Fixed this session,” plus `tests/leads-client.test.ts`, this report, `LAUNCH_AUDIT.json`, `HUMAN_ACTIONS.md`, and `dogfood-report.md`. Generated evidence is under `dogfood-output/screenshots/`. Pre-existing changes in `findings.sarif`, `src/lib/socialAuth.ts`, and `tests/social-auth.test.ts`, and the supplied checklist file, are not part of the audit commit.
+Audit-owned changes are limited to the files listed in “Fixed this session,” plus `tests/leads-client.test.ts`, this report, `LAUNCH_AUDIT.json`, `HUMAN_ACTIONS.md`, `dogfood-report.md`, and three historical audit text files whose credential values were redacted to satisfy the repository secret gate. Generated evidence is under `dogfood-output/screenshots/`. Pre-existing changes in `findings.sarif`, `src/lib/socialAuth.ts`, and `tests/social-auth.test.ts`, and the supplied checklist file, are not part of the audit commits.
 
 ## 12. Known limitations
 
@@ -123,6 +128,8 @@ Audit-owned changes are limited to the files listed in “Fixed this session,”
 - No alerting/on-call dashboard access.
 - No Google Search Console or analytics account evidence.
 - TypeScript LSP unavailable by prior environment choice; compiler/lint/build evidence substituted.
+- The InsForge branch-merge endpoint returned an internal server error while leaving production unchanged. The same two dry-run migrations were applied successfully through `npm run db:migrate`; the isolated branch remains available for provider investigation.
+- The current InsForge backend cannot trigger an on-demand advisor scan. Direct catalog queries prove the two permissive policies/grants are absent; the displayed scheduled advisor snapshot remains stale until the next provider scan or backend upgrade.
 
 ## 13. Re-audit procedure
 

@@ -253,11 +253,11 @@
       "bucket": "FIX-NOW",
       "owner": "Legal and Product",
       "confidence": "VERIFIED",
-      "evidence": [{"type": "build-browser", "reference": "privacy, terms, DPA, consent surfaces", "result": "Routes render; consent controls work; legal placeholder scan passes."}],
+      "evidence": [{"type": "build-browser-runtime", "reference": "privacy, terms, DPA, consent surfaces; Railway deployment 55bb9716-087c-4632-ac62-a32636bd56e0", "result": "Routes render; consent controls work; consent audit persistence returns 202; legal placeholder scan passes."}],
       "risk": "Misleading disclosures or uncontrolled tracking.",
       "remediation": "None for audited behavior.",
       "retest": "Review disclosures when providers/data practices change.",
-      "files_changed": ["src/components/ChatbotWidget.tsx"]
+      "files_changed": ["src/components/ChatbotWidget.tsx", "server.cjs", "tests/server.test.ts"]
     },
     {
       "id": "GATE-015",
