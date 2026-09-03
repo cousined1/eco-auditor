@@ -13,7 +13,13 @@ export const SOCIAL_AUTH_PROVIDERS: SocialAuthProviderConfig[] = [
   // the SDK's built-in provider enum, so the SDK would route it to the
   // unconfigured built-in /api/auth/oauth/microsoft instead of
   // /api/auth/oauth/custom/entra.
-  { id: 'entra', label: 'Continue with Microsoft', shortLabel: 'Microsoft' },
+  //
+  // Label says "work account", NOT "Microsoft". An external (CIAM) tenant
+  // cannot federate personal Microsoft accounts — outlook.com/live.com/MSA is
+  // not a supported IdP there. It serves local email accounts plus whichever
+  // org Entra ID tenants we federate per-customer. "Continue with Microsoft"
+  // promised MSA sign-in that can never work and sent users into a dead end.
+  { id: 'entra', label: 'Continue with work account', shortLabel: 'Microsoft' },
   { id: 'apple', label: 'Continue with Apple', shortLabel: 'Apple' },
 ];
 

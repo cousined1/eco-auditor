@@ -16,19 +16,30 @@ const PRICE_ENV_KEYS = {
   },
 };
 
+// Reads a price id accepting the VITE_-prefixed alias. The Railway service
+// defines only VITE_STRIPE_PRICE_* — the 2026-08-27 boot log reported all six
+// unprefixed names missing — so reading env[key] alone left trials, plan
+// mapping and plan changes silently broken in production. Mirrors
+// resolvePriceId in server.cjs, which delegates here.
+function priceIdFromEnv(env, key) {
+  return env[key] || env['VITE_' + key] || null;
+}
+
 function resolvePlanPriceId(env, planId, billing) {
   const planConfig = PRICE_ENV_KEYS[planId];
   if (!planConfig) return null;
   const key = planConfig[billing];
   if (!key) return null;
-  return env[key] || null;
+  return priceIdFromEnv(env, key);
 }
 
 function planFromPriceId(priceId, env) {
   for (const planId of Object.keys(PRICE_ENV_KEYS)) {
     const planConfig = PRICE_ENV_KEYS[planId];
     for (const billing of Object.keys(planConfig)) {
-      if (env[planConfig[billing]] === priceId) {
+      // Skip unconfigured plans, so a null/absent price id never matches one.
+      const configured = priceIdFromEnv(env, planConfig[billing]);
+      if (configured !== null && configured === priceId) {
         return { planId, billing };
       }
     }
@@ -42,8 +53,8 @@ function planFromPriceId(priceId, env) {
 // consumes it, and src/pages/Pricing.tsx only shows the trial CTA for monthly.
 function trialEligiblePriceIds(env) {
   return new Set([
-    env.STRIPE_PRICE_STARTER_MONTHLY,
-    env.STRIPE_PRICE_GROWTH_MONTHLY,
+    priceIdFromEnv(env, 'STRIPE_PRICE_STARTER_MONTHLY'),
+    priceIdFromEnv(env, 'STRIPE_PRICE_GROWTH_MONTHLY'),
   ].filter(Boolean));
 }
 
@@ -215,6 +226,7 @@ module.exports = {
   hasPlanAccess,
   planAccessDecision,
   planFromPriceId,
+  priceIdFromEnv,
   resolvePlanPriceId,
   planLimits,
   canAddFacility,

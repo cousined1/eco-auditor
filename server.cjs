@@ -11,6 +11,7 @@ const {
   parseEmissionCsv,
   getComplianceStatus,
   buildFacilityEmissions,
+  normalizeScope,
 } = require('./emissions-engine.cjs');
 const {
   buildSecurityHeaders,
@@ -24,6 +25,7 @@ const {
   billingStateFromCompany,
   planAccessDecision,
   planFromPriceId,
+  priceIdFromEnv,
   resolvePlanPriceId,
   shouldRetryWebhook,
   canAddFacility,
@@ -75,6 +77,14 @@ if (process.env.DATABASE_URL) {
       connectionString: process.env.DATABASE_URL,
       connectionTimeoutMillis: 3000,
       query_timeout: 3000,
+    });
+    // pg-pool emits 'error' on the pool when an IDLE client fails (DB restart,
+    // maintenance, idle timeout). An unhandled EventEmitter 'error' throws,
+    // reaches the uncaughtException handler below, and exits the process — so a
+    // dropped idle connection would take down the whole server. Log and carry on;
+    // the pool discards the broken client and opens a new one on next use.
+    pgPool.on('error', function (err) {
+      log('error', 'Idle Postgres client error', { error: String(err) });
     });
     // Auto-migrate Railway-owned runtime tables, then seed public blog content.
     pgPool.query(`
@@ -131,7 +141,7 @@ if (process.env.DATABASE_URL) {
     })
     .then(() => { log('info', 'Runtime table migration + blog seed complete'); })
     .catch((migErr) => {
-      log('error', 'Runtime table migration/blog seed failed:', migErr.message);
+      log('error', 'Runtime table migration/blog seed failed', { error: migErr.message });
     });
   } catch (err) {
     // pg package not installed — billing routes that need user lookup will return 503
@@ -303,7 +313,22 @@ if (canUseDevAuth(process.env)) {
 // ─── Trust proxy for correct client IP behind Railway/Cloudflare ───
 // Railway terminates TLS and forwards X-Forwarded-For; without this,
 // req.ip resolves to the proxy IP and rate limiting collapses all users.
-app.set('trust proxy', 1);
+//
+// A fixed hop count of 1 was not enough: Cloudflare fronts the Railway edge,
+// and Railway can add a second hop from its private 100.64.0.0/10 range. With
+// hop-count 1 req.ip then resolved to that internal hop, collapsing every rate
+// limiter and the consent IP hash onto one shared key for all visitors. Trust
+// hop 0 (the socket peer — exactly what `1` did) plus any further hop inside
+// 100.64.0.0/10; a public client can never legitimately present such an
+// address, so this only ever adds hops, never trusts a client-supplied one.
+// Cloudflare's own egress hop is deliberately NOT trusted: the Railway origin
+// is reachable directly, so honouring CF ranges would let a direct client forge
+// its address. Behind CF, req.ip is therefore the CF colo egress (per-colo
+// rate-limit keys), which is the same as before this change.
+const RAILWAY_PRIVATE_HOP = /^(?:::ffff:)?100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./;
+app.set('trust proxy', function (addr, hop) {
+  return hop === 0 || RAILWAY_PRIVATE_HOP.test(String(addr));
+});
 
 // ─── Response compression ───
 // Nothing upstream compresses: Railway's proxy passes the origin body through,
@@ -547,12 +572,17 @@ app.get('/api/health', async function (_req, res) {
 // ─── InsForge config endpoint (for auth) ───
 app.get('/api/insforge-config', function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  // Prefer the VITE_ names: they are what the shipped bundle was built with.
+  // The unprefixed INSFORGE_ANON_KEY in production holds a truncated
+  // placeholder ("ik_fni…hjc6"), so preferring it advertised an unusable key.
+  let anonKey = process.env.VITE_INSFORGE_ANON_KEY || process.env.INSFORGE_ANON_KEY || null;
+  if (anonKey && /[^\x20-\x7e]/.test(anonKey)) {
+    log('warn', 'InsForge anon key contains non-ASCII characters — refusing to advertise it');
+    anonKey = null;
+  }
   res.json({
-    // These were NEXT_PUBLIC_*/INSFORGE_URL names left over from a Next.js
-    // scaffold; this is a Vite app and authGuard reads INSFORGE_BASE_URL, so
-    // the endpoint returned {url:null, anonKey:null} on every real deploy.
-    url: process.env.INSFORGE_BASE_URL || process.env.VITE_INSFORGE_BASE_URL || null,
-    anonKey: process.env.INSFORGE_ANON_KEY || process.env.VITE_INSFORGE_ANON_KEY || null,
+    url: process.env.VITE_INSFORGE_BASE_URL || process.env.INSFORGE_BASE_URL || null,
+    anonKey,
   });
 });
 
@@ -571,7 +601,7 @@ app.get('/api/blog-posts', async function (_req, res) {
     if (err.code === '42P01') { // table does not exist
       return res.json({ posts: [] });
     }
-    log('error', 'GET /api/blog-posts:', err.message);
+    log('error', 'GET /api/blog-posts:', { error: err.message });
     res.status(500).json({ error: 'Failed to fetch blog posts' });
   }
 });
@@ -594,7 +624,7 @@ app.get('/api/blog-posts/:slug', async function (req, res) {
     if (err.code === '42P01') { // table does not exist
       return res.status(404).json({ error: 'Post not found' });
     }
-    log('error', 'GET /api/blog-posts/:slug:', err.message);
+    log('error', 'GET /api/blog-posts/:slug:', { error: err.message });
     res.status(500).json({ error: 'Failed to fetch post' });
   }
 });
@@ -787,12 +817,26 @@ async function ensureCompanyForUser(user) {
       await client.query('COMMIT');
       return rows[0].id;
     }
+    // A new user's first dashboard load fires two requests concurrently; both
+    // reach here, both SELECT nothing, and a plain INSERT makes the loser
+    // violate companies_user_id_unique — surfacing as 503 'Billing status
+    // unavailable' on the very first page. ON CONFLICT waits on the winner, so
+    // when it returns no row the committed company is visible to a re-SELECT.
     const insert = await client.query(
       `INSERT INTO public.companies (user_id, name, industry, updated_at, trial_ends_at)
        VALUES ($1, $2, 'other', now(), now() + INTERVAL '14 days')
+       ON CONFLICT (user_id) DO NOTHING
        RETURNING id, trial_ends_at`,
       [userId, defaultName]
     );
+    if (insert.rows.length === 0) {
+      const existing = await client.query(
+        'SELECT id FROM public.companies WHERE user_id = $1 LIMIT 1',
+        [userId]
+      );
+      await client.query('COMMIT');
+      return existing.rows.length > 0 ? existing.rows[0].id : null;
+    }
     await client.query('COMMIT');
     log('info', 'Auto-provisioned company with 14-day trial', { userId, companyId: insert.rows[0].id, trialEndsAt: insert.rows[0].trial_ends_at });
     return insert.rows[0].id;
@@ -1134,7 +1178,7 @@ app.get('/api/checkout', function (_req, res) {
 // VITE_STRIPE_PRICE_* advertised price ids that /api/checkout then rejected
 // with "Invalid price selection" on every purchase. One resolver, used by both.
 function resolvePriceId(name) {
-  return process.env[name] || process.env['VITE_' + name] || null;
+  return priceIdFromEnv(process.env, name);
 }
 
 // ─── Public config endpoint for Stripe price IDs (frontend fetches these at runtime) ───
@@ -1819,12 +1863,15 @@ async function loadEmissionEntries(companyId, period) {
 
 // Scope label normalizer that tolerates junk instead of throwing — used by the
 // plan gate, which runs before per-row validation and must not 500 on bad input.
+// Delegates to the engine's own normaliser: a hand-rolled copy here stripped
+// different characters than the engine (no '/'), so "Scope/3" was null to the
+// paywall but scope3 to the engine — a starter account could import Scope 3.
 function normalizeScopeLabel(value) {
-  const text = String(value == null ? '' : value).trim().toLowerCase().replace(/[\s_-]+/g, '');
-  if (text === '1' || text === 'scope1') return 'scope1';
-  if (text === '2' || text === 'scope2') return 'scope2';
-  if (text === '3' || text === 'scope3') return 'scope3';
-  return null;
+  try {
+    return normalizeScope(value);
+  } catch {
+    return null;
+  }
 }
 
 // Imports accepted this calendar month, for the per-plan quota. Counts from the
@@ -1832,11 +1879,20 @@ function normalizeScopeLabel(value) {
 // instance, so it can't back a billing limit.
 async function countCsvImportsThisMonth(companyId) {
   if (!pgPool) return 0;
-  const { rows } = await pgPool.query(
-    `SELECT COUNT(*)::int AS used FROM public.csv_import_events
-      WHERE company_id = $1 AND created_at >= date_trunc('month', now())`,
-    [companyId]
-  );
+  let rows;
+  try {
+    ({ rows } = await pgPool.query(
+      `SELECT COUNT(*)::int AS used FROM public.csv_import_events
+        WHERE company_id = $1 AND created_at >= date_trunc('month', now())`,
+      [companyId]
+    ));
+  } catch (err) {
+    // A driver timeout ('Query read timeout') carries no pg error code, so
+    // classifyApiFailure answered 400 with the raw driver text as if the
+    // customer's file were at fault. Name it as the outage it is.
+    log('error', 'CSV import quota lookup failed', { error: String(err), companyId });
+    throw new Error('Import quota data store unavailable');
+  }
   return rows.length ? rows[0].used : 0;
 }
 
@@ -2012,8 +2068,13 @@ app.get('/api/emissions/trend', apiAuthGuard, requirePlan('starter'), async func
 });
 
 app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], limit: '100kb' }), apiAuthGuard, requirePlan('starter'), async function (req, res) {
+  // Declared outside the try: the catch below logs it, and a const inside the
+  // block was a ReferenceError there — turning any 5xx-classified failure
+  // (facilities store down, quota lookup timeout) into an unhandled rejection
+  // that exited the whole process.
+  let companyId = null;
   try {
-    const companyId = await requireCompanyAccess(req, res, req.query.company_id);
+    companyId = await requireCompanyAccess(req, res, req.query.company_id);
     if (!companyId) return;
     const csvText = req.body || '';
     const rawRows = parseEmissionCsv(csvText);
@@ -2089,6 +2150,13 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       var scopeLabel = SCOPE_LABELS[calculated && calculated.scope];
       if (rowErrors.length === 0 && calculated && !scopeLabel) {
         rowErrors.push('Row ' + rowNum + ': Unrecognized scope "' + row.scope + '" (expected Scope 1, 2, or 3)');
+      }
+      // The DB CHECKs confidence to 0..100. Catch it per row here; otherwise one
+      // bad value fails the whole multi-row INSERT as a generic 500 with no row
+      // number, and the customer cannot tell which line to fix.
+      if (rowErrors.length === 0 && calculated &&
+          !(Number.isFinite(calculated.confidence) && calculated.confidence >= 0 && calculated.confidence <= 100)) {
+        rowErrors.push('Row ' + rowNum + ': confidence must be between 0 and 100');
       }
 
       // Carry the row's own date into created_at when valid, so imported
@@ -2592,7 +2660,10 @@ app.get('*', function (req, res) {
     return req.path === root || req.path.startsWith(root + '/');
   });
   if (isKnownSpa) {
-    res.setHeader('Cache-Control', 'no-transform');
+    // no-cache like the sibling HTML responses: sendFile sets Last-Modified/ETag,
+    // so without it browsers heuristically reuse a stale shell after a deploy and
+    // request hashed asset filenames that no longer exist — blank /app until reload.
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     return res.sendFile(path.join(__dirname, 'static', 'index.html'));
   }
   res.status(404).setHeader('Cache-Control', 'no-cache, no-transform').send('Not found');
@@ -2656,7 +2727,9 @@ async function startServer() {
       'STRIPE_PRICE_GROWTH_ANNUAL',
       'STRIPE_PRICE_PRO_MONTHLY',
       'STRIPE_PRICE_PRO_ANNUAL',
-    ].filter(function (name) { return !process.env[name]; });
+      // Through resolvePriceId, so a VITE_-only Railway deploy — which is what
+      // production actually sets — is not reported as missing every boot.
+    ].filter(function (name) { return !resolvePriceId(name); });
     if (missingPrices.length) {
       log('warn', 'Stripe price IDs missing — those plans cannot be purchased', { missing: missingPrices });
     }

@@ -9,7 +9,20 @@ const {
   parseEmissionCsv,
   getComplianceStatus,
   buildFacilityEmissions,
+  normalizeScope,
 } = require('../emissions-engine.cjs');
+
+describe('normalizeScope', () => {
+  it('treats every separator the same so a label cannot mean two things', () => {
+    // The server's Scope 3 paywall gates on this; a separate copy that did not
+    // strip '/' let "Scope/3" through the gate and into the engine as scope3.
+    expect(normalizeScope('Scope/3')).toBe('scope3');
+    expect(normalizeScope('scope 3')).toBe('scope3');
+    expect(normalizeScope('SCOPE-3')).toBe('scope3');
+    expect(normalizeScope('3')).toBe('scope3');
+    expect(() => normalizeScope('scope 4')).toThrow(/Invalid scope/);
+  });
+});
 
 describe('EPA emissions engine', () => {
   it('calculates 50,000 therms of natural gas as 265.3 tCO2e', () => {

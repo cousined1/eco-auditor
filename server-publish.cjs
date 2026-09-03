@@ -218,7 +218,7 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
         log('error', 'POST /api/publish: blog_posts table is missing');
         return res.status(503).json({ error: 'blog storage is not initialised' });
       }
-      log('error', 'POST /api/publish:', err && err.message);
+      log('error', 'POST /api/publish:', { error: err && err.message });
       return res.status(500).json({ error: 'failed to publish' });
     } finally {
       client.release();
