@@ -7,6 +7,7 @@ const {
   hasPlanAccess,
   planAccessDecision,
   planFromPriceId,
+  priceIdFromEnv,
   resolvePlanPriceId,
   shouldRetryWebhook,
   planLimits,
@@ -269,5 +270,62 @@ describe('subscriptionRecordFromStripe', () => {
     expect(record.plan).toBeNull();
     expect(record.unrecognizedActivePrice).toBeNull();
     expect(record.currentPeriodEnd).toBeNull();
+  });
+});
+
+// Production (Railway) defines only the VITE_-prefixed price names. Reading the
+// unprefixed names alone left trials, plan mapping and plan changes broken
+// there, so every price lookup must resolve through the VITE_ fallback.
+describe('VITE_-prefixed price env fallback', () => {
+  const VITE_ONLY_ENV = {
+    VITE_STRIPE_PRICE_STARTER_MONTHLY: 'price_starter_monthly',
+    VITE_STRIPE_PRICE_STARTER_ANNUAL: 'price_starter_annual',
+    VITE_STRIPE_PRICE_GROWTH_MONTHLY: 'price_growth_monthly',
+    VITE_STRIPE_PRICE_GROWTH_ANNUAL: 'price_growth_annual',
+    VITE_STRIPE_PRICE_PRO_MONTHLY: 'price_pro_monthly',
+    VITE_STRIPE_PRICE_PRO_ANNUAL: 'price_pro_annual',
+  };
+
+  it('prefers the unprefixed name when both are set', () => {
+    expect(priceIdFromEnv(
+      { STRIPE_PRICE_PRO_MONTHLY: 'plain', VITE_STRIPE_PRICE_PRO_MONTHLY: 'vite' },
+      'STRIPE_PRICE_PRO_MONTHLY'
+    )).toBe('plain');
+    expect(priceIdFromEnv(VITE_ONLY_ENV, 'STRIPE_PRICE_PRO_MONTHLY')).toBe('price_pro_monthly');
+    expect(priceIdFromEnv({}, 'STRIPE_PRICE_PRO_MONTHLY')).toBeNull();
+  });
+
+  it('resolves plan price IDs so plan changes are not rejected as invalid', () => {
+    expect(resolvePlanPriceId(VITE_ONLY_ENV, 'growth', 'annual')).toBe('price_growth_annual');
+    expect(resolvePlanPriceId(VITE_ONLY_ENV, 'pro', 'monthly')).toBe('price_pro_monthly');
+  });
+
+  it('maps price IDs back to a plan, and still ignores unconfigured plans', () => {
+    expect(planFromPriceId('price_pro_monthly', VITE_ONLY_ENV)).toEqual({ planId: 'pro', billing: 'monthly' });
+    // A null price id must never match a plan whose env key is absent.
+    expect(planFromPriceId(null, {})).toBeNull();
+    expect(planFromPriceId('price_unknown', VITE_ONLY_ENV)).toBeNull();
+  });
+
+  it('keeps trial eligibility limited to the two monthly price IDs', () => {
+    expect(trialEligiblePriceIds(VITE_ONLY_ENV)).toEqual(new Set([
+      'price_starter_monthly',
+      'price_growth_monthly',
+    ]));
+  });
+
+  it('gives a Pro subscriber Pro entitlements rather than the starter fallback', () => {
+    const record = subscriptionRecordFromStripe({
+      id: 'sub_123',
+      customer: 'cus_456',
+      status: 'active',
+      cancel_at_period_end: false,
+      current_period_end: 1782000000,
+      items: { data: [{ id: 'si_1', price: { id: 'price_pro_monthly' } }] },
+    }, VITE_ONLY_ENV);
+
+    expect(record.plan).toBe('pro');
+    expect(record.billingCycle).toBe('monthly');
+    expect(record.unrecognizedActivePrice).toBeNull();
   });
 });
