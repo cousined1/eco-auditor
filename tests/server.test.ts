@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildSecurityHeaders } from '../server-security.cjs';
 import { resolvePlanPriceId } from '../server-billing.cjs';
+import proxyaddr from 'proxy-addr';
 
 const serverSource = readFileSync(resolve('server.cjs'), 'utf8');
 
@@ -238,5 +239,93 @@ describe('Railway runtime schema', () => {
     expect(serverSource).toContain('CREATE TABLE IF NOT EXISTS public.consent_records');
     expect(serverSource.indexOf('CREATE TABLE IF NOT EXISTS public.consent_records'))
       .toBeLessThan(serverSource.indexOf('INSERT INTO public.consent_records'));
+  });
+});
+
+describe('Postgres pool resilience', () => {
+  it('handles idle client errors instead of crashing the process', () => {
+    // pg-pool emits 'error' on the pool for idle client failures. Unhandled,
+    // that reaches uncaughtException and exits the server on any DB blip.
+    expect(serverSource).toContain("pgPool.on('error'");
+  });
+});
+
+describe('Company auto-provisioning', () => {
+  it('tolerates the concurrent first-load insert race', () => {
+    // A new user's first dashboard load fires two requests at once; without the
+    // conflict clause the loser violates companies_user_id_unique and the user
+    // sees 503 'Billing status unavailable'.
+    expect(serverSource).toContain('ON CONFLICT (user_id) DO NOTHING');
+  });
+});
+
+describe('Trust proxy client IP resolution', () => {
+  // Mirrors the trust function in server.cjs (see the `trust proxy` block).
+  const RAILWAY_PRIVATE_HOP = /^(?:::ffff:)?100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./;
+  const trust = (addr: string, hop: number) => hop === 0 || RAILWAY_PRIVATE_HOP.test(String(addr));
+
+  const reqFrom = (xff?: string) => ({
+    connection: { remoteAddress: '::ffff:100.100.1.1' },
+    headers: xff ? { 'x-forwarded-for': xff } : {},
+  });
+
+  it('is the function server.cjs actually installs', () => {
+    // The proxy-addr checks below run against this local mirror, so pin the
+    // mirror to the source or the test would still pass on `trust proxy: 1`.
+    expect(serverSource).toContain("app.set('trust proxy', function (addr, hop)");
+    expect(serverSource).toContain(RAILWAY_PRIVATE_HOP.source);
+    expect(serverSource).toContain('return hop === 0 || RAILWAY_PRIVATE_HOP.test(String(addr));');
+  });
+
+  it('skips the Railway-internal hop so it never becomes the shared key', () => {
+    expect(proxyaddr(reqFrom(), trust)).toBe('::ffff:100.100.1.1');
+    expect(proxyaddr(reqFrom('203.0.113.9'), trust)).toBe('203.0.113.9');
+    // The extra Railway-internal hop is skipped rather than becoming the key
+    // every visitor shares, which would collapse all rate limiting onto one IP.
+    expect(proxyaddr(reqFrom('203.0.113.9, 100.100.4.4'), trust)).toBe('203.0.113.9');
+    // Unchanged from the previous fixed hop count of 1.
+    expect(proxyaddr(reqFrom('203.0.113.9, 172.70.1.1'), trust)).toBe('172.70.1.1');
+  });
+
+  it('does not trust a client-supplied address in the Railway range', () => {
+    // Only hops the proxy chain actually appended can be skipped; a forged
+    // 100.64/10 entry beyond the trusted prefix must not extend trust.
+    const spoofed = {
+      connection: { remoteAddress: '::ffff:172.70.1.1' },
+      headers: { 'x-forwarded-for': '1.2.3.4, 100.100.9.9' },
+    };
+    expect(proxyaddr(spoofed, trust)).toBe('1.2.3.4');
+  });
+});
+
+describe('CSV ingest failure path', () => {
+  const route = serverSource.slice(serverSource.indexOf("app.post('/api/ingest/csv'"));
+  const handler = route.slice(0, route.indexOf("app.get('/api/ingest/status"));
+
+  it('declares companyId before the try so the catch block can log it', () => {
+    // A const inside the try made the catch's log() a ReferenceError, which
+    // became an unhandled rejection and exited the process on any 5xx path.
+    expect(handler.indexOf('let companyId')).toBeGreaterThan(-1);
+    expect(handler.indexOf('let companyId')).toBeLessThan(handler.indexOf('try {'));
+  });
+
+  it('gates Scope 3 with the engine normaliser, not a drifting copy', () => {
+    const gate = serverSource.slice(serverSource.indexOf('function normalizeScopeLabel'));
+    expect(gate.slice(0, gate.indexOf('\n}'))).toContain('normalizeScope(value)');
+  });
+
+  it('rejects out-of-range confidence per row instead of failing the whole import', () => {
+    expect(handler).toContain('confidence must be between 0 and 100');
+  });
+});
+
+describe('SPA shell caching', () => {
+  it('sends no-cache so a deploy cannot leave a stale shell behind', () => {
+    // Scoped to the fallback's own branch: the 404 below it and the prerendered
+    // routes above already send no-cache, so an unscoped match would pass
+    // without the fix. A cached shell requests hashed assets that are gone.
+    const fallback = serverSource.slice(serverSource.indexOf("app.get('*'"));
+    const shellBranch = fallback.slice(0, fallback.indexOf('res.status(404)'));
+    expect(shellBranch).toContain("'no-cache, no-transform'");
   });
 });

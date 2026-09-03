@@ -387,4 +387,7 @@ module.exports = {
   parseEmissionCsv,
   getComplianceStatus,
   buildFacilityEmissions,
+  // Exported so the server's Scope 3 plan gate normalises labels exactly the
+  // way the engine does — a second, drifting copy let "Scope/3" past the gate.
+  normalizeScope,
 };
