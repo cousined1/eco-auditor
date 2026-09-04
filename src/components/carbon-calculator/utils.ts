@@ -31,6 +31,9 @@ export interface EmissionEntry {
   method: string | null;
   confidence: number;
   facility_id: number | null;
+  co2e_kg?: number | string | null;
+  activity_date?: string | null;
+  notes?: string | null;
   created_at: string;
 }
 
@@ -69,7 +72,11 @@ export function formatCO2e(kg: number): string {
  * Returns 0 when the factor lookup misses, matching the previous
  * `parseFloat(...) || 0` behavior for unresolvable rows.
  */
-export function entryKgCO2e(e: Pick<EmissionEntry, 'amount' | 'unit' | 'category' | 'source'>): number {
+export function entryKgCO2e(e: Pick<EmissionEntry, 'amount' | 'unit' | 'category' | 'source'> & { co2e_kg?: number | string | null }): number {
+  if (e.co2e_kg !== undefined && e.co2e_kg !== null) {
+    const directKg = parseFloat(String(e.co2e_kg));
+    if (!isNaN(directKg) && directKg >= 0) return directKg;
+  }
   const amount = parseFloat(e.amount) || 0;
   const unit = String(e.unit || '').trim().toLowerCase().replace(/[\s/-]+/g, '_');
   if (unit === 'kg_co2e' || unit === 'kgco2e') return amount;

@@ -108,10 +108,8 @@ export async function createCheckoutSession({ planId, billing, trial }: Checkout
     return { ok: false, error: 'Pricing is temporarily unavailable. Please try again in a moment.' };
   }
 
-  const pk = config.pk || STRIPE_PK;
-  if (!pk || pk === 'pk_test_placeholder' || pk === 'pk_live_placeholder') {
-    return { ok: false, error: 'Stripe is not configured' };
-  }
+  // The server creates the Stripe Checkout session and returns the hosted URL.
+  // We do not require a client-side publishable key since Stripe.js is not used.
 
   const token = await getAuthToken();
   if (!token) return { ok: false, error: 'You must be signed in to start checkout' };
@@ -172,17 +170,6 @@ export async function verifyCheckoutSession(
 }
 
 export async function createBillingPortalSession(): Promise<StripeResult<{ url: string }>> {
-  // Resolve the key the same way createCheckoutSession does. Gating on the
-  // BUILD-time STRIPE_PK alone meant that on a runtime-configured deploy (the
-  // exact setup /api/config/prices exists for) a paying customer could check
-  // out but could never open the portal, change plan, or cancel -- every click
-  // returned "Stripe is not configured" without making a request.
-  const config = await fetchPriceConfig();
-  const pk = config.pk || STRIPE_PK;
-  if (!pk || pk === 'pk_test_placeholder' || pk === 'pk_live_placeholder') {
-    return { ok: false, error: 'Stripe is not configured' };
-  }
-
   const token = await getAuthToken();
   if (!token) return { ok: false, error: 'You must be signed in to manage billing' };
 
@@ -205,17 +192,6 @@ export async function createBillingPortalSession(): Promise<StripeResult<{ url: 
 }
 
 export async function changeSubscription(planId: string, billing: 'monthly' | 'annual'): Promise<StripeResult<{ success: boolean }>> {
-  // Resolve the key the same way createCheckoutSession does. Gating on the
-  // BUILD-time STRIPE_PK alone meant that on a runtime-configured deploy (the
-  // exact setup /api/config/prices exists for) a paying customer could check
-  // out but could never open the portal, change plan, or cancel -- every click
-  // returned "Stripe is not configured" without making a request.
-  const config = await fetchPriceConfig();
-  const pk = config.pk || STRIPE_PK;
-  if (!pk || pk === 'pk_test_placeholder' || pk === 'pk_live_placeholder') {
-    return { ok: false, error: 'Stripe is not configured' };
-  }
-
   const token = await getAuthToken();
   if (!token) return { ok: false, error: 'You must be signed in to change your subscription' };
 
@@ -241,17 +217,6 @@ export async function changeSubscription(planId: string, billing: 'monthly' | 'a
 }
 
 export async function cancelSubscription(): Promise<StripeResult<{ success: boolean }>> {
-  // Resolve the key the same way createCheckoutSession does. Gating on the
-  // BUILD-time STRIPE_PK alone meant that on a runtime-configured deploy (the
-  // exact setup /api/config/prices exists for) a paying customer could check
-  // out but could never open the portal, change plan, or cancel -- every click
-  // returned "Stripe is not configured" without making a request.
-  const config = await fetchPriceConfig();
-  const pk = config.pk || STRIPE_PK;
-  if (!pk || pk === 'pk_test_placeholder' || pk === 'pk_live_placeholder') {
-    return { ok: false, error: 'Stripe is not configured' };
-  }
-
   const token = await getAuthToken();
   if (!token) return { ok: false, error: 'You must be signed in to cancel your subscription' };
 

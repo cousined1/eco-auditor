@@ -100,6 +100,7 @@ export default function CarbonCalculator() {
         category: data.category,
         source: data.source,
         amount: data.calculatedKg,
+        co2e_kg: data.calculatedKg,
         unit: 'kg CO2e',
         factor: `${data.amount} ${data.unit}`,
         method: 'EPA emission factor',

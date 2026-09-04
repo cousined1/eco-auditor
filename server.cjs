@@ -486,13 +486,19 @@ const consentRateLimit = perRouteRateLimit(10, 60_000);
 const leadsRateLimit = perRouteRateLimit(5, 10 * 60 * 1000);
 const chatRateLimit = perRouteRateLimit(10, 60_000);
 
+const APP_VERSION =
+  process.env.APP_VERSION ||
+  process.env.npm_package_version ||
+  process.env.NEXT_PUBLIC_APP_VERSION ||
+  require('./package.json').version;
+
 // ─── Version endpoint (for forced-update watchdog) ───
 app.get('/api/version', function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.json({
-    version: process.env.APP_VERSION || process.env.npm_package_version || process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
+    version: APP_VERSION,
     build: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || null,
     timestamp: new Date().toISOString(),
   });
@@ -531,7 +537,7 @@ async function healthPayload() {
     sha: buildSha(),
     build: buildSha(), // alias kept for /api/version parity (impl-spec AF-2)
     uptime: process.uptime(),
-    version: process.env.APP_VERSION || process.env.npm_package_version || '0.0.0',
+    version: APP_VERSION,
     db: dbStatus,
     timestamp: new Date().toISOString(),
   };
