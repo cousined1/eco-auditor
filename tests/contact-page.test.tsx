@@ -33,16 +33,14 @@ describe('ContactUs /contact page (P1-06, P1-13)', () => {
     ).toBe(false);
   });
 
-  it('surfaces Eco-Auditor-domain customer-facing email addresses (P1-13)', () => {
-    expect(contactSrc).toContain('support@ecoauditor.io');
-    expect(contactSrc).toContain('security@ecoauditor.io');
-    expect(contactSrc).toContain('privacy@ecoauditor.io');
+  it('uses only the operational mailbox for customer-facing email links', () => {
+    expect(contactSrc).toContain('hello@developer312.com');
+    expect(contactSrc).not.toContain('@ecoauditor.io');
   });
 
-  it('keeps the operational developer312 address as a backstop, not the primary identity', () => {
-    // The developer312 address still routes mail; it's just no longer the
-    // first/only customer-facing identity.
-    expect(contactSrc).toContain('hello@developer312.com');
+  it('routes security and privacy requests with useful subjects', () => {
+    expect(contactSrc).toContain('subject=Security%20report');
+    expect(contactSrc).toContain('subject=Privacy%20and%20DPA%20request');
   });
 
   it('submits public forms through the protected server endpoint instead of anonymous table writes', () => {
@@ -66,10 +64,11 @@ describe('marketing conversion routes', () => {
 });
 
 describe('Footer brand identity (P1-13)', () => {
-  it('surfaces Eco-Auditor-domain emails as the primary contact identities', () => {
-    expect(footerSrc).toContain('support@ecoauditor.io');
-    expect(footerSrc).toContain('security@ecoauditor.io');
-    expect(footerSrc).toContain('privacy@ecoauditor.io');
+  it('does not advertise unrouteable Eco-Auditor mailboxes', () => {
+    expect(footerSrc).toContain('hello@developer312.com');
+    expect(footerSrc).not.toContain('@ecoauditor.io');
+    expect(footerSrc).toContain('subject=Security%20report');
+    expect(footerSrc).toContain('subject=Privacy%20and%20DPA%20request');
   });
 
   it('names the operator consistently (Developer312 / NIGHT LITE USA LLC)', () => {
