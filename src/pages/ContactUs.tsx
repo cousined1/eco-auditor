@@ -84,8 +84,8 @@ export default function ContactUs() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Email</h3>
-            <a href="mailto:support@ecoauditor.io" className="text-sm text-accent-text hover:underline">support@ecoauditor.io</a>
-            <p className="text-2xs text-surface-500 mt-0.5">For all inquiries · also <a href="mailto:hello@developer312.com" className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 hover:underline">hello@developer312.com</a></p>
+            <a href="mailto:hello@developer312.com" className="text-sm text-accent-text hover:underline">hello@developer312.com</a>
+            <p className="text-2xs text-surface-500 mt-0.5">For all inquiries</p>
           </div>
         </div>
         <div className="card flex items-start gap-3">
@@ -251,16 +251,12 @@ export default function ContactUs() {
             <button onClick={() => setForm({ ...form, subject: 'dpa' })} className="btn-secondary text-xs w-full">Request DPA / privacy documentation</button>
           </div>
 
-          {/* P1-13: Eco-Auditor-domain contact identities. These route internally
-              to the Developer312 team but present a coherent customer-facing brand.
-              The page-level copyright lives in the global Footer (rendered once by
-              App.tsx), so it is not duplicated here (P1-06: removed orphan card). */}
           <div className="card">
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Direct addresses</h3>
+            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Direct help</h3>
             <ul className="space-y-1.5 text-xs">
-              <li><a href="mailto:support@ecoauditor.io" className="text-accent-text hover:underline">support@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— general help</span></li>
-              <li><a href="mailto:security@ecoauditor.io" className="text-accent-text hover:underline">security@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— security reports</span></li>
-              <li><a href="mailto:privacy@ecoauditor.io" className="text-accent-text hover:underline">privacy@ecoauditor.io</a> <span className="text-surface-600 dark:text-surface-400">— privacy & DPA</span></li>
+              <li><a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">General help</a> <span className="text-surface-600 dark:text-surface-400">— hello@developer312.com</span></li>
+              <li><a href="mailto:hello@developer312.com?subject=Security%20report" className="text-accent-text hover:underline">Security reports</a> <span className="text-surface-600 dark:text-surface-400">— routed to the security team</span></li>
+              <li><a href="mailto:hello@developer312.com?subject=Privacy%20and%20DPA%20request" className="text-accent-text hover:underline">Privacy &amp; DPA requests</a> <span className="text-surface-600 dark:text-surface-400">— routed to the privacy team</span></li>
             </ul>
           </div>
         </div>

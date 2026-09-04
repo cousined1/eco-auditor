@@ -97,6 +97,10 @@ const HEAD = {
     // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-6).
     description: 'Start your 14-day free Eco-Auditor trial. No card required when you sign up directly. Cancel anytime before the trial ends; access is paused until you select a paid plan.',
   },
+  '/forgot-password': {
+    title: 'Reset Your Password — Eco-Auditor',
+    description: 'Reset your Eco-Auditor password and regain access to your emissions ledger, reports, and compliance dashboard.',
+  },
   '/demo': {
     title: 'Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough',
     description: 'Book a 25–30 minute Eco-Auditor demo. Tell us your goal — Scope 1/2 baseline, Scope 3 supplier collection, SB 253 readiness, or customer carbon-data requests.',

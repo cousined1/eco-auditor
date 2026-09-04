@@ -50,11 +50,9 @@ export default function Footer() {
             <h3 className="text-xs font-semibold text-surface-800 dark:text-surface-200 uppercase tracking-wider mb-3">Contact</h3>
             <ul className="space-y-1.5">
               <li><Link to="/contact" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Contact Us</Link></li>
-              {/* P1-13: customer-facing Eco-Auditor-domain identities. These route
-                  internally to the Developer312 team but present a coherent brand. */}
-              <li><a href="mailto:support@ecoauditor.io" aria-label="Email support at support@ecoauditor.io" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">support@ecoauditor.io</a></li>
-              <li><a href="mailto:security@ecoauditor.io" aria-label="Email the security team at security@ecoauditor.io" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">security@ecoauditor.io</a></li>
-              <li><a href="mailto:privacy@ecoauditor.io" aria-label="Email the privacy team at privacy@ecoauditor.io" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">privacy@ecoauditor.io</a></li>
+              <li><a href="mailto:hello@developer312.com" aria-label="Email Eco-Auditor support at hello@developer312.com" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">hello@developer312.com</a></li>
+              <li><a href="mailto:hello@developer312.com?subject=Security%20report" aria-label="Report a security issue by email" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Report a security issue</a></li>
+              <li><a href="mailto:hello@developer312.com?subject=Privacy%20and%20DPA%20request" aria-label="Email a privacy or DPA request" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Privacy &amp; DPA requests</a></li>
               <li><a href="tel:+15104011225" aria-label="Call us at (510) 401-1225" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">(510) 401-1225</a></li>
             </ul>
           </nav>

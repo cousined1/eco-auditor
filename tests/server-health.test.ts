@@ -106,4 +106,11 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
     expect(cc).toBeTruthy();
     expect(cc!.toLowerCase()).toContain('no-store');
   });
+
+  it('/features redirects permanently to the homepage feature section', async () => {
+    const response = await fetch(`${baseUrl}/features`, { redirect: 'manual' });
+
+    expect(response.status).toBe(308);
+    expect(response.headers.get('location')).toBe('/#features');
+  });
 });

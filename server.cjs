@@ -2639,6 +2639,10 @@ PRERENDERED_ROUTES.forEach(function (route) {
   });
 });
 
+app.get(['/features', '/features/'], function (_req, res) {
+  res.redirect(308, '/#features');
+});
+
 // Reserved legacy paths that should not soft-404 to the homepage.
 app.get(['/dashboard', '/dashboard/'], function (_req, res) {
   res.redirect(302, '/login');

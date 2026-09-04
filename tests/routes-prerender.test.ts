@@ -39,6 +39,15 @@ describe('P0-01 + AF-4 — prerendered route output on disk', () => {
     expect(existsSync(path.join(STATIC, 'signup', 'index.html'))).toBe(true);
   });
 
+  it('forgot-password has reset-specific metadata instead of homepage metadata', () => {
+    const homeTitle = extractTitle(readStatic('.'));
+    const forgotTitle = extractTitle(readStatic('forgot-password'));
+
+    expect(forgotTitle).toBeTruthy();
+    expect(forgotTitle).not.toBe(homeTitle);
+    expect(forgotTitle?.toLowerCase()).toMatch(/reset|password/);
+  });
+
   it('each auth route has exactly one <title> (AF-4 per-route meta)', () => {
     const login = readStatic('login');
     const signup = readStatic('signup');
