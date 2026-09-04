@@ -183,7 +183,7 @@ For each issue include:
 
 6. I'm using InsForge as my backend. Login through:
 
-npx @insforge/cli login --user-api-key uak_t_PUcL0ih1A36mDl0QWtgihggVfFlgb3HyP3E8U9h5o
+npx @insforge/cli login --user-api-key <REDACTED>
 
 Then install the InsForge CLI and skills for this project, and link it with:
 

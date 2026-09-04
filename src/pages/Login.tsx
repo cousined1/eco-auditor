@@ -29,11 +29,20 @@ export default function Login() {
   // /login?plan=growth resumed checkout after "Continue with Google" but
   // dropped the sale after an email sign-in on the very same URL.
   const intent = readIntentFromParams(searchParams);
-  // Only same-origin paths: `//evil.com` is a protocol-relative URL, not a path.
-  const safeRedirect =
-    redirect && redirect.startsWith('/') && !redirect.startsWith('//')
-      ? redirect
-      : destinationFor(intent);
+  // Only same-origin paths: prevent protocol-relative (//evil.com), backslash (/\evil.com), and cross-origin bypasses
+  const safeRedirect = (() => {
+    if (!redirect || !redirect.startsWith('/') || redirect.startsWith('//') || redirect.startsWith('/\\')) {
+      return destinationFor(intent);
+    }
+    try {
+      const parsed = new URL(redirect, window.location.origin);
+      return parsed.origin === window.location.origin && parsed.pathname.startsWith('/')
+        ? redirect
+        : destinationFor(intent);
+    } catch {
+      return destinationFor(intent);
+    }
+  })();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

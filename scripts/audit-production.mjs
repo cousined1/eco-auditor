@@ -11,7 +11,14 @@ const audit = npmCli
   ? spawnSync(process.execPath, [npmCli, 'audit', '--omit=dev', '--json'], {
       encoding: 'utf8',
       shell: process.platform === 'win32',
+    })
+  : spawnSync('npm', ['audit', '--omit=dev', '--json'], {
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
     });
+
+if (!audit.stdout) {
+  process.stderr.write(audit.stderr || 'npm audit produced no output\n');
   process.exit(1);
 }
 
