@@ -30,7 +30,8 @@ function formatDate(iso: string): string {
 }
 
 function estimateReadTime(html: string): string {
-  const text = html.replace(/<[^>]*>/g, ' ');
+  const bounded = html.length > 100_000 ? html.slice(0, 100_000) : html;
+  const text = bounded.replace(/<[^\n>]*>/g, ' ');
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   const mins = Math.max(1, Math.round(words / 200));
   return `${mins} min read`;

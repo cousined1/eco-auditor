@@ -22,7 +22,6 @@ paths = ['''findings\.sarif$''']
 description = "Local agent-tool state; high-entropy idempotency keys, not credentials"
 paths = [
   '''(^|/)\.refact/''',
-  '''(^|/)\.insforge/''',
   '''(^|/)\.omo/''',
   '''(^|/)\.swarm/''',
   '''(^|/)\.claude-flow/''',

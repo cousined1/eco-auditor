@@ -89,6 +89,9 @@ function validatePost(post, index) {
   if (post.body.length < MIN_BODY_LENGTH) {
     return `${at}.body is too short (${post.body.length} < ${MIN_BODY_LENGTH} characters)`;
   }
+  if (/<(?:[^\n>]|$){200,}/.test(post.body)) {
+    return `${at}.body contains an unterminated tag run; refusing to store it`;
+  }
   // body_html is rendered with dangerouslySetInnerHTML, so markdown would be
   // shown as literal text. Reject rather than store something that renders wrong.
   if (post.bodyFormat != null && post.bodyFormat !== 'html') {

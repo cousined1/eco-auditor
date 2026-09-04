@@ -30,6 +30,7 @@ const {
   shouldRetryWebhook,
   canAddFacility,
   canImportCsv,
+  planLimits,
   canUseScope3,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
@@ -415,6 +416,21 @@ const rateLimitWindowMs = 60_000;
 const rateLimitMax = 120;
 const rateLimitStore = new Map();
 
+// Resolves client IP for rate limiting and consent auditing.
+// When the immediate TCP peer is a public address (neither loopback, private RFC 1918,
+// nor Railway CGNAT 100.64.0.0/10), there is no trusted reverse proxy in the chain, so
+// any X-Forwarded-For header is attacker-supplied. In that case we must use the socket's
+// actual remoteAddress so direct callers cannot spoof arbitrary rate-limit keys (CWE-345).
+const INTERNAL_PEER_PATTERN = /^(?:::ffff:)?(?:127\.|10\.|172\.(?:1[6-9]|2[0-9]|3[01])\.|192\.168\.|100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|::1$|fe80:)/i;
+
+function resolveClientIp(req) {
+  const socketAddr = (req.socket && req.socket.remoteAddress) || '';
+  if (socketAddr && !INTERNAL_PEER_PATTERN.test(socketAddr)) {
+    return socketAddr;
+  }
+  return req.ip || socketAddr || 'unknown';
+}
+
 app.use(function (req, res, next) {
   // Stripe delivers every webhook for the account from a small pool of egress
   // IPs, so a burst (>120/min during a billing run or a retry backlog) would
@@ -424,10 +440,9 @@ app.use(function (req, res, next) {
   // own retries, so exempt it.
   if (req.path === '/api/webhook') return next();
 
-  // Key on req.ip, which honors `trust proxy` above. Parsing the leftmost
-  // X-Forwarded-For entry directly is client-spoofable (rate-limit bypass
-  // and unbounded store growth from forged keys).
-  const key = req.ip || 'unknown';
+  // Key on resolveClientIp(req), which honors `trust proxy` only when behind an
+  // internal proxy hop and falls back to socket remoteAddress on direct connections.
+  const key = resolveClientIp(req);
   const now = Date.now();
   const entry = rateLimitStore.get(key);
 
@@ -456,11 +471,11 @@ setInterval(function () {
 }, 120_000);
 
 // Per-route rate limiter (tighter than the global one) for sensitive public
-// endpoints. Keyed on req.ip, with its own store pruned on access.
+// endpoints. Keyed on resolveClientIp(req), with its own store pruned on access.
 function perRouteRateLimit(max, windowMs) {
   const store = new Map();
   return function (req, res, next) {
-    const key = req.ip || 'unknown';
+    const key = resolveClientIp(req);
     const now = Date.now();
     const entry = store.get(key);
     if (!entry || now - entry.windowStart > windowMs) {
@@ -1568,7 +1583,7 @@ app.post('/api/consent-audit', consentRateLimit, express.json({ limit: '4kb' }),
     gpc: Boolean(body.gpc),
     dnt: Boolean(body.dnt),
     userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
-    ipHash: hashConsentIp(req.ip),
+    ipHash: hashConsentIp(resolveClientIp(req)),
     createdAt: new Date().toISOString(),
   };
 
@@ -1902,17 +1917,53 @@ async function countCsvImportsThisMonth(companyId) {
   return rows.length ? rows[0].used : 0;
 }
 
-async function recordCsvImport(companyId, rowCount) {
-  if (!pgPool) return;
+// Atomically spends one CSV-import unit from the monthly quota. The company
+// row is locked FOR UPDATE for the whole transaction, so concurrent imports
+// serialize on the check-then-insert instead of all reading the same count and
+// passing it. Returns true when a unit was spent, false when the plan is
+// already at its limit. row_security = off matches the other server-owned
+// writes (ensureCompanyForUser / syncSubscriptionRecord).
+async function reserveCsvImportQuota(planId, companyId, rowCount) {
+  const limit = planLimits(planId).csvImportsPerMonth;
+  if (limit === null) return true;
+  if (!pgPool) return true;
+  const client = await pgPool.connect();
   try {
-    await queryWithRlsBypass(
+    await client.query('BEGIN');
+    await client.query('SET LOCAL row_security = off');
+    const locked = await client.query(
+      'SELECT id FROM public.companies WHERE id = $1 FOR UPDATE',
+      [companyId]
+    );
+    if (locked.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return true;
+    }
+    const { rows } = await client.query(
+      `SELECT COUNT(*)::int AS used FROM public.csv_import_events
+        WHERE company_id = $1 AND created_at >= date_trunc('month', now())`,
+      [companyId]
+    );
+    const used = rows.length ? rows[0].used : 0;
+    if (used >= limit) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+    await client.query(
       'INSERT INTO public.csv_import_events (company_id, row_count) VALUES ($1, $2)',
       [companyId, rowCount]
     );
+    await client.query('COMMIT');
+    return true;
   } catch (err) {
-    // Never fail an accepted import because its meter row didn't write; the
-    // customer's data is already in. Under-counting favours the customer.
-    log('error', 'Failed to record CSV import for quota', { error: String(err), companyId });
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      log('error', 'Quota reservation rollback failed', { error: String(rollbackErr), companyId });
+    }
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
@@ -2213,6 +2264,25 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       rowWarnings.forEach(function (w) { importWarnings.push(w); });
     }
 
+    // Authoritative quota check: reserve one import unit atomically when the
+    // file produced accepted rows. The reservation takes a row lock on the
+    // company for the whole check-then-insert, so concurrent imports serialize
+    // instead of all reading the same month count and passing — the previous
+    // check-early / meter-late flow let 25 simultaneous starter imports through
+    // a 10/month quota. Charging only when rows were accepted keeps a
+    // fully-failed file from burning the allowance.
+    if (entries.length > 0) {
+      const reserved = await reserveCsvImportQuota(plan, companyId, entries.length);
+      if (!reserved) {
+        return res.status(402).json({
+          success: false,
+          code: 'upgrade_required',
+          requiredPlan: canImportCsv(plan, planLimits(plan).csvImportsPerMonth).requiredPlan,
+          error: `Your ${plan} plan includes ${planLimits(plan).csvImportsPerMonth} CSV imports per month and you have used all of them. Upgrade to ${canImportCsv(plan, planLimits(plan).csvImportsPerMonth).requiredPlan} for unlimited imports.`,
+        });
+      }
+    }
+
     // Persist valid entries. Postgres (via RLS-bypass transaction) when a DB is
     // configured; otherwise the in-memory sample store (dev/preview only).
     if (entries.length > 0) {
@@ -2258,12 +2328,6 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       company_id: companyId,
     };
     ingestJobs.set(jobId, ingestResult);
-
-    // Meter the import only when something was actually imported, so a file
-    // that failed every row does not burn a customer's monthly allowance.
-    if (entries.length > 0) {
-      await recordCsvImport(companyId, entries.length);
-    }
 
     return res.json({
       success: true,
