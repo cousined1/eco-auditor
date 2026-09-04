@@ -143,3 +143,25 @@ describe('StripeResult type contract', () => {
     expect(processResult(errorResult)).toBe('Something went wrong');
   });
 });
+
+describe('client-side billing helper contracts', () => {
+  it('unauthenticated calls fail gracefully without throwing', async () => {
+    const { createBillingPortalSession, changeSubscription, cancelSubscription, verifyCheckoutSession } = await import('../src/lib/stripe.ts');
+    
+    const portal = await createBillingPortalSession();
+    expect(portal.ok).toBe(false);
+    if (!portal.ok) expect(portal.error).toMatch(/signed in/i);
+
+    const change = await changeSubscription('growth', 'monthly');
+    expect(change.ok).toBe(false);
+    if (!change.ok) expect(change.error).toMatch(/signed in/i);
+
+    const cancel = await cancelSubscription();
+    expect(cancel.ok).toBe(false);
+    if (!cancel.ok) expect(cancel.error).toMatch(/signed in/i);
+
+    const verify = await verifyCheckoutSession('cs_test_123');
+    expect(verify.ok).toBe(false);
+    if (!verify.ok) expect(verify.error).toMatch(/signed in/i);
+  });
+});

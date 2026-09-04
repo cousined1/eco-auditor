@@ -8,13 +8,10 @@ const allowedAdvisories = new Set([
 
 const npmCli = process.env.npm_execpath;
 const audit = npmCli
-  ? spawnSync(process.execPath, [npmCli, 'audit', '--omit=dev', '--json'], { encoding: 'utf8' })
-  : spawnSync('npm', ['audit', '--omit=dev', '--json'], {
-  encoding: 'utf8',
-  });
-
-if (!audit.stdout) {
-  process.stderr.write(audit.stderr || 'npm audit produced no output\n');
+  ? spawnSync(process.execPath, [npmCli, 'audit', '--omit=dev', '--json'], {
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+    });
   process.exit(1);
 }
 
