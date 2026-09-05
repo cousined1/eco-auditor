@@ -1917,16 +1917,14 @@ async function countCsvImportsThisMonth(companyId) {
   return rows.length ? rows[0].used : 0;
 }
 
-// Atomically spends one CSV-import unit from the monthly quota. The company
+// Atomically persists rows and spends one CSV-import unit. The company
 // row is locked FOR UPDATE for the whole transaction, so concurrent imports
 // serialize on the check-then-insert instead of all reading the same count and
 // passing it. Returns true when a unit was spent, false when the plan is
 // already at its limit. row_security = off matches the other server-owned
 // writes (ensureCompanyForUser / syncSubscriptionRecord).
-async function reserveCsvImportQuota(planId, companyId, rowCount) {
+async function reserveCsvImportQuota(planId, companyId, rowCount, persist) {
   const limit = planLimits(planId).csvImportsPerMonth;
-  if (limit === null) return true;
-  if (!pgPool) return true;
   const client = await pgPool.connect();
   try {
     await client.query('BEGIN');
@@ -1936,8 +1934,7 @@ async function reserveCsvImportQuota(planId, companyId, rowCount) {
       [companyId]
     );
     if (locked.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return true;
+      throw new Error('Import company no longer exists');
     }
     const { rows } = await client.query(
       `SELECT COUNT(*)::int AS used FROM public.csv_import_events
@@ -1945,7 +1942,7 @@ async function reserveCsvImportQuota(planId, companyId, rowCount) {
       [companyId]
     );
     const used = rows.length ? rows[0].used : 0;
-    if (used >= limit) {
+    if (limit !== null && used >= limit) {
       await client.query('ROLLBACK');
       return false;
     }
@@ -1953,6 +1950,7 @@ async function reserveCsvImportQuota(planId, companyId, rowCount) {
       'INSERT INTO public.csv_import_events (company_id, row_count) VALUES ($1, $2)',
       [companyId, rowCount]
     );
+    await persist(client);
     await client.query('COMMIT');
     return true;
   } catch (err) {
@@ -1964,6 +1962,26 @@ async function reserveCsvImportQuota(planId, companyId, rowCount) {
     throw err;
   } finally {
     client.release();
+  }
+}
+
+async function persistCsvEntries(client, entries) {
+  const cols = ['company_id', 'facility_id', 'scope', 'category', 'source', 'amount', 'unit', 'factor', 'method', 'confidence', 'co2e_kg', 'activity_date', 'notes', 'created_at'];
+  // Keep each statement below PostgreSQL's 65,535 bind-parameter ceiling.
+  // All batches use the quota transaction, so a failed batch rolls back all rows.
+  for (let offset = 0; offset < entries.length; offset += 1000) {
+    const insertParams = [];
+    const valueGroups = entries.slice(offset, offset + 1000).map((entry) => {
+      const placeholders = cols.map((column) => {
+        insertParams.push(entry[column]);
+        return '$' + insertParams.length;
+      });
+      return '(' + placeholders.join(', ') + ')';
+    });
+    await client.query(
+      'INSERT INTO public.emission_entries (' + cols.join(', ') + ') VALUES ' + valueGroups.join(', '),
+      insertParams
+    );
   }
 }
 
@@ -2264,50 +2282,22 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       rowWarnings.forEach(function (w) { importWarnings.push(w); });
     }
 
-    // Authoritative quota check: reserve one import unit atomically when the
-    // file produced accepted rows. The reservation takes a row lock on the
-    // company for the whole check-then-insert, so concurrent imports serialize
-    // instead of all reading the same month count and passing — the previous
-    // check-early / meter-late flow let 25 simultaneous starter imports through
-    // a 10/month quota. Charging only when rows were accepted keeps a
-    // fully-failed file from burning the allowance.
-    if (entries.length > 0) {
-      const reserved = await reserveCsvImportQuota(plan, companyId, entries.length);
-      if (!reserved) {
-        return res.status(402).json({
-          success: false,
-          code: 'upgrade_required',
-          requiredPlan: canImportCsv(plan, planLimits(plan).csvImportsPerMonth).requiredPlan,
-          error: `Your ${plan} plan includes ${planLimits(plan).csvImportsPerMonth} CSV imports per month and you have used all of them. Upgrade to ${canImportCsv(plan, planLimits(plan).csvImportsPerMonth).requiredPlan} for unlimited imports.`,
-        });
-      }
-    }
-
     // Persist valid entries. Postgres (via RLS-bypass transaction) when a DB is
     // configured; otherwise the in-memory sample store (dev/preview only).
     if (entries.length > 0) {
       if (pgPool) {
         try {
-          // co2e_kg / activity_date / notes were computed per row and then
-          // dropped on the floor here — notes (a documented CSV column) was
-          // silently discarded and the computed CO2e was thrown away.
-          var cols = ['company_id', 'facility_id', 'scope', 'category', 'source', 'amount', 'unit', 'factor', 'method', 'confidence', 'co2e_kg', 'activity_date', 'notes', 'created_at'];
-          var valueGroups = [];
-          var insertParams = [];
-          var p = 1;
-          entries.forEach(function (e) {
-            var placeholders = cols.map(function () { return '$' + (p++); });
-            valueGroups.push('(' + placeholders.join(', ') + ')');
-            insertParams.push(
-              e.company_id, e.facility_id, e.scope, e.category, e.source,
-              e.amount, e.unit, e.factor, e.method, e.confidence,
-              e.co2e_kg, e.activity_date, e.notes, e.created_at
-            );
-          });
-          await queryWithRlsBypass(
-            'INSERT INTO public.emission_entries (' + cols.join(', ') + ') VALUES ' + valueGroups.join(', '),
-            insertParams
-          );
+          const reserved = await reserveCsvImportQuota(plan, companyId, entries.length,
+            (client) => persistCsvEntries(client, entries));
+          if (!reserved) {
+            const quota = canImportCsv(plan, planLimits(plan).csvImportsPerMonth);
+            return res.status(402).json({
+              success: false,
+              code: 'upgrade_required',
+              requiredPlan: quota.requiredPlan,
+              error: `Your ${plan} plan includes ${quota.limit} CSV imports per month and you have used all of them. Upgrade to ${quota.requiredPlan} for unlimited imports.`,
+            });
+          }
         } catch (dbErr) {
           log('error', 'CSV ingest DB insert failed', { error: String(dbErr), companyId, rows: entries.length });
           return res.status(500).json({ success: false, error: 'Failed to save imported rows. No data was imported.' });

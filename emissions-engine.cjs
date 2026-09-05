@@ -55,6 +55,13 @@ function factorForEntry(entry) {
   const category = normalizeKey(entry.category);
   const unit = normalizeKey(entry.unit);
 
+  const catalogCategory = getCategory(category);
+  if (catalogCategory && Number(catalogCategory.scope) !== Number(scope.replace('scope', ''))) {
+    throw new Error(
+      `Category "${entry.category}" is Scope ${catalogCategory.scope}, not ${entry.scope}.`
+    );
+  }
+
   // Passthrough for entries already expressed in CO2e. The in-app calculator
   // persists pre-computed kg CO2e (amount = calculatedKg, unit = 'kg CO2e'),
   // so re-applying an activity factor would either throw (Scope 1/3) or inflate
@@ -64,18 +71,6 @@ function factorForEntry(entry) {
   }
   if (unit === 't_co2e' || unit === 'tco2e' || unit === 'tonnes_co2e' || unit === 'tonne_co2e') {
     return { factor: 1, category: category || 'precalculated' };
-  }
-
-  // The declared scope is untrusted input. Without this check a Scope 3
-  // activity could be booked as Scope 1 (misfiling by_scope totals in customer
-  // reports) and, worse, could slip past the Scope 3 paywall, which gates on
-  // the declared label rather than on what the activity actually is. The
-  // catalog knows each category's real scope; make them agree.
-  const catalogCategory = getCategory(category);
-  if (catalogCategory && Number(catalogCategory.scope) !== Number(scope.replace('scope', ''))) {
-    throw new Error(
-      `Category "${entry.category}" is Scope ${catalogCategory.scope}, not ${entry.scope}.`
-    );
   }
 
   // The catalog is kg CO2e per unit; this engine reports tonnes.
@@ -278,16 +273,15 @@ function toDashboardSummary(summary, priorSummary) {
 }
 
 function parseEmissionCsv(csv) {
-  const lines = String(csv || '').trim().split(/\r?\n/).filter(Boolean);
+  const lines = splitCsvRecords(String(csv || '').trim());
   if (lines.length < 2) return [];
-  const headers = splitCsvLine(lines[0]).map(normalizeKey);
+  const headers = lines[0].map(normalizeKey);
   const required = ['scope', 'category', 'source', 'amount', 'unit'];
   for (const key of required) {
     if (!headers.includes(key)) throw new Error(`CSV is missing required column: ${key}`);
   }
 
-  return lines.slice(1).map((line, index) => {
-    const values = splitCsvLine(line);
+  return lines.slice(1).map((values, index) => {
     const row = {};
     headers.forEach((header, i) => { row[header] = values[i] || ''; });
     const amount = Number(row.amount);
@@ -307,7 +301,8 @@ function parseEmissionCsv(csv) {
   });
 }
 
-function splitCsvLine(line) {
+function splitCsvRecords(line) {
+  const records = [];
   const out = [];
   let current = '';
   let quoted = false;
@@ -323,12 +318,20 @@ function splitCsvLine(line) {
     } else if (ch === ',' && !quoted) {
       out.push(current.trim());
       current = '';
+    } else if ((ch === '\n' || ch === '\r') && !quoted) {
+      out.push(current.trim());
+      if (out.some(Boolean)) records.push(out.splice(0));
+      else out.length = 0;
+      current = '';
+      if (ch === '\r' && line[i + 1] === '\n') i++;
     } else {
       current += ch;
     }
   }
+  if (quoted) throw new Error('CSV has an unterminated quoted field.');
   out.push(current.trim());
-  return out;
+  if (out.some(Boolean)) records.push(out);
+  return records;
 }
 
 function getComplianceStatus(company = {}) {
