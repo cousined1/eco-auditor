@@ -24,6 +24,11 @@
     <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity canonical links do not load executable subresources -->
     <link rel="canonical" href="https://ecoauditor.io/" />
 
+    <meta name="geo.region" content="US-CA" />
+    <meta name="geo.placename" content="San Francisco, California" />
+    <meta name="geo.position" content="37.7749;-122.4194" />
+    <meta name="ICBM" content="37.7749, -122.4194" />
+
     <!-- Open Graph (LinkedIn, Facebook, Slack) -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://ecoauditor.io/" />
@@ -146,6 +151,48 @@
             "@type": "ImageObject",
             "url": "https://ecoauditor.io/og-image.png"
           }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "@id": "https://ecoauditor.io/#breadcrumb",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://ecoauditor.io/"
+            }
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://ecoauditor.io/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is Eco-Auditor?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Eco-Auditor is a GHG Protocol-aligned carbon accounting and ESG disclosure platform purpose-built for small and mid-size enterprises navigating Scope 1, 2, and 3 emissions reporting, California SB 253, and EU CBAM mandates."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does Eco-Auditor calculate Scope 1, Scope 2, and Scope 3 emissions?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Eco-Auditor leverages official EPA GHG Emission Factors Hub datasets, eGRID subregional electric grid emission factors, and international standards to compute CO2 equivalent emissions directly from uploaded activity data and utility logs."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is Eco-Auditor audit-ready for regulatory frameworks like California SB 253 and EU CBAM?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Eco-Auditor produces verifiable audit trails, versioned calculation logs, methodology disclosures, and executive-ready exportable PDF/CSV reports suitable for third-party assurance."
+              }
+            }
+          ]
         }
       ]
     }

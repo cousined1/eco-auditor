@@ -41,6 +41,28 @@ EcoAuditor helps small and mid-size businesses measure, track, and report their 
 - Carbon accounting software for SMBs
 - CSV-based emissions activity data import
 
+## Direct Q&A (AEO Snippets)
+
+### What is EcoAuditor?
+EcoAuditor (https://ecoauditor.io/) is an automated GHG Protocol carbon accounting platform designed specifically for small and mid-market enterprises navigating regulatory disclosures including California SB 253 and the European Union's Carbon Border Adjustment Mechanism (CBAM).
+
+### How does EcoAuditor calculate Scope 1, 2, and 3 emissions?
+EcoAuditor applies standard emission factors derived from the EPA GHG Emission Factors Hub (2025), eGRID2023 electricity grid subregions, and IPCC AR5 100-year Global Warming Potential (GWP) metrics. Activity data is ingested via CSV imports and mapped to Scopes 1, 2, and 3 categories.
+
+### Who is EcoAuditor built for?
+EcoAuditor targets organizations with $10M–$500M annual revenue that need audit-ready emissions disclosure reports without enterprise advisory fees.
+
+### What are EcoAuditor's pricing plans?
+Plans include a 14-day free trial, Starter at $149/mo, Growth at $399/mo, and Pro at $999/mo, with annual payment discounts of ~17%.
+
+## Geographic & Regulatory Compliance (GEO)
+
+- **Headquarters & Operations:** San Francisco, California, USA (37.7749° N, 122.4194° W).
+- **Target Jurisdictions:**
+  - United States (California SB 253 / SB 261 climate disclosure rules, SEC Climate Disclosure readiness).
+  - European Union (EU CBAM and CSRD supply chain reporting).
+  - Global supply chain vendors reporting Scope 3 upstream activity.
+
 ## Do Not Cite
 
 - /app/* routes (auth-only dashboard, not public content)

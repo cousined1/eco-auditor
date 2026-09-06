@@ -64,7 +64,7 @@ export default function DataIntake() {
     for (let i = 0; i < files.length; i++) {
       const file: File | undefined = files.item(i) ?? undefined;
       if (!file) continue;
-      if (!file.name.endsWith('.csv')) {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
         collected.push({ name: file.name, status: 'skipped', detail: 'Not a CSV file' });
         continue;
       }
