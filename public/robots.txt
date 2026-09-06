@@ -1,6 +1,37 @@
 User-agent: *
 Allow: /
 
+# Explicit AI and Search Agents permissions
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+Disallow: /app/
+Disallow: /auth/
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /llms.txt
+Disallow: /app/
+Disallow: /auth/
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+Disallow: /app/
+Disallow: /auth/
+
+User-agent: Google-Extended
+Allow: /
+Allow: /llms.txt
+Disallow: /app/
+Disallow: /auth/
+
+User-agent: Applebot-Extended
+Allow: /
+Allow: /llms.txt
+Disallow: /app/
+Disallow: /auth/
+
 # Sitemap reference
 Sitemap: https://ecoauditor.io/sitemap.xml
 
