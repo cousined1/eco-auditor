@@ -142,10 +142,12 @@ export default function PrivacyPolicy() {
         </LegalSection>
 
         <LegalSection id="data-retention" title="9. Data Retention" onScroll={setActiveSection}>
-          <p>We retain your information for as long as your account is active or as needed to provide our services. After account termination:</p>
+          <p>We retain your information for as long as your account is active or as needed to provide our services. Data retention and deletion work as follows:</p>
           <ul>
-            <li>Account and billing data is retained for up to 90 days to allow reactivation and export</li>
-            <li>Emissions records, reports, and audit trails are retained for the period specified in your subscription agreement, after which they are securely deleted unless you request earlier deletion</li>
+            <li><strong>Export:</strong> You can export your workspace data at any time from Settings as a machine-readable JSON download</li>
+            <li><strong>Audit data:</strong> You can delete your emissions entries and facilities at any time from Settings (“Delete my audit data”); deletion takes effect immediately</li>
+            <li><strong>Account record:</strong> Your account record is retained while your subscription is active and until you request full account deletion via support</li>
+            <li><strong>Account deletion:</strong> Full account deletion requests submitted via support are processed within 30 days, subject to retention required by applicable law</li>
             <li>We may retain anonymized, aggregated usage data indefinitely for service improvement</li>
             <li>Some data may be retained longer where required by law or for legitimate business purposes such as fraud prevention</li>
           </ul>
@@ -174,8 +176,8 @@ export default function PrivacyPolicy() {
           <ul>
             <li><strong>Access:</strong> Request a copy of the personal data we hold about you</li>
             <li><strong>Correction:</strong> Request correction of inaccurate or incomplete personal data</li>
-            <li><strong>Deletion:</strong> Request deletion of your personal data, subject to lawful retention requirements</li>
-            <li><strong>Portability:</strong> Request transfer of your data in a structured, commonly used format</li>
+            <li><strong>Deletion:</strong> Delete your audit data (emissions entries and facilities) yourself from Settings at any time; request full account deletion via support, and we will process it within 30 days, subject to lawful retention requirements</li>
+            <li><strong>Portability:</strong> Export your data yourself as a machine-readable JSON download from Settings at any time</li>
             <li><strong>Restriction:</strong> Request restriction of processing in certain circumstances</li>
             <li><strong>Objection:</strong> Object to processing based on legitimate interests or for direct marketing</li>
             <li><strong>Withdrawal of consent:</strong> Withdraw consent you have previously provided, without affecting the lawfulness of processing based on consent before its withdrawal</li>

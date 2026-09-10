@@ -8,7 +8,6 @@ describe('trustFacts (P0-06)', () => {
       'preferredTransport',
       'encryptionAtRest',
       'accountDeletionRequestWindowDays',
-      'postTerminationRetentionDays',
       'contentUsedForModelTraining',
       'soc2Status',
       'cloudHosting',
@@ -44,6 +43,6 @@ describe('trustFacts (P0-06)', () => {
     expect(renderFact(trustFacts.cloudHosting)).toBe('(verify before publication)');
     expect(renderFact(trustFacts.encryptionAtRest)).toBe('AES-256');
     expect(renderFact(trustFacts.soc2Status)).toBe('in progress (Q3 2026)');
-    expect(renderFact(trustFacts.postTerminationRetentionDays)).toBe('90');
+    expect(renderFact(trustFacts.accountDeletionRequestWindowDays)).toBe('30');
   });
 });

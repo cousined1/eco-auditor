@@ -105,6 +105,25 @@ export function calculateEmissions(
   return amount * factor;
 }
 
+/**
+ * Provenance counts over the whole catalog (REL-001). Sources flagged
+ * verified:false are industry-typical values pending citation verification;
+ * everything else — including sources with no explicit flag — is
+ * citation-tracked. Lets methodology copy state real counts instead of
+ * claiming every factor is verified.
+ */
+export function factorProvenanceSummary(): { total: number; provisional: number } {
+  let total = 0;
+  let provisional = 0;
+  for (const category of CATEGORIES) {
+    for (const source of category.sources) {
+      total += 1;
+      if (source.verified === false) provisional += 1;
+    }
+  }
+  return { total, provisional };
+}
+
 /** Display label for a stored category value; falls back to the raw string. */
 export function labelForCategory(categoryKey: string): string {
   return getCategory(categoryKey)?.label ?? categoryKey;

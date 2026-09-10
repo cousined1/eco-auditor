@@ -9,7 +9,6 @@ export const trustFacts = {
   preferredTransport: { value: 'TLS 1.3', verified: true } as TrustFact<string>,
   encryptionAtRest: { value: 'AES-256', verified: true } as TrustFact<string>,
   accountDeletionRequestWindowDays: { value: 30, verified: true } as TrustFact<number>,
-  postTerminationRetentionDays: { value: 90, verified: true } as TrustFact<number>,
   contentUsedForModelTraining: { value: false, verified: true } as TrustFact<boolean>,
   soc2Status: { value: 'in progress (Q3 2026)', verified: true } as TrustFact<string>,
   // ponytail: 'VERIFY' sentinel — do not assert a hosting provider; code says AWS, DPA says generic; resolve before launch.

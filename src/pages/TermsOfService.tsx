@@ -124,7 +124,7 @@ export default function TermsOfService() {
             <li><strong>Cancellation:</strong> You may cancel your subscription at any time through your account settings or by contacting us. Cancellation prevents future charges but does not result in a refund for the current billing period</li>
             <li><strong>Suspension:</strong> We may suspend access to the Service for overdue payments, Terms violations, or suspected fraudulent activity</li>
             <li><strong>Termination:</strong> We may terminate your account for material breach of these Terms with notice. Upon termination, your right to access the Service ceases immediately</li>
-            <li><strong>Data after termination:</strong> Your data will be retained for 90 days after termination to allow for export. After that period, data is securely deleted unless otherwise required by law</li>
+            <li><strong>Data after termination:</strong> You can export your data at any time from Settings as a machine-readable JSON download. You can delete your audit data (emissions entries and facilities) at any time from Settings, and deletion takes effect immediately. Your account record is retained while your subscription is active; full account deletion is available via support, and such requests are processed within 30 days unless otherwise required by law</li>
           </ul>
         </Sec>
 

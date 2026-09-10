@@ -131,7 +131,10 @@ const CHAT_STEPS = new Set(['name', 'email', 'company', 'date', 'time', 'message
 
 // Postgres error codes that indicate an infrastructure outage rather than bad
 // client input (connection failures, auth to the DB, resource exhaustion).
-// Anything else with a `code` is a driver-level fault, also treated as infra.
+// The set documents the common connection-family codes; it is deliberately
+// non-exhaustive. ANY error carrying a driver-level `code` — listed or not —
+// is treated as infra by classifyApiFailure (REL-018), so unlisted SQLSTATEs
+// like 42501/42703 get the same generic 503 instead of echoing driver text.
 const PG_INFRA_CODES = new Set([
   'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET', 'EPIPE',
   '53300', // too_many_connections
@@ -152,7 +155,13 @@ function classifyApiFailure(err) {
   if (/data store unavailable/i.test(raw)) {
     return { status: 503, message: 'Data store temporarily unavailable. Please retry.' };
   }
-  if (err && typeof err === 'object' && err.code !== undefined && PG_INFRA_CODES.has(String(err.code))) {
+  if (err && typeof err === 'object' && err.code !== undefined) {
+    // REL-018: any `code`-bearing error is a driver-level fault per the
+    // doc-block above — whether or not its code is listed in PG_INFRA_CODES.
+    // Unlisted SQLSTATEs (42501 insufficient_privilege, 42703 undefined_column,
+    // 23505 unique_violation, …) used to fall through to the 400 branch and
+    // echo raw driver text, leaking SQL/schema details and mislabeling an
+    // outage as bad input. Same generic 503 as the listed codes.
     return { status: 503, message: 'Data store temporarily unavailable. Please retry.' };
   }
   return { status: 400, message: raw };

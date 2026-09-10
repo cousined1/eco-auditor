@@ -14,10 +14,15 @@
 # live in the InsForge dashboard; never commit a private key.
 
 [auth]
+# localhost entries are dev-only (vite dev server + local prod preview);
+# www.ecoauditor.io is listed because the apex->www Cloudflare redirect is not
+# always in place and OAuth callbacks on the www host previously failed
+# (canonical-host gap).
 allowed_redirect_urls = [
   "http://localhost:3000/auth/callback",
   "http://localhost:5173/auth/callback",
   "https://ecoauditor.io/auth/callback",
+  "https://www.ecoauditor.io/auth/callback",
 ]
 require_email_verification = true
 # Password reset and email verification both use emailed codes, not magic

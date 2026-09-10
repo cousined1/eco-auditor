@@ -16,6 +16,19 @@ function buildReportText(summary, period) {
     'Confidence: ' + summary.confidence_score + '%',
     'Methodology: ' + summary.methodology,
   ];
+  // REL-001: provisional (verified:false) factors do reach customer
+  // inventories, so the report must say so instead of implying every factor is
+  // citation-tracked. Calculated entries carry provenance: { verified: false }
+  // from the engine when the applied catalog factor is provisional.
+  const entries = Array.isArray(summary && summary.entries) ? summary.entries : [];
+  const provisional = entries.filter(function (entry) {
+    return entry && entry.provenance && entry.provenance.verified === false;
+  }).length;
+  if (provisional > 0) {
+    lines.push(
+      provisional + ' of ' + entries.length + ' factors applied are provisional (industry-typical values pending citation verification)'
+    );
+  }
   return lines.join('\n');
 }
 
@@ -101,7 +114,13 @@ function validateFixture(fixture) {
 }
 
 function csvEscape(value) {
-  const s = String(value == null ? '' : value);
+  let s = String(value == null ? '' : value);
+  // API-011: neutralize spreadsheet formula injection — a cell beginning with
+  // =, +, -, @, tab, or CR would execute as a formula/link when opened in a
+  // spreadsheet app. Prefix with a single quote (standard mitigation).
+  if (/^[=+@\t\r-]/.test(s)) {
+    s = "'" + s;
+  }
   if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
     return '"' + s.replace(/"/g, '""') + '"';
   }
@@ -158,4 +177,5 @@ module.exports = {
   createSimplePdf,
   validateFixture,
   generateSampleReportFiles,
+  toCsv,
 };

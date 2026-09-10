@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('node:zlib');
+const { AsyncLocalStorage } = require('node:async_hooks');
 const {
   calculateEntry,
   summarizeEntries,
@@ -41,6 +42,12 @@ const {
 } = require('./src/lib/reports/report-generator.cjs');
 const { createPublishHandler, sanitizeBlogHtml } = require('./server-publish.cjs');
 
+// Per-request context for structured logging (INFRA-007): the request-ID
+// middleware below runs every handler inside this store, so log() can attach
+// the current request id without each call site threading it through. stdlib
+// only — no new dependency.
+const requestIdStore = new AsyncLocalStorage();
+
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
 // ─── Public base URL ───
@@ -59,7 +66,13 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 if (STRIPE_SECRET_KEY) {
   try {
     const Stripe = require('stripe');
-    stripe = new Stripe(STRIPE_SECRET_KEY);
+    // INFRA-005: bound external calls — 10s timeout per request, up to 2 network
+    // retries with exponential backoff (stripe-node built-ins). Prevents
+    // unbounded hangs on Stripe API slowness and rides out transient blips.
+    stripe = new Stripe(STRIPE_SECRET_KEY, {
+      timeout: 10_000,
+      maxNetworkRetries: 2,
+    });
   } catch (err) {
     // stripe package not installed — billing routes will return 503
   }
@@ -298,6 +311,24 @@ const ingestJobs = new Map();
 const generatedReports = new Map();
 const emissionsSummaryCache = new Map();
 
+// Ingest job results are per-instance memory (see countCsvImportsThisMonth);
+// an entry older than this TTL can no longer be meaningfully fetched, so the
+// insert path and the shared prune interval both drop it (PERF-003 — the map
+// used to grow without bound for the life of the process).
+const INGEST_JOB_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Records an ingest result, pruning entries past the TTL on insert so the map
+// stays bounded even between prune sweeps.
+function recordIngestJob(job) {
+  const now = Date.now();
+  for (const [id, existing] of ingestJobs) {
+    if (existing.created_at && now - Date.parse(existing.created_at) > INGEST_JOB_TTL_MS) {
+      ingestJobs.delete(id);
+    }
+  }
+  ingestJobs.set(job.id, job);
+}
+
 // nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage app APIs use bearer Authorization headers, not ambient cookie auth.
 const app = express();
 const PORT = process.env.PORT;
@@ -329,6 +360,18 @@ if (canUseDevAuth(process.env)) {
 const RAILWAY_PRIVATE_HOP = /^(?:::ffff:)?100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./;
 app.set('trust proxy', function (addr, hop) {
   return hop === 0 || RAILWAY_PRIVATE_HOP.test(String(addr));
+});
+
+// ─── Request IDs (INFRA-007/INFRA-001 minimal) ───
+// Every request gets a correlation id, echoed as X-Request-Id and attached to
+// the structured log lines emitted while that request is in flight (log()
+// reads requestIdStore, so handlers don't have to thread the id through every
+// call). Support tickets and Railway log streams can then join one request's
+// interleaved JSON lines instead of timestamp-juggling.
+app.use(function (req, res, next) {
+  req.requestId = crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.requestId);
+  requestIdStore.run(req.requestId, function () { next(); });
 });
 
 // ─── Response compression ───
@@ -428,10 +471,36 @@ function resolveClientIp(req) {
   if (socketAddr && !INTERNAL_PEER_PATTERN.test(socketAddr)) {
     return socketAddr;
   }
+  // The socket peer is INTERNAL (loopback, private, or Railway's 100.64.0.0/10
+  // edge hop), so this request arrived through a proxy hop: fall back to the
+  // genuine client address Cloudflare appended (PERF-001 — per-colo keys were
+  // collapsing every visitor behind a colo into one bucket).
+  //
+  // Spoofing residual, and why honoring the header here is safe: this branch
+  // is reachable only when the immediate TCP peer is internal. A caller that
+  // bypasses Cloudflare and hits the origin directly arrives with a PUBLIC
+  // socket peer, takes the early return above, and never reaches this branch —
+  // so an external attacker cannot forge cf-connecting-ip for a direct hit.
+  // Forging it requires sitting on the internal proxy hop itself (e.g. the
+  // Railway edge network), which is not externally reachable. Behind CF the
+  // header is authoritative and set by Cloudflare, not the client.
+  const cfConnectingIp = req.headers && req.headers['cf-connecting-ip'];
+  if (typeof cfConnectingIp === 'string' && cfConnectingIp) {
+    // Node joins repeated header values with ', '; the CF-appended value is
+    // the first one, so take that token defensively.
+    return cfConnectingIp.split(',')[0].trim();
+  }
   return req.ip || socketAddr || 'unknown';
 }
 
 app.use(function (req, res, next) {
+  // Only meter the API surface (PERF-001). Static assets and prerendered HTML
+  // are served by express.static below and used to drain the same per-IP
+  // bucket, so a single marketing page load (10+ asset requests) could burn a
+  // visitor's whole budget and 429 their next genuine API call. The catch-all
+  // JSON 404 for unknown /api routes is still metered via the prefix.
+  if (!req.path.startsWith('/api/')) return next();
+
   // Stripe delivers every webhook for the account from a small pool of egress
   // IPs, so a burst (>120/min during a billing run or a retry backlog) would
   // trip this shared per-IP limiter and 429 signed, already-authenticated
@@ -440,8 +509,9 @@ app.use(function (req, res, next) {
   // own retries, so exempt it.
   if (req.path === '/api/webhook') return next();
 
-  // Key on resolveClientIp(req), which honors `trust proxy` only when behind an
-  // internal proxy hop and falls back to socket remoteAddress on direct connections.
+  // Key on resolveClientIp(req): the real client behind Cloudflare
+  // (cf-connecting-ip over the internal proxy hop), the socket address on
+  // direct connections, and never a client-supplied header on direct hits.
   const key = resolveClientIp(req);
   const now = Date.now();
   const entry = rateLimitStore.get(key);
@@ -466,6 +536,13 @@ setInterval(function () {
   for (const [key, entry] of rateLimitStore) {
     if (now - entry.windowStart > rateLimitWindowMs * 2) {
       rateLimitStore.delete(key);
+    }
+  }
+  // Same prune pattern for ingest job results (PERF-003): drop anything past
+  // the TTL even if no new import triggers the insert-path sweep.
+  for (const [id, job] of ingestJobs) {
+    if (job.created_at && now - Date.parse(job.created_at) > INGEST_JOB_TTL_MS) {
+      ingestJobs.delete(id);
     }
   }
 }, 120_000);
@@ -665,11 +742,29 @@ app.post(
   }),
 );
 
-app.get('/ready', function (_req, res) {
+// Readiness gates on the data store, not on a marketing video (INFRA-003/
+// INFRA-008): a deployment whose DB is unreachable must not be marked ready,
+// while a missing intro video is cosmetic and stays in the payload as
+// information only. 200/503 semantics mirror /health: not configured (no
+// DATABASE_URL) counts as ready, configured-but-unreachable is degraded 503.
+app.get('/ready', async function (_req, res) {
   const videoPath = findVideoPath();
-  res.json({
-    status: videoPath ? 'ok' : 'degraded',
+  // Hard 2s ceiling on the probe so a slow pool cannot stall the readiness
+  // check itself; the pool's own query_timeout is 3s.
+  const dbProbe = await Promise.race([
+    probeDatabase(),
+    new Promise(function (resolve) {
+      const timer = setTimeout(function () {
+        resolve({ ok: false, configured: Boolean(pgPool) });
+      }, 2000);
+      timer.unref();
+    }),
+  ]);
+  const ready = dbProbe.ok || !dbProbe.configured;
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'degraded',
     video: videoPath ? 'available' : 'not-found',
+    db: dbProbe.ok ? 'ok' : dbProbe.configured ? 'unreachable' : 'not configured',
     timestamp: new Date().toISOString(),
   });
 });
@@ -715,6 +810,140 @@ app.get('/api/billing', authGuard, async function (req, res) {
   } catch (err) {
     log('error', 'Billing state check failed', { error: String(err), userId: req.user.id });
     return res.status(500).json({ error: 'Failed to load billing state' });
+  }
+});
+
+// ─── Account data controls (DATA-005) ───
+// Self-serve GDPR Art. 20/17 surface promised by the Security page, Privacy
+// Policy, ToS and DPA: a machine-readable JSON export of the caller's own
+// workspace, and deletion of the workspace's audit data. Both are
+// authenticated and tenant-scoped through the same requireCompanyAccess
+// resolution the other protected routes use — the company id is resolved
+// server-side from the auth user, never from client input. They are
+// deliberately NOT plan-gated: portability and erasure are account-holder
+// rights, so they stay available to expired or canceled accounts.
+
+// Export cap: entries are bounded by plan quotas in practice, but a very large
+// workspace must not build an unbounded response body. Keep the newest rows
+// and say so in the payload.
+const EXPORT_MAX_ENTRIES = 10_000;
+
+// The company row for the export payload. Selects only the columns the
+// account holder already knows — no user_id, no billing columns.
+async function loadCompanyExportRow(companyId) {
+  if (pgPool) {
+    const { rows } = await pgPool.query(
+      'SELECT id, name, industry, created_at, updated_at, trial_ends_at FROM public.companies WHERE id = $1',
+      [companyId]
+    );
+    return rows[0] || null;
+  }
+  return sampleCompanies[companyId] || null;
+}
+
+app.get('/api/account/export', apiAuthGuard, async function (req, res) {
+  try {
+    const companyId = await requireCompanyAccess(req, res, null);
+    if (!companyId) return;
+    const company = await loadCompanyExportRow(companyId);
+    const facilities = await loadFacilities(companyId);
+    let entries = await loadEmissionEntries(companyId);
+    const notes = [];
+    if (entries.length > EXPORT_MAX_ENTRIES) {
+      // loadEmissionEntries returns rows created_at ASC; keep the newest.
+      entries = entries.slice(entries.length - EXPORT_MAX_ENTRIES);
+      notes.push('Export capped at the ' + EXPORT_MAX_ENTRIES + ' most recent emission entries.');
+    }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      company: company,
+      facilities: facilities,
+      emissionEntries: entries,
+    };
+    if (notes.length) payload.notes = notes;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="ecoauditor-export-' + companyId + '.json"');
+    return res.send(JSON.stringify(payload, null, 2));
+  } catch (err) {
+    // loadEmissionEntries/loadFacilities throw "… data store unavailable" in
+    // production when the DB is down; classifyApiFailure keeps that a generic
+    // 503 instead of echoing driver text.
+    const failure = classifyApiFailure(err);
+    if (failure.status >= 500) {
+      log('error', 'Account data export failed', { error: String(err.message || err), userId: req.user && req.user.id });
+    }
+    return res.status(failure.status).json({ success: false, error: failure.message });
+  }
+});
+
+app.post('/api/account/delete-data', express.json(), apiAuthGuard, async function (req, res) {
+  const companyId = await requireCompanyAccess(req, res, null);
+  if (!companyId) return;
+
+  // Deliberately does NOT delete the auth user or the company row itself: the
+  // company row carries the audit trail (csv_import_events, reports, sign-offs)
+  // and the Stripe billing linkage, and removing it mid-session would log the
+  // user out and orphan the subscription mapping. This endpoint is the
+  // self-serve "erase my emissions data" control shown in Settings; full
+  // account deletion remains a support-mediated request (30-day window — see
+  // the Security/Privacy pages).
+  if (!pgPool) {
+    if (allowSampleData()) {
+      // Dev / no-DB mode: drop the sample rows for the resolved company so the
+      // in-memory fixtures reflect the deletion.
+      let deletedEntries = 0;
+      let deletedFacilities = 0;
+      for (let i = sampleEmissionEntries.length - 1; i >= 0; i--) {
+        if (String(sampleEmissionEntries[i].company_id) === String(companyId)) {
+          sampleEmissionEntries.splice(i, 1);
+          deletedEntries++;
+        }
+      }
+      for (let i = sampleFacilities.length - 1; i >= 0; i--) {
+        if (String(sampleFacilities[i].company_id) === String(companyId)) {
+          sampleFacilities.splice(i, 1);
+          deletedFacilities++;
+        }
+      }
+      emissionsSummaryCache.clear();
+      return res.json({ deleted: true, deletedEntries: deletedEntries, deletedFacilities: deletedFacilities });
+    }
+    return res.status(503).json({ success: false, error: 'Data store unavailable' });
+  }
+
+  // One transaction, parameterized SQL, row_security = off — same shape as the
+  // other server-owned writes (reserveCsvImportQuota / ensureCompanyForUser).
+  // Entries are deleted before facilities so the ON DELETE SET NULL FK from
+  // emission_entries.facility_id never fires needlessly.
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL row_security = off');
+    const entriesResult = await client.query('DELETE FROM public.emission_entries WHERE company_id = $1', [companyId]);
+    const facilitiesResult = await client.query('DELETE FROM public.facilities WHERE company_id = $1', [companyId]);
+    await client.query('COMMIT');
+    // Cached dashboard summaries for this tenant are now stale.
+    emissionsSummaryCache.clear();
+    log('info', 'Account audit data deleted', {
+      companyId: companyId,
+      deletedEntries: entriesResult.rowCount,
+      deletedFacilities: facilitiesResult.rowCount,
+    });
+    return res.json({
+      deleted: true,
+      deletedEntries: entriesResult.rowCount,
+      deletedFacilities: facilitiesResult.rowCount,
+    });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      log('error', 'Delete-data rollback failed', { error: String(rollbackErr), companyId: companyId });
+    }
+    log('error', 'Account data deletion failed', { error: String(err), companyId: companyId });
+    return res.status(500).json({ success: false, error: 'Failed to delete audit data' });
+  } finally {
+    client.release();
   }
 });
 
@@ -1705,8 +1934,12 @@ async function getBotResponse(message, state = {}) {
         };
       }
 
-      // Generate PrismDeck presentation link
-      const prismDeckUrl = `https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor&company=${encodeURIComponent(state.company)}&email=${encodeURIComponent(state.email)}`;
+      // Generate PrismDeck presentation link. Only the non-identifying
+      // product marker is sent: embedding the lead's company/email in the
+      // query string handed personal data to a third-party host that is not a
+      // disclosed subprocessor in the Privacy Policy or DPA (DATA-006). The
+      // deck itself is generic; the lead stays in EcoAuditor's own leads store.
+      const prismDeckUrl = 'https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor';
       
       return {
         response: `🎉 Demo booked!\n\nOur team will reach out to ${state.email} within 24 hours to confirm your demo for ${state.date} (${message}).\n\n📊 Meanwhile, I've prepared a personalized presentation for ${state.company}:\n🔗 [View Your EcoAuditor Deck](${prismDeckUrl})\n\nIn the meantime, check out our [Pricing](/pricing) or ask me anything else!`,
@@ -2041,6 +2274,11 @@ function getCompany(companyId) {
   return sampleCompanies[companyId] || { id: companyId, name: 'Company', revenue: 0, employees: 0, region: 'CA' };
 }
 
+// Size cap for the summary cache (PERF-010): entries are small dashboard
+// summaries, but without a cap the map grew with (company, period)
+// cardinality for the life of the process.
+const EMISSIONS_SUMMARY_CACHE_MAX = 500;
+
 function cacheGet(key) {
   const hit = emissionsSummaryCache.get(key);
   if (!hit || Date.now() > hit.expiresAt) {
@@ -2052,6 +2290,12 @@ function cacheGet(key) {
 
 function cacheSet(key, value, ttlMs) {
   emissionsSummaryCache.set(key, { value: value, expiresAt: Date.now() + ttlMs });
+  // Oldest-insert eviction: Map preserves insertion order, so dropping from
+  // the front evicts the least-recently-inserted keys once the cap is hit.
+  while (emissionsSummaryCache.size > EMISSIONS_SUMMARY_CACHE_MAX) {
+    const oldestKey = emissionsSummaryCache.keys().next().value;
+    emissionsSummaryCache.delete(oldestKey);
+  }
 }
 
 app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
@@ -2098,10 +2342,21 @@ app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'),
   }
 });
 
+// /api/emissions/summary takes only a 4-digit year for `period` — that is
+// what loadEmissionEntries compares against EXTRACT(YEAR ...) and what the
+// dashboard sends (it omits the param entirely). Validating BEFORE the value
+// becomes a cache key stops arbitrary strings from minting unbounded cache
+// entries (PERF-003/PERF-010); a non-year period would have returned empty
+// data anyway.
+const SUMMARY_PERIOD_PATTERN = /^\d{4}$/;
+
 app.get('/api/emissions/summary', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.query.company_id);
   if (!companyId) return;
-  const period = req.query.period || String(new Date().getFullYear());
+  const period = req.query.period ? String(req.query.period) : String(new Date().getFullYear());
+  if (!SUMMARY_PERIOD_PATTERN.test(period)) {
+    return res.status(400).json({ success: false, error: 'period must be a 4-digit year, e.g. 2026' });
+  }
 
   try {
     const cacheKey = `summary:${companyId}:${period}`;
@@ -2316,8 +2571,11 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       errors: importErrors,
       warnings: importWarnings,
       company_id: companyId,
+      // Timestamps the entry for TTL pruning (PERF-003); also useful in the
+      // /api/ingest/status payload. Additive field.
+      created_at: new Date().toISOString(),
     };
-    ingestJobs.set(jobId, ingestResult);
+    recordIngestJob(ingestResult);
 
     return res.json({
       success: true,
@@ -2373,15 +2631,37 @@ app.get('/api/companies/:id/facilities', apiAuthGuard, requirePlan('starter'), a
   }
 });
 
+// Canonical facility types — the set the sample fixtures and the app's
+// facility concepts use. A short enum keeps junk (and unbounded strings) out
+// of the column, which had no CHECK constraint and no server-side validation
+// (API-003).
+const FACILITY_TYPES = new Set(['office', 'factory', 'warehouse']);
+
+// Shared bounds for persisted facility strings, mirroring the
+// facilities.name cap in initial-schema.sql (char_length BETWEEN 1 AND 200).
+const FACILITY_FIELD_MAX = 200;
+
 app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
   const body = req.body || {};
-  if (!body.name || !body.type || !body.city) {
+  // API-003: name/type/city must be non-empty bounded strings. Previously type
+  // and city were only presence-checked, so non-strings were coerced
+  // (String({}) → "[object Object]") and 100KB values were persisted. `type`
+  // is additionally an enum.
+  if (typeof body.name !== 'string' || !body.name.trim() ||
+      typeof body.type !== 'string' || !body.type.trim() ||
+      typeof body.city !== 'string' || !body.city.trim()) {
     return res.status(400).json({ success: false, error: 'name, type, and city are required' });
   }
-  if (String(body.name).length > 200) {
-    return res.status(400).json({ success: false, error: 'name must be 200 characters or fewer' });
+  const facilityName = body.name.trim();
+  const facilityCity = body.city.trim();
+  const facilityType = body.type.trim().toLowerCase();
+  if (facilityName.length > FACILITY_FIELD_MAX || facilityCity.length > FACILITY_FIELD_MAX) {
+    return res.status(400).json({ success: false, error: 'name and city must be 200 characters or fewer' });
+  }
+  if (!FACILITY_TYPES.has(facilityType)) {
+    return res.status(400).json({ success: false, error: 'type must be one of: office, factory, warehouse' });
   }
 
   try {
@@ -2405,13 +2685,13 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
       const result = await queryWithRlsBypass(
         `INSERT INTO public.facilities (company_id, name, type, city)
          VALUES ($1, $2, $3, $4) RETURNING id, company_id, name, type, city`,
-        [companyId, String(body.name), String(body.type), String(body.city)]
+        [companyId, facilityName, facilityType, facilityCity]
       );
       emissionsSummaryCache.clear();
       return res.status(201).json({ success: true, data: result.rows[0] });
     }
     if (allowSampleData()) {
-      const facility = { id: crypto.randomUUID(), company_id: companyId, name: body.name, type: body.type, city: body.city };
+      const facility = { id: crypto.randomUUID(), company_id: companyId, name: facilityName, type: facilityType, city: facilityCity };
       sampleFacilities.push(facility);
       return res.status(201).json({ success: true, data: facility });
     }
@@ -2739,7 +3019,9 @@ function log(level, message, context) {
     level: level,
     timestamp: new Date().toISOString(),
     message: message,
-    requestId: context && context.requestId || undefined,
+    // Explicit context wins; otherwise take the id of whichever request (if
+    // any) this call is running inside (INFRA-007).
+    requestId: context && context.requestId || requestIdStore.getStore() || undefined,
   };
   if (context) {
     Object.keys(context).forEach(function (k) {

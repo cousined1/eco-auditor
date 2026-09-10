@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   buildSecurityHeaders,
   canUseDevAuth,
+  classifyApiFailure,
   getAuthorizedCompanyIds,
   resolveAuthorizedCompanyId,
   sanitizeChatState,
@@ -98,5 +99,34 @@ describe('server security policy', () => {
     });
     expect(sanitizeChatState({ flow: 'admin', step: 'complete' })).toEqual({});
     expect(sanitizeChatState('not-an-object')).toEqual({});
+  });
+});
+
+// REL-018: the classifier's doc-block says anything carrying a driver-level
+// `code` is infrastructure. Unlisted SQLSTATEs used to fall through to the 400
+// branch and echo the raw driver message (e.g. "permission denied for table
+// csv_import_events"), leaking SQL/schema detail and mislabeling an outage as
+// bad input.
+describe('classifyApiFailure (REL-018)', () => {
+  it('treats an unlisted SQLSTATE as infra: generic 503, no driver text', () => {
+    const err = Object.assign(new Error('permission denied for table csv_import_events'), { code: '42501' });
+    const failure = classifyApiFailure(err);
+    expect(failure.status).toBe(503);
+    expect(failure.message).toMatch(/temporarily unavailable/i);
+    expect(failure.message).not.toContain('permission denied');
+    expect(failure.message).not.toContain('csv_import_events');
+  });
+
+  it('keeps the listed connection codes on the same generic 503', () => {
+    const err = Object.assign(new Error('connect ECONNREFUSED 10.0.0.1:5432'), { code: 'ECONNREFUSED' });
+    const failure = classifyApiFailure(err);
+    expect(failure.status).toBe(503);
+    expect(failure.message).toBe('Data store temporarily unavailable. Please retry.');
+  });
+
+  it('still returns engine validation errors as 400s with their message', () => {
+    const failure = classifyApiFailure(new Error('Row 3: Unknown category "foo"'));
+    expect(failure.status).toBe(400);
+    expect(failure.message).toContain('Row 3');
   });
 });

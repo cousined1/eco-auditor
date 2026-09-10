@@ -257,3 +257,76 @@ describe('H5: buildTrend covers 12 months and filters by year', () => {
     expect(quarterly[3].scope1).toBeGreaterThan(0); // Q4 contains Oct
   });
 });
+
+// REL-002: Number(null), Number(''), and Number('   ') are all 0, so a
+// missing/blank amount used to silently compute a 0 tCO2e row. It must be a
+// row-level error; an explicit 0 stays valid.
+describe('REL-002: null/blank amount is a row error, not a silent zero', () => {
+  const row = (amount: unknown) => ({
+    scope: '1',
+    category: 'stationary_combustion',
+    source: 'natural_gas',
+    amount,
+    unit: 'therms',
+  });
+
+  it.each([null, undefined, '', '   '])('rejects amount %j instead of computing 0 tCO2e', (amount) => {
+    expect(() => calculateEntry(row(amount))).toThrow(/Amount is required/);
+  });
+
+  it('keeps an explicit 0 as valid data', () => {
+    const result = calculateEntry(row(0));
+    expect(result.co2e_tonnes).toBe(0);
+  });
+
+  it('keeps negative-amount handling unchanged', () => {
+    expect(() => calculateEntry(row(-5))).toThrow(/non-negative/);
+  });
+
+  it('rejects a blank CSV amount cell instead of importing 0', () => {
+    expect(() =>
+      parseEmissionCsv('scope,category,source,amount,unit\n1,stationary_combustion,natural_gas,,therms\n'),
+    ).toThrow(/CSV row 2 has an invalid amount/);
+  });
+
+  it('surfaces the rejected row through summarizeEntries fault isolation', () => {
+    const summary = summarizeEntries([
+      row(''),
+      { scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 1000, unit: 'therms' },
+    ]);
+    expect(summary.entries).toHaveLength(1);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0].error).toMatch(/Amount is required/);
+  });
+});
+
+// REL-001: factors self-flagged verified:false must not reach inventories
+// looking identical to citation-tracked ones — the computed row carries
+// provenance so reports can disclose them.
+describe('REL-001: provisional factor provenance on computed rows', () => {
+  it('flags rows priced with a verified:false catalog factor', () => {
+    // fuel_oil_4 is one of the 38 sources self-flagged verified:false in
+    // emission-factors.json.
+    const result = calculateEntry({ scope: '1', category: 'stationary_combustion', source: 'fuel_oil_4', amount: 100, unit: 'gallons' });
+    expect(result.provenance).toEqual({ verified: false });
+    expect(result.co2e_tonnes).toBeCloseTo(1.069, 6);
+  });
+
+  it('flags a Scope 3 vendor row priced by the spend-based fallback', () => {
+    const result = calculateEntry({ scope: '3', category: 'purchased_goods', source: 'acme_supplies_inc', amount: 1000, unit: 'USD' });
+    expect(result.provenance).toEqual({ verified: false });
+    expect(result.co2e_tonnes).toBeCloseTo(0.25, 6);
+  });
+
+  it('leaves citation-tracked rows unflagged', () => {
+    const result = calculateEntry({ scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 1000, unit: 'therms' });
+    expect(result.provenance).toBeUndefined();
+    expect(result.co2e_tonnes).toBeCloseTo(5.306, 3);
+  });
+
+  it('leaves pre-calculated kg CO2e passthrough rows unflagged', () => {
+    const result = calculateEntry({ scope: '2', category: 'purchased_electricity', source: 'Grid Electricity', amount: 417, unit: 'kg CO2e' });
+    expect(result.provenance).toBeUndefined();
+    expect(result.co2e_tonnes).toBeCloseTo(0.417, 6);
+  });
+});

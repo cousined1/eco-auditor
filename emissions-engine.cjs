@@ -84,7 +84,7 @@ function factorForEntry(entry) {
         if (!known) throw new Error(`Unsupported mobile combustion source: ${entry.source}`);
         throw new Error(`Unsupported mobile combustion unit: ${entry.source} ${entry.unit}`);
       }
-      return { factor: toTonnes(kgPerUnit), category: 'mobile_combustion' };
+      return { factor: toTonnes(kgPerUnit), category: 'mobile_combustion', verified: known.verified };
     }
     if (kgPerUnit == null) {
       throw new Error(`Unsupported Scope 1 source/unit: ${entry.source} ${entry.unit}`);
@@ -92,7 +92,7 @@ function factorForEntry(entry) {
     // Process and fugitive rows used to be rejected on import even though the
     // in-app form accepted them; they resolve now, so keep their own category
     // rather than flattening everything to stationary_combustion.
-    return { factor: toTonnes(kgPerUnit), category: category || 'stationary_combustion' };
+    return { factor: toTonnes(kgPerUnit), category: category || 'stationary_combustion', verified: known.verified };
   }
 
   if (scope === 'scope2') {
@@ -106,7 +106,7 @@ function factorForEntry(entry) {
       }
       throw new Error(`Unsupported Scope 2 source/unit: ${entry.source} ${entry.unit}`);
     }
-    return { factor: toTonnes(kgPerUnit), category: category || 'purchased_electricity' };
+    return { factor: toTonnes(kgPerUnit), category: category || 'purchased_electricity', verified: known.verified };
   }
 
   if (kgPerUnit == null) {
@@ -114,11 +114,22 @@ function factorForEntry(entry) {
     // one of them used to be priced as if it were dollars; now it fails.
     throw new Error(`Unsupported Scope 3 category/source: ${entry.category}/${entry.source} ${entry.unit}`);
   }
-  return { factor: toTonnes(kgPerUnit), category };
+  return { factor: toTonnes(kgPerUnit), category, verified: known.verified };
 }
 
 function calculateEntry(entry) {
-  const amount = Number(entry.amount);
+  // REL-002: Number(null), Number(''), and Number('   ') are all 0, so a
+  // missing or blank amount used to compute a valid-looking 0 tCO2e row.
+  // Reject the row instead; an explicit 0 stays valid data.
+  const rawAmount = entry.amount;
+  if (
+    rawAmount === null ||
+    rawAmount === undefined ||
+    (typeof rawAmount === 'string' && rawAmount.trim() === '')
+  ) {
+    throw new Error('Amount is required — null, blank, and whitespace-only amounts are rejected.');
+  }
+  const amount = Number(rawAmount);
   if (!Number.isFinite(amount) || amount < 0) {
     throw new Error('Amount must be a non-negative number.');
   }
@@ -128,7 +139,7 @@ function calculateEntry(entry) {
   const co2e = round(amount * factor.factor);
   const category = factor.category;
 
-  return {
+  const result = {
     ...entry,
     scope,
     normalized_category: category,
@@ -141,6 +152,14 @@ function calculateEntry(entry) {
       ? Number(entry.confidence)
       : (CONFIDENCE_BY_CATEGORY[category] || 70),
   };
+  // REL-001: factors self-flagged verified:false are industry-typical values
+  // pending citation verification. Attach provenance so reports and API
+  // consumers can surface them instead of presenting every factor as
+  // citation-tracked. Absent provenance means the applied factor is trusted.
+  if (factor.verified === false) {
+    result.provenance = { verified: false };
+  }
+  return result;
 }
 
 function summarizeEntries(entries, options = {}) {
@@ -284,8 +303,12 @@ function parseEmissionCsv(csv) {
   return lines.slice(1).map((values, index) => {
     const row = {};
     headers.forEach((header, i) => { row[header] = values[i] || ''; });
+    // REL-002: a blank cell made Number('') === 0 pass, importing a silent
+    // zero. Blank and non-numeric amounts both fail the row.
     const amount = Number(row.amount);
-    if (!Number.isFinite(amount)) throw new Error(`CSV row ${index + 2} has an invalid amount.`);
+    if (String(row.amount).trim() === '' || !Number.isFinite(amount)) {
+      throw new Error(`CSV row ${index + 2} has an invalid amount.`);
+    }
     return {
       scope: row.scope,
       category: row.category,
