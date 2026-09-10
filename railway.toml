@@ -23,5 +23,10 @@ value = "${VITE_GTM_ID}"
 
 [deploy]
 startCommand = "node server.cjs"
+# Railway gates the deploy on this path (it does NOT consume the Dockerfile's
+# HEALTHCHECK). /ready reports degraded when the intro video volume is missing
+# but still returns 200, so a healthy app with a missing asset does not block.
+healthcheckPath = "/ready"
+healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10

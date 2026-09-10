@@ -4,7 +4,7 @@
 
 - **Frontend**: React SPA built with Vite, served as static files
 - **Backend**: Express.js minimal server (`server.cjs`) serving static files + video streaming
-- **Database**: InsForge (Backend-as-a-Service) — no managed database in this service
+- **Database**: InsForge (Backend-as-a-Service) — the server also connects to InsForge's Postgres directly via `DATABASE_URL` (`pg` pool) for app data; InsForge additionally provides auth, storage, and email
 - **Payments**: Stripe Checkout, Billing Portal, and Webhooks (backend API routes implemented in `server.cjs`)
 
 ## Deployment Steps
@@ -17,13 +17,20 @@ Set these in Railway's service variables (Dashboard → Variables tab):
 # Required
 PORT=3000                          # Railway injects this; DO NOT hardcode
 NODE_ENV=production                # Production mode
-NIXPACKS_NODE_VERSION=22           # Forces Node 22 for Nixpacks builder
+DATABASE_URL=postgres://...        # InsForge Postgres connection string; boot fails in production without it
 VITE_INSFORGE_BASE_URL=https://your-app.up.railway.app   # InsForge backend URL
 VITE_INSFORGE_ANON_KEY=your-anon-key                       # InsForge anonymous key
 
 # Required for billing (when Stripe is wired)
+APP_URL=https://ecoauditor.io      # Public base URL for Stripe redirects; boot fails without it when STRIPE_SECRET_KEY is set
 STRIPE_SECRET_KEY=sk_live_...      # Stripe secret key
 STRIPE_WEBHOOK_SECRET=whsec_...    # Stripe webhook signing secret
+STRIPE_PRICE_STARTER_MONTHLY=price_...
+STRIPE_PRICE_STARTER_ANNUAL=price_...
+STRIPE_PRICE_GROWTH_MONTHLY=price_...
+STRIPE_PRICE_GROWTH_ANNUAL=price_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_PRO_ANNUAL=price_...  # One price ID per plan x billing interval; missing ones cannot be purchased
 
 # Optional
 VITE_STRIPE_PK=pk_live_...         # Stripe publishable key (build-time)
@@ -45,10 +52,13 @@ The Dockerfile is a multi-stage build that:
 
 ### 3. Health Checks
 
-Railway will automatically use the Dockerfile's HEALTHCHECK:
+Railway does **not** consume the Dockerfile's `HEALTHCHECK` instruction (that only applies to Docker-native runtimes). Railway gates deploys on the `healthcheckPath` configured in `railway.toml`:
 
+- **Deploy gate**: `[deploy] healthcheckPath = "/ready"` with `healthcheckTimeout = 100` — the deployment is marked live only after `/ready` responds within the timeout
 - **Liveness**: `GET /health` → 200 with `{ status: "ok", uptime, version, timestamp }`
-- **Readiness**: `GET /ready` → 200 with `{ status: "ok"|"degraded", video: "available"|"not-found" }`
+- **Readiness**: `GET /ready` → 200 with `{ status: "ok"|"degraded", video: "available"|"not-found" }` (a missing intro video reports `degraded` but still returns 200, so it does not block deploys)
+
+The Dockerfile also carries a `HEALTHCHECK` (15s timeout) for local `docker run` monitoring; Railway ignores it.
 
 ### 4. Graceful Shutdown
 
@@ -72,7 +82,7 @@ railway run cp static/eco-auditor-intro.mp4 /app/videos/
 ### 6. Stripe Webhooks
 
 Configure in Stripe Dashboard:
-- **Endpoint URL**: `https://your-app.up.railway.app/api/stripe/webhook`
+- **Endpoint URL**: `https://your-app.up.railway.app/api/webhook`
 - **Events**: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
 
 ### 7. Custom Domain (Optional)
@@ -111,7 +121,7 @@ This is an infrastructure-only rule; it does not require any application code ch
 
 | Issue | Solution |
 |-------|----------|
-| Build fails with `CustomEvent is not defined` | Ensure `NIXPACKS_NODE_VERSION=22` is set and Dockerfile uses `node:22-alpine` |
+| Build fails with `CustomEvent is not defined` | Ensure the Dockerfile uses `node:22-alpine` (Railway builds the Dockerfile; no Nixpacks is involved) |
 | App crashes on startup | Check `PORT` env var is set; server binds to `0.0.0.0:$PORT` |
 | Video returns 404 | Upload video to `/app/videos/` volume mount or place in `static/` |
 | Stripe not working | Check `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` env vars; verify webhook endpoint URL in Stripe dashboard |

@@ -91,7 +91,8 @@ export default function Security() {
               'Your data is yours. We never share or sell customer data.',
               'Uploaded files are parsed and emission factors applied; you can delete uploads at any time',
               'Payments processed by Stripe — we never store card details',
-              `Account data retained for ${renderFact(trustFacts.postTerminationRetentionDays)} days after termination to allow export, then securely deleted`,
+              'Export your data at any time from Settings — a machine-readable JSON download of your workspace',
+              '“Delete my audit data” in Settings removes emissions entries and facilities immediately; full account deletion is available via support',
             ]}
           />
           <TrustCard
@@ -118,7 +119,7 @@ export default function Security() {
               { q: 'Document upload and processing', a: 'When you import a CSV of activity data, we apply emission factors to each row. You can delete uploaded data at any time.' },
               { q: 'Data sharing and third parties', a: 'We never share, sell, or license your emissions data to third parties. Data you upload is used exclusively to provide the Service — generating emissions estimates, audit trails, and compliance reports. We do not train AI models on customer data. Integrations with QuickBooks, Xero, or other platforms are read-only where possible and require explicit OAuth authorization.' },
               { q: 'Employee and contractor access', a: 'Production access is restricted to authorized engineering and support staff, requires multi-factor authentication, and is logged and audited monthly. Support staff access customer data only to resolve specific, documented support requests with workspace owner consent.' },
-              { q: 'Data deletion on cancellation', a: `When you cancel, you can export your data. Account data is retained for ${renderFact(trustFacts.postTerminationRetentionDays)} days after termination to allow for export, then securely deleted. Contact us to request earlier deletion of active data.` },
+              { q: 'Data export and deletion', a: `You can export your data at any time from Settings as a machine-readable JSON download, and “Delete my audit data” in Settings removes all emissions entries and facilities immediately. Your account record stays until you request full account deletion via support; deletion requests are processed within ${renderFact(trustFacts.accountDeletionRequestWindowDays)} days.` },
             ].map((item) => (
               <details key={item.q} className="group rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50">
                 <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-surface-900 dark:text-white list-none">

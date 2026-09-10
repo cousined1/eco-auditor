@@ -6,6 +6,11 @@ import Header from '../components/Header';
 // from the ad destination. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-9).
 import Footer from '../components/Footer';
 import { factorLabel } from '@/lib/emission-factors/registry';
+// REL-001: counts come from the live factor catalog so this copy cannot drift
+// back into an "every factor is verified" claim when factors change.
+import { factorProvenanceSummary } from '@/lib/emission-factors/factors';
+
+const FACTOR_PROVENANCE = factorProvenanceSummary();
 
 const METHODOLOGY_SCHEMA = {
   "@context": "https://schema.org",
@@ -240,7 +245,12 @@ export default function MethodologyPublic() {
         <div className="max-w-5xl mx-auto px-6 py-16">
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-surface-900 dark:text-white">Emission factor libraries</h2>
-            <p className="mt-3 text-surface-500 max-w-2xl mx-auto">We aggregate and maintain emission factors from authoritative sources, updated annually. Every factor is citation-tracked to its source document.</p>
+            <p className="mt-3 text-surface-500 max-w-2xl mx-auto">
+              We aggregate and maintain emission factors from authoritative sources, updated annually. Core Scope 1/2 factors
+              are citation-tracked to their source documents; the remaining {FACTOR_PROVENANCE.provisional} of{' '}
+              {FACTOR_PROVENANCE.total} factors are provisional — industry-typical values pending verification — and are
+              flagged in generated reports.
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[

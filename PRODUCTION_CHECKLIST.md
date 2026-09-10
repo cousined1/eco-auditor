@@ -3,7 +3,7 @@
 ## Infrastructure
 
 - [x] App binds to `$PORT` on `0.0.0.0`
-- [x] `NIXPACKS_NODE_VERSION=22` set in Railway env
+- [x] Railway builds the Dockerfile (`railway.toml` `builder = "dockerfile"`)
 - [x] Dockerfile uses multi-stage build
 - [x] Container runs as non-root user (`appuser`)
 - [x] HEALTHCHECK instruction in Dockerfile
@@ -46,12 +46,14 @@
 
 - [x] `PORT` — required, fail-fast if missing
 - [x] `NODE_ENV=production` — set in Dockerfile
-- [x] `NIXPACKS_NODE_VERSION=22` — set in Railway
+- [x] `DATABASE_URL` — required in production (InsForge Postgres); boot fails without it
 - [x] `VITE_INSFORGE_BASE_URL` — set in Railway
 - [x] `VITE_INSFORGE_ANON_KEY` — set in Railway
+- [x] `APP_URL` — required when `STRIPE_SECRET_KEY` is set (Stripe redirect base)
 - [x] `VITE_STRIPE_PK` — documented, needs Railway setting
 - [x] `STRIPE_SECRET_KEY` — documented, needs Railway setting
 - [x] `STRIPE_WEBHOOK_SECRET` — documented, needs Railway setting
+- [x] `STRIPE_PRICE_*` (six: `{starter,growth,pro} x {monthly,annual}`) — required for paid plans
 
 ## Railway Deployment
 
@@ -59,8 +61,7 @@
 - [x] Health check responds within 10s
 - [x] SIGTERM → clean shutdown within 10s
 - [x] Missing env var → fail fast with clear error
-- [x] `railway.json` configuration file created
-- [x] `nixpacks.toml` with Node 22 specified
+- [x] `railway.toml` configuration file created (Dockerfile builder, `[deploy]` healthcheck gate)
 - [x] Dockerfile with multi-stage build
 - [x] `railway.env.example` with all required variables documented
 - [x] `DEPLOY.md` with step-by-step instructions
@@ -73,7 +74,7 @@
 - [x] Client-side `cancelSubscription` calls real API endpoint
 - [x] All Stripe functions return typed result (`StripeResult<T>`)
 - [x] Error states displayed in UI (Pricing, Settings)
-- [x] **Backend Stripe API routes implemented** (`/api/stripe/checkout`, `/api/stripe/portal`, `/api/subscription`, `/api/webhook`)
+- [x] **Backend Stripe API routes implemented** (`/api/checkout`, `/api/portal`, `/api/subscription`, `/api/webhook`)
 - [x] **Stripe webhook signature verification** (rejects unsigned webhooks when `STRIPE_WEBHOOK_SECRET` is set)
 - [ ] **Stripe webhook URL registered** in Stripe Dashboard
 

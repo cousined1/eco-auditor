@@ -127,10 +127,10 @@ export default function DataProcessingAddendum() {
         </S>
 
         <S id="return-deletion" title="11. Return and Deletion of Personal Data" onScroll={setActiveSection}>
-          <p>Upon termination of the service agreement, Developer312 will, at the Customer's choice:</p>
+          <p>Personal data is returned and deleted as follows:</p>
           <ul>
-            <li>Return all personal data to the Customer in a structured, commonly used, machine-readable format; or</li>
-            <li>Securely delete all personal data and certify such deletion in writing</li>
+            <li><strong>Return:</strong> The Customer can export its workspace data at any time from the Service's Settings as a machine-readable JSON download</li>
+            <li><strong>Deletion:</strong> The Customer can delete its audit data (emissions entries and facilities) at any time from the Service's Settings; deletion takes effect immediately. The account record is deleted by submitting a deletion request to support, which Developer312 will process within 30 days of the request</li>
           </ul>
           <p>This obligation does not apply where retention of personal data is required by applicable law, in which case Developer312 will continue to process such data only for the purpose and duration required by law.</p>
         </S>

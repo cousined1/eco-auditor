@@ -5,9 +5,11 @@
  * These tests import the actual server modules where possible instead of
  * reimplementing server logic in the test file (CodeRabbit audit finding).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { buildSecurityHeaders } from '../server-security.cjs';
 import { resolvePlanPriceId } from '../server-billing.cjs';
 import proxyaddr from 'proxy-addr';
@@ -327,5 +329,153 @@ describe('SPA shell caching', () => {
     const fallback = serverSource.slice(serverSource.indexOf("app.get('*'"));
     const shellBranch = fallback.slice(0, fallback.indexOf('res.status(404)'));
     expect(shellBranch).toContain("'no-cache, no-transform'");
+  });
+});
+
+// ─── PERF-001: client IP resolution behind Cloudflare ───
+// Evaluates the actual resolveClientIp source from server.cjs so the test
+// cannot drift from the implementation (same pattern as csv-quota-transaction).
+describe('resolveClientIp (PERF-001)', () => {
+  const ipSource = serverSource.slice(
+    serverSource.indexOf('const INTERNAL_PEER_PATTERN'),
+    serverSource.indexOf("app.use(function (req, res, next) {\n  // Only meter the API surface"),
+  );
+  const resolveClientIp = runInNewContext(ipSource + '\nresolveClientIp', {}) as (
+    req: { socket?: { remoteAddress?: string }; headers?: Record<string, string>; ip?: string }
+  ) => string;
+
+  it('honors cf-connecting-ip only over the internal proxy hop', () => {
+    // Cloudflare-proxied request: internal socket peer + CF header -> per-client key.
+    const proxied = { socket: { remoteAddress: '::ffff:10.0.0.2' }, headers: { 'cf-connecting-ip': '198.51.100.7' } };
+    expect(resolveClientIp(proxied)).toBe('198.51.100.7');
+  });
+
+  it('never trusts cf-connecting-ip on a direct (public-peer) hit', () => {
+    // Direct-to-origin attacker with a forged header: the public socket peer
+    // wins, so the header can never mint a foreign rate-limit key (CWE-345).
+    const direct = { socket: { remoteAddress: '203.0.113.9' }, headers: { 'cf-connecting-ip': '1.2.3.4' } };
+    expect(resolveClientIp(direct)).toBe('203.0.113.9');
+  });
+
+  it('falls back to req.ip / socket when no CF header is present', () => {
+    expect(resolveClientIp({ socket: { remoteAddress: '127.0.0.1' }, ip: '192.0.2.5' })).toBe('192.0.2.5');
+    expect(resolveClientIp({ socket: { remoteAddress: '127.0.0.1' } })).toBe('127.0.0.1');
+    expect(resolveClientIp({})).toBe('unknown');
+  });
+});
+
+// ─── DATA-006: chatbot demo deck link must not carry lead PII ───
+describe('Chatbot demo deck link (DATA-006)', () => {
+  it('does not embed lead company/email in the third-party URL', () => {
+    expect(serverSource).not.toMatch(/radiant-alignment[^`]*\$\{encodeURIComponent\(state\.(company|email)\)/);
+    // Only the non-identifying product marker is sent.
+    expect(serverSource).toContain("'https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor'");
+  });
+});
+
+// ─── DATA-005 / INFRA-003: account data controls + readiness, integration ───
+// Spawns the real server (no DB, dev auth) like tests/server-health.test.ts.
+describe('Account data controls and readiness (integration)', () => {
+  const port = 10000 + Math.floor(Math.random() * 50000);
+  const base = `http://127.0.0.1:${port}`;
+  const auth = { Authorization: 'Bearer test-dev-secret' };
+  let child: ChildProcess | null = null;
+
+  beforeAll(async () => {
+    child = spawn('node', ['server.cjs'], {
+      env: {
+        ...process.env,
+        PORT: String(port),
+        DEV_AUTH_SECRET: 'test-dev-secret',
+        ALLOW_DEV_AUTH: 'true',
+        NODE_ENV: 'development',
+        INSFORGE_BASE_URL: '',
+        VITE_INSFORGE_BASE_URL: '',
+        DATABASE_URL: '',
+      },
+      stdio: 'ignore',
+    });
+    for (let i = 0; i < 60; i++) {
+      try {
+        const r = await fetch(`${base}/api/health`);
+        if (r.ok) return;
+      } catch { /* not up yet */ }
+      await new Promise((res) => setTimeout(res, 150));
+    }
+    throw new Error('integration server did not start within 9s');
+  }, 15000);
+
+  afterAll(() => {
+    child?.kill('SIGTERM');
+    child = null;
+  });
+
+  it('exports the caller workspace as a JSON attachment (DATA-005)', async () => {
+    const r = await fetch(`${base}/api/account/export`, { headers: auth });
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-type')).toContain('application/json');
+    expect(r.headers.get('content-disposition')).toContain('attachment; filename="ecoauditor-export-test-company-1.json"');
+    const body = await r.json();
+    expect(body.exportedAt).toBeTruthy();
+    expect(body.company.id).toBe('test-company-1');
+    expect(Array.isArray(body.facilities)).toBe(true);
+    expect(Array.isArray(body.emissionEntries)).toBe(true);
+  });
+
+  it('deletes audit data but not the account, and export then comes back empty (DATA-005)', async () => {
+    const before = await (await fetch(`${base}/api/account/export`, { headers: auth })).json();
+    expect(before.emissionEntries.length).toBeGreaterThan(0);
+
+    const r = await fetch(`${base}/api/account/delete-data`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' } });
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.deleted).toBe(true);
+    expect(body.deletedEntries).toBe(before.emissionEntries.length);
+    expect(body.deletedFacilities).toBe(before.facilities.length);
+
+    const after = await (await fetch(`${base}/api/account/export`, { headers: auth })).json();
+    expect(after.emissionEntries).toHaveLength(0);
+    expect(after.facilities).toHaveLength(0);
+    // The company row itself must survive the delete.
+    expect(after.company.id).toBe('test-company-1');
+  });
+
+  it('requires authentication for both controls', async () => {
+    expect((await fetch(`${base}/api/account/export`)).status).toBe(401);
+    expect((await fetch(`${base}/api/account/delete-data`, { method: 'POST' })).status).toBe(401);
+  });
+
+  it('echoes an X-Request-Id header (INFRA-007)', async () => {
+    const r = await fetch(`${base}/api/version`);
+    const id = r.headers.get('x-request-id');
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    const r2 = await fetch(`${base}/api/version`);
+    expect(r2.headers.get('x-request-id')).not.toBe(id);
+  });
+
+  it('/ready gates on the data store, not the video (INFRA-003/INFRA-008)', async () => {
+    const r = await fetch(`${base}/ready`);
+    // No DATABASE_URL configured -> ready (same semantics as /health), video
+    // is informational only.
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.status).toBe('ok');
+    expect(body.db).toBe('not configured');
+  });
+
+  it('meters only /api/ paths with the global limiter (PERF-001)', async () => {
+    // Runs last in this describe: it deliberately exhausts the API bucket.
+    // Static/prerendered requests must not consume the API bucket.
+    for (let i = 0; i < 125; i++) {
+      const r = await fetch(`${base}/?limiter-probe=${i}`);
+      expect(r.status).not.toBe(429);
+    }
+    // A burst of API calls trips the shared limiter.
+    let saw429 = false;
+    for (let i = 0; i < 130; i++) {
+      const r = await fetch(`${base}/api/version?limiter-probe=${i}`);
+      if (r.status === 429) { saw429 = true; break; }
+    }
+    expect(saw429).toBe(true);
   });
 });

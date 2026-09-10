@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PLANS } from '../data/mockData';
 import { cancelSubscription, changeSubscription, createBillingPortalSession, getAuthToken } from '../lib/stripe';
+import { deleteMyData, exportMyData } from '../lib/api';
+import { insforge } from '../lib/insforge';
 
 interface BillingState {
   active: boolean;
@@ -25,6 +27,11 @@ export default function Settings() {
   // Guards the money-path buttons. Without it a double-click fired two
   // DELETE /api/subscription or two prorated PATCH /api/subscription calls.
   const [billingBusy, setBillingBusy] = useState(false);
+  // Data controls (DATA-005): self-serve export + audit-data deletion.
+  const [exportBusy, setExportBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [dataNotice, setDataNotice] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadBilling() {
@@ -98,6 +105,49 @@ export default function Settings() {
     }
   };
 
+  const handleExportData = async () => {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setDataError(null);
+    setDataNotice(null);
+    const result = await exportMyData(insforge);
+    if (result.ok) {
+      // Download the JSON in the browser: the request needs the bearer token,
+      // so we cannot just navigate to the endpoint.
+      const url = URL.createObjectURL(result.data.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.data.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setDataNotice('Your data export has been downloaded as a machine-readable JSON file.');
+    } else {
+      setDataError(result.error);
+    }
+    setExportBusy(false);
+  };
+
+  const handleDeleteData = async () => {
+    if (deleteBusy) return;
+    const confirmed = window.confirm(
+      'This permanently deletes all emissions entries and facilities in your workspace. This cannot be undone. ' +
+        'Your login and account stay active; full account deletion is available via support. Continue?'
+    );
+    if (!confirmed) return;
+    setDeleteBusy(true);
+    setDataError(null);
+    setDataNotice(null);
+    const result = await deleteMyData(insforge);
+    if (result.ok) {
+      setDataNotice('Your audit data (emissions entries and facilities) has been deleted. Your account remains active.');
+    } else {
+      setDataError(result.error);
+    }
+    setDeleteBusy(false);
+  };
+
   const currentPlan = billing?.plan ? PLANS[billing.plan] : null;
   const billingCycle = billing?.billingCycle ?? 'monthly';
   const monthlyRate = currentPlan?.monthly ?? 0;
@@ -110,7 +160,7 @@ export default function Settings() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-surface-900 dark:text-white">Settings</h1>
-        <p className="text-sm text-surface-500 mt-0.5">Manage your billing and subscription</p>
+        <p className="text-sm text-surface-500 mt-0.5">Manage your billing, subscription, and data</p>
       </div>
 
       <div className="space-y-4">
@@ -231,6 +281,37 @@ export default function Settings() {
             </>
           )}
         </div>
+
+      {/* DATA-005: self-serve data controls. Export downloads a machine-readable
+          JSON export; delete removes the workspace's audit data (emissions
+          entries and facilities) immediately — the account itself stays, and
+          full account deletion remains a support-assisted request. */}
+      <div className="card">
+        <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Data controls</h3>
+        <p className="text-xs text-surface-600 dark:text-surface-400 mb-4">
+          Download a machine-readable JSON copy of your workspace data at any time, or delete your audit data.
+          Deleting removes all emissions entries and facilities immediately and cannot be undone — your login and
+          account stay active, and full account deletion is available via support.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={handleExportData} disabled={exportBusy} className="btn-secondary text-xs disabled:opacity-50 disabled:cursor-not-allowed">
+            {exportBusy ? 'Exporting…' : 'Export my data'}
+          </button>
+          <button onClick={handleDeleteData} disabled={deleteBusy} className="btn-ghost text-xs text-risk-high disabled:opacity-50 disabled:cursor-not-allowed">
+            {deleteBusy ? 'Deleting…' : 'Delete my audit data'}
+          </button>
+        </div>
+        {dataNotice && (
+          <div className="mt-3 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
+            <div className="text-xs text-brand-700 dark:text-brand-300">{dataNotice}</div>
+          </div>
+        )}
+        {dataError && (
+          <div className="mt-3 p-3 rounded-lg border border-risk-high/20 bg-risk-high/10">
+            <div className="text-xs text-risk-high">{dataError}</div>
+          </div>
+        )}
+      </div>
       </div>
   );
 }

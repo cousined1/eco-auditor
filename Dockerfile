@@ -67,7 +67,7 @@ EXPOSE 3000
 ENV PORT=3000
 ENV NODE_ENV=production
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=15s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:${PORT}/health || exit 1
 
 CMD ["node", "server.cjs"]

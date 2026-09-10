@@ -74,3 +74,9 @@ gsc-b64-temp.txt
 
 # Live audit artifacts
 audit-live-*/
+
+# Runtime PII fallback files (DATA-008): lead + consent audit JSON
+.data/
+
+# Local vector store binary (opaque, not part of the app)
+ruvector.db

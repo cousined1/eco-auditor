@@ -8,15 +8,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -34,4 +39,7 @@ jobs:
         run: npm run security:audit
 
       - name: Scan checked-out files for secrets
-        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 detect --source /repo --no-git --redact --config /repo/.gitleaks.toml --exit-code 1
+        run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854 detect --source /repo --no-git --redact --config /repo/.gitleaks.toml --exit-code 1
+
+      - name: Scan git history for secrets (DATA-007 remediation)
+        run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854 detect --source /repo --redact --config /repo/.gitleaks.toml --exit-code 1 || echo "::warning::gitleaks history scan reported findings (previously rotated/redacted credentials remain in immutable history; see SECURITY-HISTORY.md)"

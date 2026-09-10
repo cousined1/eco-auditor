@@ -15,16 +15,13 @@ paths = [
 ]
 
 [[allowlists]]
-description = "Security scanner output quotes the findings it reports"
-paths = ['''findings\.sarif$''']
-
-[[allowlists]]
 description = "Local agent-tool state; high-entropy idempotency keys, not credentials"
 paths = [
   '''(^|/)\.refact/''',
   '''(^|/)\.omo/''',
   '''(^|/)\.swarm/''',
   '''(^|/)\.claude-flow/''',
+  '''(^|/)\.insforge/''',
 ]
 
 [[allowlists]]
