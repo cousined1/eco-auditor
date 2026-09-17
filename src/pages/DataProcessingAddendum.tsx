@@ -240,11 +240,14 @@ export default function DataProcessingAddendum() {
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
                 {[
-                  { name: 'Cloud hosting provider', purpose: 'Application hosting, data storage, compute', location: 'United States' },
+                  // Regions follow src/content/trust-facts.ts (the single source of
+                  // truth): only verified regions are asserted concretely; the rest
+                  // render the sentinel wording instead of an unverified location.
+                  { name: 'Cloud hosting provider', purpose: 'Application hosting, data storage, compute', location: 'Region pending verification — available upon request' },
                   { name: 'Stripe, Inc.', purpose: 'Payment processing and billing', location: 'United States' },
-                  { name: 'Analytics provider', purpose: 'Service-level monitoring and aggregated usage analytics', location: 'United States' },
-                  { name: 'Email/communications provider', purpose: 'Transactional and notification email delivery', location: 'United States' },
-                  { name: 'Customer support platform', purpose: 'Support ticket management and communications', location: 'United States' },
+                  { name: 'Analytics provider', purpose: 'Service-level monitoring and aggregated usage analytics', location: 'Region pending verification — available upon request' },
+                  { name: 'Email/communications provider', purpose: 'Transactional and notification email delivery', location: 'Region pending verification — available upon request' },
+                  { name: 'Customer support platform', purpose: 'Support ticket management and communications', location: 'Region pending verification — available upon request' },
                 ].map((sp) => (
                   <tr key={sp.name}>
                     <td className="py-2.5 font-medium text-surface-800 dark:text-surface-200">{sp.name}</td>

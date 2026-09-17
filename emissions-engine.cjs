@@ -66,11 +66,18 @@ function factorForEntry(entry) {
   // persists pre-computed kg CO2e (amount = calculatedKg, unit = 'kg CO2e'),
   // so re-applying an activity factor would either throw (Scope 1/3) or inflate
   // the number ~217x (Scope 2). Convert to tonnes instead. See audit C3.
+  // SC-03 (audit run 20260917-a520): resolve the catalog source even on the
+  // CO2e-passthrough branches. The in-app calculator persists rows as
+  // `unit: 'kg CO2e'`, so without this lookup a provisional factor
+  // (verified:false) lost its provenance flag on re-derivation and the
+  // report's provisional-factor disclosure undercounted.
   if (unit === 'kg_co2e' || unit === 'kgco2e') {
-    return { factor: 0.001, category: category || 'precalculated' };
+    const known = getSource(category, entry.source);
+    return { factor: 0.001, category: category || 'precalculated', verified: known ? known.verified : true };
   }
   if (unit === 't_co2e' || unit === 'tco2e' || unit === 'tonnes_co2e' || unit === 'tonne_co2e') {
-    return { factor: 1, category: category || 'precalculated' };
+    const known = getSource(category, entry.source);
+    return { factor: 1, category: category || 'precalculated', verified: known ? known.verified : true };
   }
 
   // The catalog is kg CO2e per unit; this engine reports tonnes.
