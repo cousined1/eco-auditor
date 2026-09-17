@@ -30,13 +30,13 @@ describe('FE-01 getAuthToken treats the anon key as signed-out', () => {
   });
 
   it('returns null when the SDK hands back the public anon key', async () => {
-    vi.stubEnv('VITE_INSFORGE_ANON_KEY', 'ik_test_anonkey_123');
-    insforgeState.headers = { Authorization: 'Bearer ik_test_anonkey_123' };
+    vi.stubEnv('VITE_INSFORGE_ANON_KEY', 'anon-key-fix-0000');
+    insforgeState.headers = { Authorization: 'Bearer anon-key-fix-0000' };
     await expect(getAuthToken()).resolves.toBeNull();
   });
 
   it('returns the token for a real signed-in session', async () => {
-    vi.stubEnv('VITE_INSFORGE_ANON_KEY', 'ik_test_anonkey_123');
+    vi.stubEnv('VITE_INSFORGE_ANON_KEY', 'anon-key-fix-0000');
     insforgeState.headers = { Authorization: 'Bearer eyJhbGciOi.session.token' };
     await expect(getAuthToken()).resolves.toBe('eyJhbGciOi.session.token');
   });
@@ -47,7 +47,7 @@ describe('FE-01 getAuthToken treats the anon key as signed-out', () => {
   });
 
   it('reads a lowercase authorization header too', async () => {
-    vi.stubEnv('VITE_INSFORGE_ANON_KEY', 'ik_test_anonkey_123');
+    vi.stubEnv('VITE_INSFORGE_ANON_KEY', 'anon-key-fix-0000');
     insforgeState.headers = { authorization: 'Bearer eyJhbGciOi.lower.token' };
     await expect(getAuthToken()).resolves.toBe('eyJhbGciOi.lower.token');
   });
