@@ -124,6 +124,23 @@ export function factorProvenanceSummary(): { total: number; provisional: number 
   return { total, provisional };
 }
 
+/**
+ * How many of the provisional (verified:false) factors sit in Scope 1/2
+ * categories. Methodology copy cites this number instead of asserting that all
+ * Scope 1/2 factors are citation-tracked — an assertion the catalog itself
+ * contradicts whenever a provisional factor lives in those categories.
+ */
+export const PROVISIONAL_SCOPE12: number = (() => {
+  let count = 0;
+  for (const category of CATEGORIES) {
+    if (category.scope !== 1 && category.scope !== 2) continue;
+    for (const source of category.sources) {
+      if (source.verified === false) count += 1;
+    }
+  }
+  return count;
+})();
+
 /** Display label for a stored category value; falls back to the raw string. */
 export function labelForCategory(categoryKey: string): string {
   return getCategory(categoryKey)?.label ?? categoryKey;

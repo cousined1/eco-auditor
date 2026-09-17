@@ -292,6 +292,10 @@ describe('Trust proxy client IP resolution', () => {
   it('does not trust a client-supplied address in the Railway range', () => {
     // Only hops the proxy chain actually appended can be skipped; a forged
     // 100.64/10 entry beyond the trusted prefix must not extend trust.
+    // NOTE: this pins Express req.ip behavior of the trust function itself.
+    // req.ip is NO LONGER the rate-limit key — every limiter and the consent
+    // ipHash key on resolveClientIp() (see the describe below), which never
+    // consults attacker-controllable entries (SC-01/SC-02, 2026-09-17 audit).
     const spoofed = {
       connection: { remoteAddress: '::ffff:172.70.1.1' },
       headers: { 'x-forwarded-for': '1.2.3.4, 100.100.9.9' },
@@ -344,22 +348,90 @@ describe('resolveClientIp (PERF-001)', () => {
     req: { socket?: { remoteAddress?: string }; headers?: Record<string, string>; ip?: string }
   ) => string;
 
-  it('honors cf-connecting-ip only over the internal proxy hop', () => {
-    // Cloudflare-proxied request: internal socket peer + CF header -> per-client key.
-    const proxied = { socket: { remoteAddress: '::ffff:10.0.0.2' }, headers: { 'cf-connecting-ip': '198.51.100.7' } };
+  it('honors cf-connecting-ip only when the chain proves Cloudflare transit', () => {
+    // Railway topology: socket peer is the internal edge hop, the edge appended
+    // a Cloudflare egress address as the rightmost XFF entry, CF set
+    // cf-connecting-ip to the real client -> per-client key (PERF-001).
+    const proxied = {
+      socket: { remoteAddress: '::ffff:100.100.1.1' },
+      headers: {
+        'x-forwarded-for': '198.51.100.7, 172.70.1.1',
+        'cf-connecting-ip': '198.51.100.7',
+      },
+    };
     expect(resolveClientIp(proxied)).toBe('198.51.100.7');
   });
 
+  it('keys a CF-direct connection (CF egress as the socket peer) on cf-connecting-ip', () => {
+    // Topology where Cloudflare connects straight to the origin: the socket
+    // peer itself is a CF egress address, so the header is authoritative.
+    const cfDirect = {
+      socket: { remoteAddress: '172.70.9.9' },
+      headers: { 'cf-connecting-ip': '198.51.100.7' },
+    };
+    expect(resolveClientIp(cfDirect)).toBe('198.51.100.7');
+  });
+
+  it('never lets a direct-to-origin attacker mint keys via cf-connecting-ip (SC-01)', () => {
+    // Direct-to-origin attacker on *.up.railway.app: the socket peer is the
+    // Railway edge (internal), the edge appended the attacker's REAL address
+    // as the rightmost XFF entry, and the forged CF header must be ignored.
+    const forged = {
+      socket: { remoteAddress: '::ffff:100.100.1.1' },
+      headers: {
+        'x-forwarded-for': '6.6.6.6',
+        'cf-connecting-ip': '9.9.9.9',
+      },
+    };
+    expect(resolveClientIp(forged)).toBe('6.6.6.6');
+  });
+
+  it('never consults client-forged XFF entries left of the appended one (SC-02)', () => {
+    // The rightmost entry is the one the proxy chain appended; anything the
+    // client injected to its left is attacker-chosen and unusable as a key.
+    const forged = {
+      socket: { remoteAddress: '::ffff:100.100.1.1' },
+      headers: { 'x-forwarded-for': '8.8.8.8, 6.6.6.6' },
+    };
+    expect(resolveClientIp(forged)).toBe('6.6.6.6');
+  });
+
+  it('a CF-range entry forged mid-chain cannot fake transit when the edge appended later', () => {
+    const forged = {
+      socket: { remoteAddress: '::ffff:100.100.1.1' },
+      headers: {
+        'x-forwarded-for': '9.9.9.9, 104.16.5.5, 6.6.6.6',
+        'cf-connecting-ip': '1.2.3.4',
+      },
+    };
+    expect(resolveClientIp(forged)).toBe('6.6.6.6');
+  });
+
+  it('falls back to the CF egress entry when cf-connecting-ip is not a plain IP', () => {
+    const odd = {
+      socket: { remoteAddress: '::ffff:100.100.1.1' },
+      headers: {
+        'x-forwarded-for': '198.51.100.7, 172.70.1.1',
+        'cf-connecting-ip': 'not-an-ip',
+      },
+    };
+    expect(resolveClientIp(odd)).toBe('172.70.1.1');
+  });
+
   it('never trusts cf-connecting-ip on a direct (public-peer) hit', () => {
-    // Direct-to-origin attacker with a forged header: the public socket peer
-    // wins, so the header can never mint a foreign rate-limit key (CWE-345).
+    // Direct connection with a public socket peer: no trusted proxy exists,
+    // the socket address wins and headers are irrelevant (CWE-345).
     const direct = { socket: { remoteAddress: '203.0.113.9' }, headers: { 'cf-connecting-ip': '1.2.3.4' } };
     expect(resolveClientIp(direct)).toBe('203.0.113.9');
   });
 
-  it('falls back to req.ip / socket when no CF header is present', () => {
-    expect(resolveClientIp({ socket: { remoteAddress: '127.0.0.1' }, ip: '192.0.2.5' })).toBe('192.0.2.5');
-    expect(resolveClientIp({ socket: { remoteAddress: '127.0.0.1' } })).toBe('127.0.0.1');
+  it('fails closed to the socket peer, never to req.ip, when nothing is attributable', () => {
+    // req.ip is forgeable via hop-0 trust (SC-02); it must never become the
+    // limiter key. With no forwarded chain at all, the socket peer is the key.
+    expect(resolveClientIp({ socket: { remoteAddress: '127.0.0.1' }, ip: '192.0.2.5' })).toBe('127.0.0.1');
+    expect(resolveClientIp({ socket: { remoteAddress: '::ffff:100.100.1.1' }, ip: '192.0.2.5' })).toBe(
+      '::ffff:100.100.1.1'
+    );
     expect(resolveClientIp({})).toBe('unknown');
   });
 });

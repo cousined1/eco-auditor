@@ -329,4 +329,22 @@ describe('REL-001: provisional factor provenance on computed rows', () => {
     expect(result.provenance).toBeUndefined();
     expect(result.co2e_tonnes).toBeCloseTo(0.417, 6);
   });
+
+  it('keeps provisional provenance on kg CO2e passthrough rows (SC-03)', () => {
+    // The in-app calculator persists rows as `unit: 'kg CO2e'`; before the
+    // SC-03 fix the passthrough branch skipped the catalog lookup, so a
+    // provisional factor (fuel_oil_4 is verified:false) lost its provenance
+    // flag on re-derivation and report disclosure undercounted.
+    const activity = calculateEntry({ scope: '1', category: 'stationary_combustion', source: 'fuel_oil_4', amount: 100, unit: 'gallons' });
+    expect(activity.provenance).toEqual({ verified: false });
+    const passthrough = calculateEntry({
+      scope: '1',
+      category: 'stationary_combustion',
+      source: 'fuel_oil_4',
+      amount: activity.co2e_tonnes * 1000,
+      unit: 'kg CO2e',
+    });
+    expect(passthrough.co2e_tonnes).toBeCloseTo(activity.co2e_tonnes, 6);
+    expect(passthrough.provenance).toEqual({ verified: false });
+  });
 });

@@ -466,31 +466,140 @@ const rateLimitStore = new Map();
 // actual remoteAddress so direct callers cannot spoof arbitrary rate-limit keys (CWE-345).
 const INTERNAL_PEER_PATTERN = /^(?:::ffff:)?(?:127\.|10\.|172\.(?:1[6-9]|2[0-9]|3[01])\.|192\.168\.|100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|::1$|fe80:)/i;
 
+// ─── Cloudflare egress detection (SC-01/SC-02, audit run 20260917-a520) ───
+// The Railway origin (*.up.railway.app) is directly reachable, and on Railway
+// the container's TCP peer is ALWAYS the internal edge hop — including for
+// direct-to-origin requests that bypass Cloudflare. Client-supplied headers
+// (cf-connecting-ip, x-forwarded-for) are therefore forgeable on every
+// request. A request may only claim a Cloudflare-resolved client address when
+// the proxy chain itself carries a Cloudflare egress address. Ranges are the
+// official published list, https://www.cloudflare.com/ips/ (retrieved 2026-09-17).
+const CLOUDFLARE_EGRESS_V4 = [
+  '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+  '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+  '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+  '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+];
+const CLOUDFLARE_EGRESS_V6 = [
+  '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+  '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+];
+
+// Parses an IPv4/IPv6 literal to a BigInt (IPv4-mapped IPv6 collapses to IPv4).
+// Self-contained so the resolveClientIp unit tests can evaluate this whole
+// block in isolation (tests/server.test.ts runs it through runInNewContext).
+function parseIpBigInt(input) {
+  let s = String(input || '').trim().toLowerCase();
+  if (s.startsWith('::ffff:') && s.indexOf('.') !== -1) s = s.slice(7);
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(s)) {
+    const parts = s.split('.').map(Number);
+    if (parts.some(function (p) { return p > 255; })) return null;
+    let v = 0n;
+    for (const p of parts) v = (v << 8n) | BigInt(p);
+    return { family: 4, value: v };
+  }
+  if (s.indexOf(':') === -1) return null;
+  // Expand '::' exactly once; an embedded IPv4 tail becomes two hextets.
+  const dblColon = s.indexOf('::');
+  if (dblColon !== -1 && s.indexOf('::', dblColon + 1) !== -1) return null;
+  let head = s, tail = '';
+  if (dblColon !== -1) {
+    head = s.slice(0, dblColon);
+    tail = s.slice(dblColon + 2);
+  }
+  let groups = head ? head.split(':') : [];
+  const tailGroups = tail ? tail.split(':') : [];
+  if (tailGroups.length && tailGroups[tailGroups.length - 1].indexOf('.') !== -1) {
+    const v4 = parseIpBigInt(tailGroups.pop());
+    if (!v4 || v4.family !== 4) return null;
+    const hi = Number((v4.value >> 16n) & 0xffffn);
+    const lo = Number(v4.value & 0xffffn);
+    tailGroups.splice(tailGroups.length - 1, 1, hi.toString(16), lo.toString(16));
+  }
+  if (dblColon !== -1) {
+    const missing = 8 - (groups.length + tailGroups.length);
+    if (missing < 0) return null;
+    groups = groups.concat(Array(missing).fill('0'), tailGroups);
+  } else {
+    groups = groups.concat(tailGroups);
+  }
+  if (groups.length !== 8) return null;
+  let v = 0n;
+  for (const g of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+    v = (v << 16n) | BigInt(parseInt(g, 16));
+  }
+  return { family: 6, value: v };
+}
+
+function isPlainIp(addr) {
+  return parseIpBigInt(addr) !== null;
+}
+
+function isCloudflareEgress(addr) {
+  const parsed = parseIpBigInt(addr);
+  if (!parsed) return false;
+  if (parsed.family === 4) {
+    for (const cidr of CLOUDFLARE_EGRESS_V4) {
+      const [net, bitsRaw] = cidr.split('/');
+      const bits = Number(bitsRaw);
+      const base = parseIpBigInt(net);
+      if (!base) continue;
+      if ((parsed.value >> (32n - BigInt(bits))) === (base.value >> (32n - BigInt(bits)))) return true;
+    }
+    return false;
+  }
+  for (const cidr of CLOUDFLARE_EGRESS_V6) {
+    const [net, bitsRaw] = cidr.split('/');
+    const bits = Number(bitsRaw);
+    const base = parseIpBigInt(net);
+    if (!base) continue;
+    if ((parsed.value >> (128n - BigInt(bits))) === (base.value >> (128n - BigInt(bits)))) return true;
+  }
+  return false;
+}
+
 function resolveClientIp(req) {
   const socketAddr = (req.socket && req.socket.remoteAddress) || '';
   if (socketAddr && !INTERNAL_PEER_PATTERN.test(socketAddr)) {
-    return socketAddr;
+    if (!isCloudflareEgress(socketAddr)) return socketAddr;
+    // A Cloudflare egress address as the socket peer means CF connected
+    // directly to the origin, so cf-connecting-ip is authoritative (PERF-001
+    // per-client keys). Anything else public is an unproxied caller.
+    const cfRaw = (req.headers && typeof req.headers['cf-connecting-ip'] === 'string')
+      ? req.headers['cf-connecting-ip']
+      : '';
+    const candidate = cfRaw ? cfRaw.split(',')[0].trim() : '';
+    return candidate && isPlainIp(candidate) ? candidate : socketAddr;
   }
   // The socket peer is INTERNAL (loopback, private, or Railway's 100.64.0.0/10
-  // edge hop), so this request arrived through a proxy hop: fall back to the
-  // genuine client address Cloudflare appended (PERF-001 — per-colo keys were
-  // collapsing every visitor behind a colo into one bucket).
-  //
-  // Spoofing residual, and why honoring the header here is safe: this branch
-  // is reachable only when the immediate TCP peer is internal. A caller that
-  // bypasses Cloudflare and hits the origin directly arrives with a PUBLIC
-  // socket peer, takes the early return above, and never reaches this branch —
-  // so an external attacker cannot forge cf-connecting-ip for a direct hit.
-  // Forging it requires sitting on the internal proxy hop itself (e.g. the
-  // Railway edge network), which is not externally reachable. Behind CF the
-  // header is authoritative and set by Cloudflare, not the client.
-  const cfConnectingIp = req.headers && req.headers['cf-connecting-ip'];
-  if (typeof cfConnectingIp === 'string' && cfConnectingIp) {
-    // Node joins repeated header values with ', '; the CF-appended value is
-    // the first one, so take that token defensively.
-    return cfConnectingIp.split(',')[0].trim();
+  // edge hop) — on Railway that is EVERY request, including direct-to-origin
+  // hits on the public *.up.railway.app domain. Client-supplied headers are
+  // therefore forgeable here and can never be trusted on their own (SC-01).
+  const headers = (req && req.headers) || {};
+  const xff = typeof headers['x-forwarded-for'] === 'string' ? headers['x-forwarded-for'] : '';
+  const entries = xff.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+  // The RIGHTMOST XFF entry is the address the nearest proxy (the Railway
+  // edge) appended — the only entry in the chain the client cannot choose.
+  // An attacker's forged entries always sit to its LEFT (the proxy appends
+  // the real connecting address after them) and are never consulted (SC-02).
+  const rightmost = entries.length ? entries[entries.length - 1] : '';
+  if (rightmost && isCloudflareEgress(rightmost)) {
+    // Proven Cloudflare transit: CF sets cf-connecting-ip on every request it
+    // proxies, so it carries the real per-client address (PERF-001).
+    const cfRaw = typeof headers['cf-connecting-ip'] === 'string' ? headers['cf-connecting-ip'] : '';
+    const candidate = cfRaw ? cfRaw.split(',')[0].trim() : '';
+    if (candidate && isPlainIp(candidate)) return candidate;
+    return rightmost;
   }
-  return req.ip || socketAddr || 'unknown';
+  if (rightmost && isPlainIp(rightmost)) {
+    // No Cloudflare hop: the appended entry is the direct caller's real
+    // address. A forged cf-connecting-ip must never mint a rate-limit key.
+    return rightmost;
+  }
+  // Fail closed: nothing in the chain we can attribute — key on the socket
+  // peer so an attacker can at worst share one bucket, never mint new keys.
+  return socketAddr || 'unknown';
 }
 
 app.use(function (req, res, next) {
@@ -685,6 +794,26 @@ app.get('/api/insforge-config', function (_req, res) {
 });
 
 // ─── Blog posts (public, no auth) ───
+// PERF-006: the list view never renders full HTML bodies (the detail page has
+// its own /api/blog-posts/:slug route), so compute excerpt + read time here
+// and ship those instead of up to 50 full body_html payloads.
+function blogListReadMinutes(html) {
+  const bounded = String(html || '').slice(0, 100000);
+  const text = bounded.replace(/<[^\n>]*>/g, ' ');
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+function blogListExcerpt(row) {
+  const meta = row.meta_description && String(row.meta_description).trim();
+  if (meta) return meta;
+  const text = String(row.body_html || '').slice(0, 100000).replace(/<[^\n>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (text.length <= 160) return text;
+  const sliced = text.slice(0, 160);
+  const lastSpace = sliced.lastIndexOf(' ');
+  return sliced.slice(0, lastSpace > 80 ? lastSpace : 160) + '\u2026';
+}
+
 app.get('/api/blog-posts', async function (_req, res) {
   res.setHeader('Cache-Control', 'public, max-age=60');
   if (!pgPool) {
@@ -694,7 +823,25 @@ app.get('/api/blog-posts', async function (_req, res) {
     const { rows } = await pgPool.query(
       'SELECT id, slug, title, meta_title, meta_description, body_html, primary_keyword, faq, internal_links, external_links, cta, content_score, geo_score, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 50'
     );
-    res.json({ posts: rows.map((row) => ({ ...row, body_html: sanitizeBlogHtml(row.body_html) })) });
+    res.json({
+      posts: rows.map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        title: row.title,
+        meta_title: row.meta_title,
+        meta_description: row.meta_description,
+        excerpt: blogListExcerpt(row),
+        read_minutes: blogListReadMinutes(row.body_html),
+        primary_keyword: row.primary_keyword,
+        faq: row.faq,
+        internal_links: row.internal_links,
+        external_links: row.external_links,
+        cta: row.cta,
+        content_score: row.content_score,
+        geo_score: row.geo_score,
+        published_at: row.published_at,
+      })),
+    });
   } catch (err) {
     if (err.code === '42P01') { // table does not exist
       return res.json({ posts: [] });
@@ -1684,14 +1831,24 @@ const VIDEO_PATHS = [
   path.join(__dirname, 'public', VIDEO_FILENAME),
 ];
 
+// PERF-011: the video volume is mounted at boot and never changes for the
+// life of the deployment, so probe the candidate paths once and cache the
+// result. findVideoPath() sat on the /ready healthcheck path, costing up to
+// three synchronous existsSync calls per Railway probe.
+let resolvedVideoPath; // undefined = not probed yet; null = probed, absent
 function findVideoPath() {
+  if (resolvedVideoPath !== undefined) return resolvedVideoPath;
   for (const p of VIDEO_PATHS) {
     try {
-      if (fs.existsSync(p)) return p;
+      if (fs.existsSync(p)) {
+        resolvedVideoPath = p;
+        return p;
+      }
     } catch {
       // ignore permission errors
     }
   }
+  resolvedVideoPath = null;
   return null;
 }
 
@@ -2094,7 +2251,10 @@ async function loadEmissionEntries(companyId, period) {
         params.push(String(period));
         sql += ' AND EXTRACT(YEAR FROM created_at)::text = $2';
       }
-      sql += ' ORDER BY created_at ASC';
+      // PERF-004: hard ceiling on rows pulled per request. An SMB inventory
+      // is orders of magnitude below this; the LIMIT only stops a pathological
+      // dataset from turning every dashboard call into an unbounded read.
+      sql += ' ORDER BY created_at ASC LIMIT 50000';
       const { rows } = await pgPool.query(sql, params);
       return rows.map(function (row) {
         return { ...row, amount: Number(row.amount), confidence: row.confidence == null ? undefined : Number(row.confidence) };
@@ -2386,10 +2546,19 @@ app.get('/api/emissions/trend', apiAuthGuard, requirePlan('starter'), async func
   const year = Number(req.query.year) || new Date().getFullYear();
 
   try {
+    // PERF-004: buildTrend recomputed every row on every request. Cache per
+    // (company, period, year) in the same store the summary cache uses —
+    // every entry-changing path already clears it (ingest, facility
+    // emissions, account deletion), and the size cap bounds key cardinality.
+    const cacheKey = `trend:${companyId}:${period}:${year}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return res.json({ success: true, data: cached });
+
     const entries = await loadEmissionEntries(companyId);
     // H5: buildTrend covers all 12 months, filters to a single year, and
     // isolates per-row calc errors (delegated to summarizeEntries).
     const data = buildTrend(entries, { companyId: companyId, period: period, year: year });
+    cacheSet(cacheKey, data, 5 * 60 * 1000);
     return res.json({ success: true, data: data });
   } catch (err) {
     log('error', 'Emissions trend failed', { error: String(err), companyId: companyId });
@@ -2599,10 +2768,16 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
 
 app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
   try {
-    const job = ingestJobs.get(req.params.job_id);
-    if (!job) return res.status(404).json({ success: false, error: 'Ingest job not found' });
-    const companyId = await requireCompanyAccess(req, res, job.company_id);
+    // Resolve the caller's own company FIRST (API-012): looking the job up
+    // before the tenant check returned 404 for unknown ids but 403 for
+    // foreign-but-real ones — an existence oracle over ingest jobs. Both now
+    // return an identical 404, matching the facility/report siblings.
+    const companyId = await requireCompanyAccess(req, res, null);
     if (!companyId) return;
+    const job = ingestJobs.get(req.params.job_id);
+    if (!job || String(job.company_id) !== String(companyId)) {
+      return res.status(404).json({ success: false, error: 'Ingest job not found' });
+    }
     return res.json({ success: true, data: job });
   } catch (err) {
     log('error', 'Ingest status lookup failed', { error: String(err) });
@@ -2823,6 +2998,12 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, re
     const reportId = crypto.randomUUID();
     const pdf = createSimplePdf(buildReportText(summary, period));
     generatedReports.set(reportId, { id: reportId, company_id: companyId, period: period, pdf: pdf });
+        // PERF-003 residual: cap the in-memory report store so repeated
+        // generates cannot grow it for the life of the process.
+        while (generatedReports.size > 50) {
+          const oldestReportId = generatedReports.keys().next().value;
+          generatedReports.delete(oldestReportId);
+        }
     return res.json({ success: true, report_id: reportId, download_url: `/api/reports/${reportId}/download` });
   } catch (err) {
     // Every throw on this route is infrastructure (store read, report insert)
@@ -2855,10 +3036,14 @@ app.get('/api/reports/:id/download', apiAuthGuard, requirePlan('starter'), async
       period = rows[0].period;
     } else {
       // Dev / no-DB fallback: serve the in-memory PDF captured at generate time.
-      const report = generatedReports.get(req.params.id);
-      if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
-      companyId = await requireCompanyAccess(req, res, report.company_id);
+      // Tenant check BEFORE the map lookup (API-012): unknown and foreign ids
+      // are indistinguishable 404s here too.
+      companyId = await requireCompanyAccess(req, res, null);
       if (!companyId) return;
+      const report = generatedReports.get(req.params.id);
+      if (!report || String(report.company_id) !== String(companyId)) {
+        return res.status(404).json({ success: false, error: 'Report not found' });
+      }
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-report-${req.params.id}.pdf"`);
       return res.send(report.pdf);

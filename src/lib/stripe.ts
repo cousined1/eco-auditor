@@ -20,7 +20,16 @@ export async function getAuthToken(): Promise<string | null> {
     const headers = insforge.getHttpClient?.().getHeaders?.() || {};
     const authorization: string = headers.Authorization || headers.authorization || '';
     if (!authorization) return null;
-    return authorization.replace(/^Bearer\s+/i, '');
+    const token = authorization.replace(/^Bearer\s+/i, '');
+    // The SDK's HttpClient.getHeaders() falls back to the public anon key when
+    // no user session exists ("const authToken = this.userToken || this.anonKey").
+    // Callers use this helper as an "is signed in" gate (Pricing checkout), so
+    // the always-present anon key must read as signed-out (null), or the
+    // anonymous funnel POSTs the anon key to /api/checkout and dies on a raw
+    // 401 instead of redirecting to /signup.
+    const anonKey = (import.meta.env.VITE_INSFORGE_ANON_KEY as string | undefined) || '';
+    if (!token || (anonKey && token === anonKey)) return null;
+    return token;
   } catch {
     return null;
   }

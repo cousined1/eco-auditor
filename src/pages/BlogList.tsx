@@ -4,12 +4,15 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useTheme } from '../hooks/useTheme';
 
+// PERF-006: the list endpoint ships a computed excerpt + read time instead of
+// full HTML bodies — the list never renders them (detail page has its own route).
 interface BlogPost {
   id: string;
   slug: string;
   title: string;
   meta_description: string;
-  body_html: string;
+  excerpt: string;
+  read_minutes: number;
   primary_keyword: string;
   content_score: number | null;
   geo_score: number | null;
@@ -23,23 +26,6 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-function estimateReadTime(html: string): string {
-  const bounded = html.length > 100_000 ? html.slice(0, 100_000) : html;
-  const text = bounded.replace(/<[^\n>]*>/g, ' ');
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  const mins = Math.max(1, Math.round(words / 200));
-  return `${mins} min read`;
-}
-
-function excerptFromBody(html: string, maxLen = 160): string {
-  const bounded = html.length > 100_000 ? html.slice(0, 100_000) : html;
-  const text = bounded.replace(/<[^\n>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  if (text.length <= maxLen) return text;
-  const sliced = text.slice(0, maxLen);
-  const lastSpace = sliced.lastIndexOf(' ');
-  return sliced.slice(0, lastSpace > 80 ? lastSpace : maxLen) + '…';
 }
 
 export default function BlogList() {
@@ -138,7 +124,7 @@ export default function BlogList() {
                   <div className="flex items-center gap-3 text-xs text-surface-500 mb-3">
                     <time dateTime={post.published_at}>{formatDate(post.published_at)}</time>
                     <span aria-hidden="true">·</span>
-                    <span>{estimateReadTime(post.body_html)}</span>
+                    <span>{post.read_minutes} min read</span>
                     {post.primary_keyword && (
                       <>
                         <span aria-hidden="true">·</span>
@@ -152,7 +138,7 @@ export default function BlogList() {
                     </Link>
                   </h2>
                   <p className="text-sm text-surface-600 dark:text-surface-400 leading-relaxed">
-                    {post.meta_description || excerptFromBody(post.body_html)}
+                    {post.excerpt}
                   </p>
                   <Link
                     to={`/blog/${post.slug}`}
