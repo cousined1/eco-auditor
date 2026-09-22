@@ -297,8 +297,18 @@ function AppContent() {
       // they just paid to remove. This reconciles against Stripe directly.
       void (async () => {
         const result = await verifyCheckoutSession(sessionId);
+        if (!result.ok) {
+          // Verification actually failed (expired session, 5xx, network). Never
+          // claim the payment landed — send the customer somewhere actionable
+          // instead (FEW-02).
+          setCheckoutBanner({
+            message: 'We could not confirm your payment yet — check Settings → Billing or contact support.',
+            type: 'error',
+          });
+          return;
+        }
         setCheckoutBanner(
-          result.ok && result.data.verified
+          result.data.verified
             ? { message: 'Your subscription is active. Thanks!', type: 'success' }
             : {
                 message:

@@ -76,8 +76,11 @@ export default function Pricing() {
     <div className="p-6 max-w-6xl mx-auto space-y-8 overflow-y-auto">
       <div className="text-center max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Carbon accounting that pays for itself</h1>
+        {/* FEW-04: "Cheaper than a single consultant engagement" removed - claims.ts
+            marks it status:'unverified', caveat "Remove if a defensible source cannot
+            be cited", review overdue. Same grounds as the $15K-$40K removal below. */}
         <p className="text-sm text-surface-500 mt-2 leading-relaxed">
-          Cheaper than a single consultant engagement. Move from spreadsheet risk to reviewable records.
+          Move from spreadsheet risk to reviewable records.
           Know what is estimated, what is primary, and what is defensible.
         </p>
       </div>

@@ -299,6 +299,7 @@
           "key": "ERCT",
           "label": "ERCOT All (ERCT)",
           "factorSource": "epa-egrid-2023",
+          "aliases": ["ERCOT"],
           "units": {
             "kWh": 0.33412,
             "MWh": 334.12

@@ -53,7 +53,7 @@ export default function Footer() {
               <li><a href="mailto:hello@developer312.com" aria-label="Email Eco-Auditor support at hello@developer312.com" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">hello@developer312.com</a></li>
               <li><a href="mailto:hello@developer312.com?subject=Security%20report" aria-label="Report a security issue by email" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Report a security issue</a></li>
               <li><a href="mailto:hello@developer312.com?subject=Privacy%20and%20DPA%20request" aria-label="Email a privacy or DPA request" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">Privacy &amp; DPA requests</a></li>
-              <li><a href="tel:+15104011225" aria-label="Call us at (510) 401-1225" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">(510) 401-1225</a></li>
+              <li><a href="tel:+15105910163" aria-label="Call us at (510) 591-0163" className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">(510) 591-0163</a></li>
             </ul>
           </nav>
         </div>

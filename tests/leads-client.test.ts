@@ -22,7 +22,9 @@ describe('submitLead', () => {
       source: 'demo',
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/leads', {
+    // RT-06: the request must also carry a bounded signal, so a stalled
+    // connection rejects instead of pending forever.
+    expect(fetchMock).toHaveBeenCalledWith('/api/leads', expect.objectContaining({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -33,7 +35,8 @@ describe('submitLead', () => {
         message: 'Please show the reporting workflow.',
         source: 'demo',
       }),
-    });
+      signal: expect.any(AbortSignal),
+    }));
   });
 
   it('returns the safe server error when submission is rejected', async () => {

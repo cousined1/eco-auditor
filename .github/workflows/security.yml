@@ -48,3 +48,20 @@ jobs:
 
       - name: Scan git history for secrets (DATA-007 remediation)
         run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854 detect --source /repo --redact --config /repo/.gitleaks.toml --exit-code 1 || echo "::warning::gitleaks history scan reported findings (previously rotated/redacted credentials remain in immutable history; see SECURITY-HISTORY.md)"
+
+      - name: Check migration state (INFRA-D2)
+        # scripts/check-migrations.mjs shells out to `npx @insforge/cli db migrations
+        # list` (platform API), so in CI it needs the INSFORGE_ACCESS_TOKEN and
+        # INSFORGE_PROJECT_ID secrets (no .insforge/project.json link is committed).
+        # Without them the script exits 2 ("cannot determine"): skip with a loud
+        # warning instead of failing every run. With them set, exit 1 (pending
+        # migrations) fails the build - schema must not ship ahead of code.
+        env:
+          INSFORGE_ACCESS_TOKEN: ${{ secrets.INSFORGE_ACCESS_TOKEN }}
+          INSFORGE_PROJECT_ID: ${{ secrets.INSFORGE_PROJECT_ID }}
+        run: |
+          if [ -z "$INSFORGE_ACCESS_TOKEN" ] || [ -z "$INSFORGE_PROJECT_ID" ]; then
+            echo "::warning::INSFORGE_ACCESS_TOKEN / INSFORGE_PROJECT_ID secrets not configured - 'npm run db:migrate:check' cannot verify migration state in CI. Run it against the linked project locally before deploying."
+            exit 0
+          fi
+          npm run db:migrate:check

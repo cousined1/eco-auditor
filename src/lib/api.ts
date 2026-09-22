@@ -56,7 +56,7 @@ export type ExportMyDataResult = { blob: Blob; filename: string };
 
 export async function exportMyData(client: InsForgeLikeClient): Promise<ApiResult<ExportMyDataResult>> {
   try {
-    const res = await fetch('/api/account/export', buildApiRequestInit(client));
+    const res = await fetch('/api/account/export', { ...buildApiRequestInit(client), signal: AbortSignal.timeout(15000) }); // RT-06
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       return { ok: false, error: dataControlError(res.status, (body as { error?: string }).error, 'Data export failed') };
@@ -72,7 +72,7 @@ export async function exportMyData(client: InsForgeLikeClient): Promise<ApiResul
 
 export async function deleteMyData(client: InsForgeLikeClient): Promise<ApiResult<{ deleted?: unknown }>> {
   try {
-    const res = await fetch('/api/account/delete-data', { ...buildApiRequestInit(client), method: 'POST' });
+    const res = await fetch('/api/account/delete-data', { ...buildApiRequestInit(client), method: 'POST', signal: AbortSignal.timeout(15000) }); // RT-06
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       return { ok: false, error: dataControlError(res.status, (body as { error?: string }).error, 'Failed to delete your audit data') };

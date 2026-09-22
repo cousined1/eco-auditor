@@ -34,9 +34,27 @@ STRIPE_PRICE_PRO_ANNUAL=price_...  # One price ID per plan x billing interval; m
 
 # Optional
 VITE_STRIPE_PK=pk_live_...         # Stripe publishable key (build-time)
+
+# Recommended in production (consent audit trail)
+CONSENT_IP_PEPPER=<hex>            # HMAC pepper pseudonymizing visitor IPs in consent records (server.cjs); generate once via a secret manager
 ```
 
-### 2. Build Configuration
+Set `CONSENT_IP_PEPPER` in production. Generate it once (e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), store it in your secret manager, and never commit the real value. If unset, the server falls back to a random per-process pepper: consent IP hashes are not stable across restarts/redeploys (a warn is logged at boot). Rotating the value invalidates the longitudinal linkage of previously recorded consent-IP hashes.
+
+### 2. Migration prerequisites (InsForge-managed Postgres bootstrap)
+
+Migrations in `migrations/` are **not standalone SQL**: they depend on the InsForge-managed auth layer that production InsForge provisions silently. On a non-InsForge or self-managed Postgres, create this bootstrap before applying migrations, or `20260611141026_initial-schema.sql` fails with `schema "auth" does not exist` followed by cascading `relation does not exist` and `role "authenticated" does not exist` errors (with `ON_ERROR_STOP=0`, naive tooling can mask the partial apply as "OK").
+
+Required before applying migrations outside InsForge:
+
+- Schema `auth` with table `auth.users` (`id UUID` primary key) - migrations reference `auth.users(id)` (e.g. the `companies.user_id` foreign key)
+- Function `auth.uid()` returning `uuid` - used by the row-level security policies (`user_id = (SELECT auth.uid())`)
+- Roles `authenticated` and `anon` - policies are declared `TO authenticated` / `TO anon` (public lead writes) and billing columns are granted `TO authenticated`
+- Role `service_role` - part of the InsForge-managed bootstrap set; the InsForge server API operates with it
+
+On InsForge-managed Postgres none of this is manual: `npm run db:migrate` applies all migrations through the InsForge CLI. Verify migration state before deploying with `npm run db:migrate:check` (wired as a CI step in `.github/workflows/security.yml`, INFRA-D2).
+
+### 3. Build Configuration
 
 The project uses a **Dockerfile** for production builds:
 
@@ -50,7 +68,7 @@ The Dockerfile is a multi-stage build that:
 3. Runs as a non-root user (`appuser`)
 4. Includes a HEALTHCHECK endpoint at `/health`
 
-### 3. Health Checks
+### 4. Health Checks
 
 Railway does **not** consume the Dockerfile's `HEALTHCHECK` instruction (that only applies to Docker-native runtimes). Railway gates deploys on the `healthcheckPath` configured in `railway.toml`:
 
@@ -60,7 +78,7 @@ Railway does **not** consume the Dockerfile's `HEALTHCHECK` instruction (that on
 
 The Dockerfile also carries a `HEALTHCHECK` (15s timeout) for local `docker run` monitoring; Railway ignores it.
 
-### 4. Graceful Shutdown
+### 5. Graceful Shutdown
 
 The server handles `SIGTERM` and `SIGINT`:
 - Stops accepting new connections
@@ -68,7 +86,7 @@ The server handles `SIGTERM` and `SIGINT`:
 - Exits within 9 seconds (under Railway's 10s grace period)
 - Force-exits after 9s timeout
 
-### 5. Video Asset Volume (Optional)
+### 6. Video Asset Volume (Optional)
 
 If hosting the intro video via Railway volume:
 
@@ -79,19 +97,19 @@ railway volume create --mount /app/videos
 railway run cp static/eco-auditor-intro.mp4 /app/videos/
 ```
 
-### 6. Stripe Webhooks
+### 7. Stripe Webhooks
 
 Configure in Stripe Dashboard:
 - **Endpoint URL**: `https://your-app.up.railway.app/api/webhook`
 - **Events**: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
 
-### 7. Custom Domain (Optional)
+### 8. Custom Domain (Optional)
 
 ```bash
 railway domain add eco-auditor.developer312.com
 ```
 
-### 8. Cloudflare www Redirect Rule (Required before launch)
+### 9. Cloudflare www Redirect Rule (Required before launch)
 
 The apex domain (`ecoauditor.io`) is served through Cloudflare, but `www.ecoauditor.io` currently returns a Cloudflare 526 error because the origin presents an invalid certificate for the `www` hostname. The apex also sends an HSTS header with `includeSubDomains`, so browsers that have previously visited the apex will refuse to bypass the broken `www` certificate. A redirect rule must be applied **at the Cloudflare edge** so `www` requests never reach the origin.
 

@@ -7,7 +7,12 @@ import { buildApiRequestInit } from './api';
 // treats a 401 as an expired/invalid session.
 export async function isSessionValid(): Promise<boolean> {
   try {
-    const res = await fetch('/api/trial-status', buildApiRequestInit(insforge));
+    // RT-06: bound the round-trip; a hung connection is treated like any other
+    // network error below (no false logout on a blip or timeout).
+    const res = await fetch('/api/trial-status', {
+      ...buildApiRequestInit(insforge),
+      signal: AbortSignal.timeout(15000),
+    });
     return res.status !== 401;
   } catch {
     // Network/transient error — don't force a logout on a blip.

@@ -50,6 +50,10 @@ export default function DataIntake() {
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setCsvResult(null);
+    // Clear any stale plan-gate prompt: a 402 from an earlier attempt must not
+    // stay on screen once a later upload in this mount succeeds (FEW-08). If
+    // this upload is gated again, the 402 branch re-sets the prompt below.
+    setUploadUpgrade(null);
 
     // Every file's outcome is collected and rendered, rather than each call to
     // showStatus overwriting the previous one. With a single status slot, a
