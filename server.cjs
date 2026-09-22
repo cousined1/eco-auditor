@@ -41,6 +41,7 @@ const {
   createSimplePdf,
 } = require('./src/lib/reports/report-generator.cjs');
 const { createPublishHandler, sanitizeBlogHtml } = require('./server-publish.cjs');
+const { parseRange, getStaticCacheHeaders } = require('./server-http-utils.cjs');
 
 // Per-request context for structured logging (INFRA-007): the request-ID
 // middleware below runs every handler inside this store, so log() can attach
@@ -91,6 +92,12 @@ if (process.env.DATABASE_URL) {
       connectionString: process.env.DATABASE_URL,
       connectionTimeoutMillis: 3000,
       query_timeout: 3000,
+      // INFRA-D5: stop running on library defaults — bounded size + idle
+      // reaping so a leaked client cannot starve the pool, and a server-side
+      // statement backstop alongside the client-side query_timeout.
+      max: 10,
+      idleTimeoutMillis: 30000,
+      statement_timeout: 30000,
     });
     // pg-pool emits 'error' on the pool when an IDLE client fails (DB restart,
     // maintenance, idle timeout). An unhandled EventEmitter 'error' throws,
@@ -1062,8 +1069,15 @@ app.post('/api/account/delete-data', express.json(), apiAuthGuard, async functio
   // other server-owned writes (reserveCsvImportQuota / ensureCompanyForUser).
   // Entries are deleted before facilities so the ON DELETE SET NULL FK from
   // emission_entries.facility_id never fires needlessly.
-  const client = await pgPool.connect();
+  //
+  // The connect() acquisition sits INSIDE the try (SVR-01): a rejected
+  // connect() — pool exhausted, connectionTimeoutMillis exceeded — used to
+  // escape the async handler at the Express 4 boundary as an unhandled
+  // rejection and exit the whole process (unhandledRejection at the bottom of
+  // this file). Same class of bug the facilities route already guards against.
+  let client;
   try {
+    client = await pgPool.connect();
     await client.query('BEGIN');
     await client.query('SET LOCAL row_security = off');
     const entriesResult = await client.query('DELETE FROM public.emission_entries WHERE company_id = $1', [companyId]);
@@ -1082,6 +1096,13 @@ app.post('/api/account/delete-data', express.json(), apiAuthGuard, async functio
       deletedFacilities: facilitiesResult.rowCount,
     });
   } catch (err) {
+    if (!client) {
+      // Connect failed before any client existed: nothing to roll back or
+      // release. Map it to the same 503 the no-DB branch above uses so the
+      // endpoint degrades instead of killing the process.
+      log('error', 'Delete-data: failed to acquire a database client', { error: String(err), companyId: companyId });
+      return res.status(503).json({ success: false, error: 'Data store unavailable' });
+    }
     try {
       await client.query('ROLLBACK');
     } catch (rollbackErr) {
@@ -1090,7 +1111,8 @@ app.post('/api/account/delete-data', express.json(), apiAuthGuard, async functio
     log('error', 'Account data deletion failed', { error: String(err), companyId: companyId });
     return res.status(500).json({ success: false, error: 'Failed to delete audit data' });
   } finally {
-    client.release();
+    // Release only what was actually acquired (SVR-01).
+    if (client) client.release();
   }
 });
 
@@ -1286,10 +1308,22 @@ async function ensureStripeCustomer(insforgeUserId, email) {
       [customer.id, insforgeUserId]
     );
   } else {
+    // SVR-02: two concurrent checkouts can both observe "no row" and both
+    // mint a Stripe customer. ON CONFLICT DO NOTHING + re-select keeps the
+    // mapping single-valued; the race loser adopts the winner's customer id
+    // (its own extra Stripe object stays orphaned, which is harmless).
     await pgPool.query(
-      'INSERT INTO users (insforge_user_id, stripe_customer_id, email) VALUES ($1, $2, $3)',
+      'INSERT INTO users (insforge_user_id, stripe_customer_id, email) VALUES ($1, $2, $3) ON CONFLICT (insforge_user_id) DO NOTHING',
       [insforgeUserId, customer.id, email]
     );
+    const reselect = await pgPool.query(
+      'SELECT stripe_customer_id FROM users WHERE insforge_user_id = $1',
+      [insforgeUserId]
+    );
+    if (reselect.rows.length && reselect.rows[0].stripe_customer_id &&
+        reselect.rows[0].stripe_customer_id !== customer.id) {
+      return reselect.rows[0].stripe_customer_id;
+    }
   }
 
   return customer.id;
@@ -1890,6 +1924,13 @@ async function writeLead(lead) {
       return;
     } catch (err) {
       log('error', 'Failed to write lead to Postgres', { error: String(err) });
+      // In production the JSON fallback is a lie (UXE-001): .data/ is an
+      // ephemeral, unvolume'd filesystem nobody ever reads, so a 200 "captured"
+      // would be false trust. Rethrow so /api/leads answers 500 and the UI can
+      // offer a retry. The file fallback stays only for dev / no-DB runs.
+      if (process.env.NODE_ENV === 'production') {
+        throw err;
+      }
     }
   }
 
@@ -1975,19 +2016,32 @@ app.post('/api/consent-audit', consentRateLimit, express.json({ limit: '4kb' }),
 
   try {
     if (pgPool) {
-      await queryWithRlsBypass(
-        `INSERT INTO public.consent_records (visitor_id, consent, policy_version, method, gpc, dnt, user_agent, ip_hash)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [record.visitorId, JSON.stringify(record.consent), record.policyVersion, record.method,
-         record.gpc, record.dnt, record.userAgent, record.ipHash]
-      );
+      const persist = async function () {
+        await queryWithRlsBypass(
+          `INSERT INTO public.consent_records (visitor_id, consent, policy_version, method, gpc, dnt, user_agent, ip_hash)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [record.visitorId, JSON.stringify(record.consent), record.policyVersion, record.method,
+           record.gpc, record.dnt, record.userAgent, record.ipHash]
+        );
+      };
+      try {
+        await persist();
+      } catch (firstErr) {
+        // UXE-006: one bounded retry — a transient pool hiccup should not
+        // silently drop GDPR/CCPA consent evidence. If the retry also fails,
+        // the failure surfaces below (no unbounded PII fallback files here).
+        await new Promise(function (resolve) { setTimeout(resolve, 150); });
+        await persist();
+      }
     } else {
       appendConsentRecordToFile(record);
     }
     return res.status(202).json({ received: true });
   } catch (err) {
     log('error', 'Consent audit persistence failed', { error: String(err) });
-    return res.status(500).json({ error: 'Failed to record consent' });
+    // UXE-006: surface the failure as retryable (503) so the client can offer
+    // a retry instead of silently pretending the consent record was kept.
+    return res.status(503).json({ error: 'Failed to record consent', retryable: true });
   }
 });
 
@@ -2003,7 +2057,7 @@ const ECOAUDITOR_KB = [
   },
   {
     pattern: /contact|reach out|email|phone/i,
-    response: "You can reach us at:\n\n• Email: hello@developer312.com\n• Phone: (510) 401-1225\n\nOr I can connect you with our sales team right here in the chat!"
+    response: "You can reach us at:\n\n• Email: hello@developer312.com\n• Phone: (510) 591-0163\n\nOr I can connect you with our sales team right here in the chat!"
   },
   {
     pattern: /how (it|does) work|features|what is|about/i,
@@ -2701,9 +2755,14 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
         entries.push(entry);
       }
 
-      // Collect errors and warnings for this row
+      // Collect errors and warnings for this row. UAD-02: warnings are only
+      // meaningful for rows that actually persist — a rejected row's
+      // "stored without facility association" / "using import time" note
+      // describes storage that never happened.
       rowErrors.forEach(function (e) { importErrors.push(e); });
-      rowWarnings.forEach(function (w) { importWarnings.push(w); });
+      if (rowErrors.length === 0) {
+        rowWarnings.forEach(function (w) { importWarnings.push(w); });
+      }
     }
 
     // Persist valid entries. Postgres (via RLS-bypass transaction) when a DB is
@@ -3080,17 +3139,14 @@ app.get('/api/video', function (req, res) {
   const range = req.headers.range;
 
   if (range) {
-    const parts = range.replace(/bytes=/, '').split('-');
-    const rawStart = parseInt(parts[0], 10);
-    const rawEnd = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-    if (isNaN(rawStart) || isNaN(rawEnd) || rawStart < 0 || rawEnd < rawStart || rawStart >= fileSize) {
+    const parsed = parseRange(range, fileSize);
+    if (parsed.invalid) {
       return res.status(416).setHeader('Content-Range', 'bytes */' + fileSize).end();
     }
 
-    const start = rawStart;
-    const end = Math.min(rawEnd, fileSize - 1);
-    const chunkSize = end - start + 1;
+    const start = parsed.start;
+    const end = parsed.end;
+    const chunkSize = parsed.contentLength;
 
     res.writeHead(206, {
       'Content-Range': 'bytes ' + start + '-' + end + '/' + fileSize,
@@ -3128,11 +3184,10 @@ app.get('/api/video', function (req, res) {
 // ─── Static files with cache headers ───
 app.use(express.static(path.join(__dirname, 'static'), {
   setHeaders: function (res, filePath) {
-    if (filePath.includes('/assets/') && (filePath.endsWith('.js') || filePath.endsWith('.css'))) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    } else if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache, no-transform');
-    }
+    // Extracted to server-http-utils.cjs (RT-05) so the policy is testable
+    // without booting the server.
+    const cacheControl = getStaticCacheHeaders(filePath);
+    if (cacheControl) res.setHeader('Cache-Control', cacheControl);
   },
 }));
 
@@ -3195,7 +3250,18 @@ app.get('*', function (req, res) {
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     return res.sendFile(path.join(__dirname, 'static', 'index.html'));
   }
-  res.status(404).setHeader('Cache-Control', 'no-cache, no-transform').send('Not found');
+  // UXE-003: unknown marketing URLs previously got an unbranded plaintext
+  // "Not found". Serve a minimal branded page (still noindex, still a real
+  // 404 for crawlers) so the dead end stays on-brand.
+  res.status(404)
+    .setHeader('Cache-Control', 'no-cache, no-transform')
+    .setHeader('Content-Type', 'text/html; charset=utf-8')
+    .send('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
+      '<title>Not found — Eco-Auditor</title><meta name="robots" content="noindex">' +
+      '<style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f7faf9;color:#1b2a27}' +
+      'main{text-align:center;padding:2rem}a{color:#0e7a5f}</style></head>' +
+      '<body><main><h1>Not found</h1><p>The page you are looking for does not exist.</p>' +
+      '<p><a href="/">Go to Eco-Auditor</a></p></main></body></html>');
 });
 
 // ─── Structured logging ───

@@ -50,9 +50,10 @@ describe('exportMyData (DATA-005)', () => {
     if (!result.ok) return;
     expect(result.data.filename).toBe('eco-auditor-export-2026.json');
     expect((await result.data.blob.text()).length).toBeGreaterThan(0);
-    expect(fetchMock).toHaveBeenCalledWith('/api/account/export', {
+    expect(fetchMock).toHaveBeenCalledWith('/api/account/export', expect.objectContaining({
       headers: { Authorization: 'Bearer token-abc' },
-    });
+      signal: expect.any(AbortSignal), // RT-06: bounded fetch
+    }));
   });
 
   it('falls back to a default filename when Content-Disposition is absent', async () => {
@@ -77,10 +78,11 @@ describe('deleteMyData (DATA-005)', () => {
     stubFetch(async () => new Response(JSON.stringify({ deleted: { emissionEntries: 3, facilities: 1 } }), { status: 200 }));
     const result = await deleteMyData(authedClient);
     expect(result).toEqual({ ok: true, data: { deleted: { emissionEntries: 3, facilities: 1 } } });
-    expect(fetchMock).toHaveBeenCalledWith('/api/account/delete-data', {
+    expect(fetchMock).toHaveBeenCalledWith('/api/account/delete-data', expect.objectContaining({
       headers: { Authorization: 'Bearer token-abc' },
       method: 'POST',
-    });
+      signal: expect.any(AbortSignal), // RT-06: bounded fetch
+    }));
   });
 
   it('maps failures to the server error or the signed-in message', async () => {

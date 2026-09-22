@@ -105,9 +105,13 @@ function getVisitorId(): string | null {
 }
 
 // Best-effort server-side audit trail; failures never block the UI.
+// UXE-006: a failure is no longer swallowed silently. The server answers
+// 503 {retryable:true} when it could not persist the record (GDPR/CCPA
+// evidence); the client retries once and then surfaces the failure loudly
+// (console.warn) so outages are observable instead of silent evidence loss.
 function recordConsentAudit(consent: ConsentCategories, signals: PrivacySignals, method: ConsentMethod): void {
   if (typeof fetch === 'undefined') return;
-  void fetch('/api/consent-audit', {
+  const post = (): Promise<Response> => fetch('/api/consent-audit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -119,9 +123,25 @@ function recordConsentAudit(consent: ConsentCategories, signals: PrivacySignals,
       dnt: signals.dnt,
     }),
     keepalive: true,
-  }).catch(() => {
-    // audit is best-effort
+    signal: AbortSignal.timeout(15000), // RT-06: bounded fetch
   });
+  const attempt = (retriesLeft: number): void => {
+    post().then((res) => {
+      if (res.ok) return;
+      if (retriesLeft > 0 && res.status === 503) {
+        window.setTimeout(() => attempt(retriesLeft - 1), 1000);
+        return;
+      }
+      console.warn(`[ConsentAudit] consent record not persisted (HTTP ${res.status})`);
+    }).catch(() => {
+      if (retriesLeft > 0) {
+        window.setTimeout(() => attempt(retriesLeft - 1), 1000);
+        return;
+      }
+      console.warn('[ConsentAudit] consent record not persisted (network failure)');
+    });
+  };
+  attempt(1);
 }
 
 export function ConsentProvider({ children }: { children: React.ReactNode }) {
@@ -138,7 +158,13 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
       // fall through and write a fresh record
     }
     const record: ConsentState = { ...consentState, timestamp: new Date().toISOString() };
-    localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record));
+    try {
+      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record));
+    } catch {
+      // Storage may be blocked (SecurityError, e.g. "Block all cookies"); keep
+      // the in-memory state and skip persistence instead of throwing above the
+      // app ErrorBoundary (FEW-01, same guard as useTheme).
+    }
     recordConsentAudit(record.consent, privacySignals, 'privacy_signal');
   }, [consentState, privacySignals]);
 
@@ -160,7 +186,12 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
       hasConsented: true,
     };
     setConsentState(next);
-    localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(next));
+    try {
+      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Blocked storage must not escape the click handler: consent still
+      // applies for this session via the in-memory state (FEW-01).
+    }
     recordConsentAudit(updated, privacySignals, method);
   }, [consentState, privacySignals]);
 
@@ -181,7 +212,11 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
   }, [updateConsent]);
 
   const resetConsent = useCallback(() => {
-    localStorage.removeItem(CONSENT_STORAGE_KEY);
+    try {
+      localStorage.removeItem(CONSENT_STORAGE_KEY);
+    } catch {
+      // Storage unavailable — fall through and reset the in-memory state.
+    }
     setConsentState({ ...defaultConsentState, hasConsented: false });
     recordConsentAudit(defaultConsent, privacySignals, 'reset');
   }, [privacySignals]);

@@ -94,7 +94,7 @@ export default function ContactUs() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Phone</h3>
-            <a href="tel:+15104011225" className="text-sm text-accent-text hover:underline">(510) 401-1225</a>
+            <a href="tel:+15105910163" className="text-sm text-accent-text hover:underline">(510) 591-0163</a>
             <p className="text-2xs text-surface-500 mt-0.5">Mon–Fri, 9am–5pm PT</p>
           </div>
         </div>

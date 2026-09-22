@@ -170,8 +170,13 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
       ? body.requestId.trim()
       : crypto.randomUUID();
 
-    const client = await pgPool.connect();
+    // The connect() acquisition sits INSIDE the try (SVR-R1): a rejected
+    // connect() used to escape the async handler at the Express 4 boundary as
+    // an unhandled rejection and exit the whole process. The catch below maps
+    // that case to 503 before the query-phase handling runs.
+    let client;
     try {
+      client = await pgPool.connect();
       await client.query('BEGIN');
       for (let i = 0; i < posts.length; i += 1) {
         const post = posts[i];
@@ -212,6 +217,12 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
       }
       await client.query('COMMIT');
     } catch (err) {
+      if (!client) {
+        // Connect failed before any client existed: nothing to roll back or
+        // release. Same 503 contract as the other database-unavailable paths.
+        log('error', 'POST /api/publish: failed to acquire a database client', { error: err && err.message });
+        return res.status(503).json({ error: 'database is unavailable' });
+      }
       try {
         await client.query('ROLLBACK');
       } catch {
@@ -224,7 +235,8 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
       log('error', 'POST /api/publish:', { error: err && err.message });
       return res.status(500).json({ error: 'failed to publish' });
     } finally {
-      client.release();
+      // Release only what was actually acquired (SVR-R1).
+      if (client) client.release();
     }
 
     const deployed = posts.map((p) => p.slug);
