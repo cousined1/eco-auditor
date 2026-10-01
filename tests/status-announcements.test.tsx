@@ -60,7 +60,7 @@ describe('Generate PDF status (ReportGenerator)', () => {
       vi.fn(async (url: string) =>
         url.endsWith('/reports/generate')
           ? json({ success: true, report_id: 'r1', download_url: '/api/reports/r1/download' })
-          : new Response(new Blob(['%PDF']), { status: 200 }),
+          : new Response('%PDF', { status: 200, headers: { 'Content-Type': 'application/pdf' } }),
       ),
     );
     await press(buttonNamed(container, /^Generate PDF$/));

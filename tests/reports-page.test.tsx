@@ -36,7 +36,7 @@ const LEGACY = {
 const LIST = { success: true, company: { id: '3', name: 'Müller Umwelt GmbH' }, default_period: '2026', reports: [DRAFT, FINAL, LEGACY] };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-const pdf = () => new Response(new Blob(['%PDF-1.4']), { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+const pdf = () => new Response('%PDF-1.4', { status: 200, headers: { 'Content-Type': 'application/pdf' } }); // a string body: jsdom's Blob has no stream(), which Node 22's Response calls
 
 type Call = { url: string; method: string; body: unknown };
 let calls: Call[] = [];
