@@ -1,0 +1,62 @@
+{
+  "home": [
+    {
+      "q": "What is Eco-Auditor?",
+      "a": "Eco-Auditor is GHG Protocol-aligned carbon accounting software for small and mid-size businesses. You import activity data by CSV, and it calculates Scope 1, 2, and 3 emissions and produces a PDF emissions summary."
+    },
+    {
+      "q": "How does Eco-Auditor calculate Scope 1, Scope 2, and Scope 3 emissions?",
+      "a": "It applies factors from the EPA GHG Emission Factors Hub, eGRID subregional grid data, and IPCC AR5 GWP-100 values to the activity data you import (US hotel stays use the UK DESNZ 2026 factor). Spend-based Scope 3 and process-emission factors are Eco-Auditor internal estimates, not a published dataset, and are flagged provisional. The methodology page describes each step."
+    },
+    {
+      "q": "What is Scope 1, 2, and 3 emissions?",
+      "a": "Scope 1 covers direct emissions from sources you own or control (e.g., natural gas boilers, company vehicles). Scope 2 covers indirect emissions from purchased electricity, steam, heating, and cooling. Scope 3 covers all other indirect emissions in your value chain, including purchased goods, business travel, and waste."
+    },
+    {
+      "q": "What is SB 253 and who does it affect?",
+      "a": "California's Climate Corporate Data Accountability Act (SB 253) requires companies doing business in California with over $1 billion in annual revenue to disclose Scope 1 and Scope 2 emissions starting in 2026, and Scope 3 starting in 2027. The requirements cascade through supply chains, affecting SMBs that supply larger companies."
+    },
+    {
+      "q": "How is Eco-Auditor different from enterprise ESG platforms?",
+      "a": "Eco-Auditor is built for companies in the $10M–$500M revenue range. It provides CSV-based activity import with confidence scoring and a PDF emissions summary, on plans from $149 to $999 per month."
+    },
+    {
+      "q": "How long does it take to get started?",
+      "a": "You import a CSV of activity data and the calculator applies emission factors with confidence scoring. You can try it with a 14-day free Starter trial; no card is required."
+    },
+    {
+      "q": "What does the free trial include?",
+      "a": "The 14-day free trial needs no card and uses Starter plan limits: Scope 1 and 2 workflows, 1 facility and 10 CSV imports per month. Scope 3 workflows need the Growth plan or higher. When the trial ends, the dashboard, imports and reports are paused until you choose a paid plan."
+    },
+    {
+      "q": "What compliance frameworks does Eco-Auditor support?",
+      "a": "Eco-Auditor is aligned with the GHG Protocol for Scope 1, 2, and 3 emissions accounting. It produces a PDF emissions summary you can use as source material for California SB 253, EU CBAM data requests, customer procurement questionnaires, and annual GHG inventories. It does not yet produce filing-ready reporting packages or an audit trail, both of which are on the roadmap, and assurance is performed by an independent provider, not by software."
+    },
+    {
+      "q": "Do I need a sustainability consultant to use Eco-Auditor?",
+      "a": "Eco-Auditor is designed for operations, finance, and sustainability teams to use with their own activity data. The platform provides methodology documentation and emission factor libraries; an AI assistant is on the roadmap. Eco-Auditor does not provide assurance or legal advice, so consider having a qualified professional review any report you plan to file."
+    }
+  ],
+  "methodology": [
+    {
+      "q": "Which emission factor databases does Eco-Auditor use?",
+      "a": "Eco-Auditor uses the EPA GHG Emission Factors Hub 2025 (including its waste factors from EPA's WARM model), eGRID2023 Revision 2 (electricity), IPCC AR5 GWP-100 values, and the UK DESNZ 2026 factor for US hotel stays. Spend-based Scope 3 and process-emission factors are Eco-Auditor internal estimates, not a published dataset, and are flagged provisional."
+    },
+    {
+      "q": "Is Eco-Auditor aligned with the GHG Protocol?",
+      "a": "Eco-Auditor is aligned with the GHG Protocol Corporate Accounting and Reporting Standard (Scope 1 & 2) and the Corporate Value Chain (Scope 3) Standard. Alignment is not certification. The GHG Protocol permits operational-control, financial-control and equity-share approaches: the company chooses its approach in Settings, and its reports say \"not specified\" until it does. Organizations should select and document the boundary method appropriate to their structure and reporting requirements."
+    },
+    {
+      "q": "How does Eco-Auditor handle data quality?",
+      "a": "Every entry, imported or typed into the calculator, receives a confidence score based on its activity category and the specificity of the emission factor applied — highest for metered electricity and fuel against published EPA and eGRID factors, lowest for spend-based Scope 3 estimates. You can supply your own confidence value in the import file. Calculator entries saved before category scoring was applied to them keep the fixed 85% they were stored with. The overall score weights each entry by its share of emissions and appears in the PDF summary, so reviewers can see how much of an inventory rests on estimates; a period whose entries were all saved before the 2026-09-30 factor catalog still shows the simple average of its entries' scores until they are restated. A per-entry quality hierarchy and a review queue are planned."
+    },
+    {
+      "q": "What compliance frameworks does Eco-Auditor support?",
+      "a": "Eco-Auditor produces a GHG Protocol-aligned Scope 1-3 inventory and a PDF emissions summary you can use as source material for California SB 253, EU CBAM, annual inventories, and procurement questionnaires. Framework-specific filing templates are on the roadmap."
+    },
+    {
+      "q": "How often are emission factors updated?",
+      "a": "We review the factor library when source agencies release new data, and a corrected factor goes into a new catalog version (the current one is dated 2026-09-30). Each entry is priced with the catalog version it was saved under, and entries saved without a recorded version use the 2026-07-24 catalog, so a correction never changes a past total by itself: moving older entries onto a newer catalog is a deliberate restatement. A published change log is not available yet."
+    }
+  ]
+}

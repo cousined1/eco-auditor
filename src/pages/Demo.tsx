@@ -1,8 +1,15 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { submitLead } from '../lib/leads';
+import routeMeta from '@/content/route-meta.json';
+import { contactDetails } from '@/content/trust-facts';
+
+// Title and description come from src/content/route-meta.json, the file the
+// prerender step writes into the HTML, so raw and JS-rendered meta agree.
+const DEMO_META = routeMeta['/demo'];
+const HOME_META = routeMeta['/'];
 
 const DEMO_GOALS = [
   { id: 'customer-rfp', label: 'Customer or RFP emissions-data request' },
@@ -13,10 +20,20 @@ const DEMO_GOALS = [
   { id: 'consultant-workflow', label: 'Consultant / accounting workflow' },
 ] as const;
 
+// Where focus goes after a failed submit, in form order (F-C-25): the first field
+// with an error. Each field's message is tied to it with aria-describedby, so a
+// screen reader reads the label and the problem together.
+const FOCUS_TARGET_BY_FIELD: Record<string, string> = {
+  name: '#demo-name',
+  email: '#demo-email',
+  company: '#demo-company',
+  goal: 'input[name="demo-goal"]',
+};
+
 const AGENDA = [
   { time: '0:00', item: 'Your reporting objective and current workflow' },
   { time: '0:05', item: 'Live tour: CSV intake, factor application, data-quality scoring' },
-  { time: '0:15', item: 'Sample report walkthrough and evidence index' },
+  { time: '0:15', item: 'Sample report walkthrough' },
   { time: '0:22', item: 'Plan fit, pricing, and next steps' },
   { time: '0:28', item: 'Your questions' },
 ];
@@ -35,16 +52,34 @@ export default function Demo() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const submitErrorRef = useRef<HTMLParagraphElement>(null);
+  const receivedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = 'Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough';
+    document.title = DEMO_META.title;
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Book a 25–30 minute Eco-Auditor demo. Tell us your goal — Scope 1/2 baseline, Scope 3 supplier collection, SB 253 readiness, or customer carbon-data requests.';
+    if (desc) desc.content = DEMO_META.description;
     return () => {
-      document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Import activity data by CSV, connect integrations (roadmap), and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      document.title = HOME_META.title;
+      if (desc) desc.content = HOME_META.description;
     };
   }, []);
+
+  // After a submit, focus moves to what happened (F-C-25); it used to stay on the
+  // submit button, so nothing new was announced. Done in effects, after React has
+  // rendered the error text and aria-describedby, so a screen reader reads the
+  // field together with its problem. validate() sets a new fieldErrors object on
+  // every failed attempt, so a repeat failure moves focus again.
+  useEffect(() => {
+    const firstInvalid = Object.entries(FOCUS_TARGET_BY_FIELD).find(([field]) => fieldErrors[field]);
+    if (firstInvalid) document.querySelector<HTMLElement>(firstInvalid[1])?.focus();
+  }, [fieldErrors]);
+  useEffect(() => {
+    if (submitError) submitErrorRef.current?.focus();
+  }, [submitError]);
+  useEffect(() => {
+    if (submitted) receivedRef.current?.focus();
+  }, [submitted]);
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
@@ -89,14 +124,14 @@ export default function Demo() {
       });
       setSubmitted(true);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'We couldn’t send your request right now.';
-      setSubmitError(`${message} You can also email hello@developer312.com.`);
+      // The mailbox is appended where the error renders, so it is not repeated here.
+      setSubmitError(error instanceof Error ? error.message : 'We couldn’t send your request right now.');
     } finally {
       setSubmitting(false);
     }
   }
 
-  const mailtoHref = `mailto:hello@developer312.com?subject=${encodeURIComponent('Eco-Auditor Demo Request')}&body=${encodeURIComponent(`${form.name}\n${form.email}\n${form.company}\nGoal: ${form.goal}\nFacilities: ${form.facilityCount}\nDeadline: ${form.reportingDeadline}\n\n${form.message}`)}`;
+  const mailtoHref = `mailto:${contactDetails.email}?subject=${encodeURIComponent('Eco-Auditor Demo Request')}&body=${encodeURIComponent(`${form.name}\n${form.email}\n${form.company}\nGoal: ${form.goal}\nFacilities: ${form.facilityCount}\nDeadline: ${form.reportingDeadline}\n\n${form.message}`)}`;
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
@@ -116,9 +151,9 @@ export default function Demo() {
             A focused walkthrough of Eco-Auditor against your reporting objective. Tell us what you need and we’ll show you the path — not a generic pitch.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-surface-500">
-            <Link to="/sample-report" className="text-accent-text hover:underline">View the sample report first</Link>
+            <Link to="/sample-report/" className="text-accent-text hover:underline">View the sample report first</Link>
             <span className="hidden sm:inline text-surface-300">·</span>
-            <Link to="/methodology" className="text-accent-text hover:underline">Read the methodology</Link>
+            <Link to="/methodology/" className="text-accent-text hover:underline">Read the methodology</Link>
           </div>
         </div>
       </section>
@@ -138,24 +173,24 @@ export default function Demo() {
             </ol>
             <div className="mt-6 pt-6 border-t border-surface-200 dark:border-surface-700">
               <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">What happens after you submit</h3>
-              <p className="text-xs text-surface-500">We typically respond within one business day with a calendar link or a direct time proposal. You won’t be added to a marketing list.</p>
+              <p className="text-xs text-surface-500">{contactDetails.followUp}. You won’t be added to a marketing list.</p>
             </div>
           </div>
 
           {/* Form */}
           <div className="card">
             {submitted ? (
-              <div className="text-center py-10">
+              <div ref={receivedRef} role="status" tabIndex={-1} className="text-center py-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 rounded-lg">
                 <div className="w-12 h-12 mx-auto rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center mb-3">
                   <svg className="w-6 h-6 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </div>
                 <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Request received</h2>
                 <p className="text-sm text-surface-500 mt-2 max-w-sm mx-auto">
-                  Thanks{form.name ? `, ${form.name.split(' ')[0]}` : ''}. We’ll reply within one business day with a calendar link. Your reference context: <strong className="text-surface-700 dark:text-surface-300">{DEMO_GOALS.find((g) => g.id === form.goal)?.label ?? 'demo request'}</strong>.
+                  Thanks{form.name ? `, ${form.name.split(' ')[0]}` : ''}. {contactDetails.followUp}. Your reference context: <strong className="text-surface-700 dark:text-surface-300">{DEMO_GOALS.find((g) => g.id === form.goal)?.label ?? 'demo request'}</strong>.
                 </p>
                 <div className="mt-6 flex flex-col sm:flex-row gap-2 justify-center">
-                  <Link to="/sample-report" className="btn-secondary text-sm">View sample report</Link>
-                  <Link to="/signup" className="btn-primary text-sm">Start free trial instead</Link>
+                  <Link to="/sample-report/" className="btn-secondary text-sm">View sample report</Link>
+                  <Link to="/signup/" className="btn-primary text-sm">Start free trial instead</Link>
                 </div>
               </div>
             ) : (
@@ -262,13 +297,13 @@ export default function Demo() {
                     {submitting ? 'Sending…' : 'Request demo'}
                   </button>
                   {submitError && (
-                    <p className="text-xs text-risk-high">
+                    <p ref={submitErrorRef} role="alert" tabIndex={-1} className="text-xs text-risk-high focus:outline-none focus-visible:ring-2 focus-visible:ring-risk-high/40">
                       {submitError} You can also email{' '}
-                      <a href={mailtoHref} className="text-accent-text hover:underline">hello@developer312.com</a>.
+                      <a href={mailtoHref} className="text-accent-text hover:underline">{contactDetails.email}</a>.
                     </p>
                   )}
                   <p className="text-2xs text-surface-600 dark:text-surface-400 text-center">
-                    By submitting, you agree to our <Link to="/terms" className="text-accent-text hover:underline">Terms</Link> and <Link to="/privacy" className="text-accent-text hover:underline">Privacy Policy</Link>.
+                    By submitting, you agree to our <Link to="/terms/" className="text-accent-text hover:underline">Terms</Link> and <Link to="/privacy/" className="text-accent-text hover:underline">Privacy Policy</Link>.
                   </p>
                 </form>
               </>

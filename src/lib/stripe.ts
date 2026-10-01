@@ -3,37 +3,13 @@
 // The VITE_STRIPE_PK must be set at build time for client-side checkout to work.
 // The server-side /api/stripe/checkout route uses STRIPE_SECRET_KEY at runtime.
 
-import { insforge as _insforge } from './insforge';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const insforge = _insforge as any;
+import { apiFetch, hasSession } from './api';
+import { notifyBillingChanged } from './billingState';
 
-// Resolves the InsForge access token for the current session. Returns null if
-// the user is not signed in — callers should treat that as an auth error.
-// NOTE: `insforge.auth.getSession()` is not part of the SDK's public Auth
-// contract (and returns a camelCase `accessToken` shape, not `data.session`),
-// so the previous implementation always returned null — silently breaking
-// checkout, billing portal, plan change, and cancel for every signed-in user.
-// Read the Authorization header the SDK's HTTP client already manages instead
-// (same mechanism as src/lib/api.ts / Dashboard). See audit finding.
-export async function getAuthToken(): Promise<string | null> {
-  try {
-    const headers = insforge.getHttpClient?.().getHeaders?.() || {};
-    const authorization: string = headers.Authorization || headers.authorization || '';
-    if (!authorization) return null;
-    const token = authorization.replace(/^Bearer\s+/i, '');
-    // The SDK's HttpClient.getHeaders() falls back to the public anon key when
-    // no user session exists ("const authToken = this.userToken || this.anonKey").
-    // Callers use this helper as an "is signed in" gate (Pricing checkout), so
-    // the always-present anon key must read as signed-out (null), or the
-    // anonymous funnel POSTs the anon key to /api/checkout and dies on a raw
-    // 401 instead of redirecting to /signup.
-    const anonKey = (import.meta.env.VITE_INSFORGE_ANON_KEY as string | undefined) || '';
-    if (!token || (anonKey && token === anonKey)) return null;
-    return token;
-  } catch {
-    return null;
-  }
-}
+// "Signed in?" is hasSession() in api.ts, which answers true or false and never
+// hands the session token out. This file used to read the token itself
+// (getAuthToken, from the SDK's HTTP headers), one of the ways a call could send
+// it without going through apiFetch, which refreshes an expired token (D-5).
 
 interface CheckoutParams {
   priceId: string;
@@ -120,16 +96,13 @@ export async function createCheckoutSession({ planId, billing, trial }: Checkout
   // The server creates the Stripe Checkout session and returns the hosted URL.
   // We do not require a client-side publishable key since Stripe.js is not used.
 
-  const token = await getAuthToken();
-  if (!token) return { ok: false, error: 'You must be signed in to start checkout' };
+  if (!hasSession()) return { ok: false, error: 'You must be signed in to start checkout' };
 
   try {
-    const resp = await fetch('/api/checkout', {
+    // apiFetch attaches the session token and refreshes it if expired.
+    const resp = await apiFetch('/api/checkout', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priceId, planId, billing, trial }),
       // RT-06: bound every client fetch so a black-holed connection cannot
       // leave the UI pending forever; the existing catch maps the abort into
@@ -158,16 +131,12 @@ export async function createCheckoutSession({ planId, billing, trial }: Checkout
 export async function verifyCheckoutSession(
   sessionId: string,
 ): Promise<StripeResult<{ verified: boolean; reason?: string }>> {
-  const token = await getAuthToken();
-  if (!token) return { ok: false, error: 'You must be signed in to confirm checkout' };
+  if (!hasSession()) return { ok: false, error: 'You must be signed in to confirm checkout' };
 
   try {
-    const resp = await fetch('/api/checkout/verify', {
+    const resp = await apiFetch('/api/checkout/verify', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId }),
       // RT-06: a hung connection right after payment must not freeze the
       // verify spinner indefinitely.
@@ -179,20 +148,22 @@ export async function verifyCheckoutSession(
       return { ok: false, error: (body as { error?: string }).error || 'Could not confirm checkout' };
     }
 
-    return { ok: true, data: (await resp.json()) as { verified: boolean; reason?: string } };
+    const data = (await resp.json()) as { verified: boolean; reason?: string };
+    // The subscription just changed: whatever shows the billing state (the trial
+    // pill) reloads it now instead of at the next page view.
+    if (data.verified) notifyBillingChanged();
+    return { ok: true, data };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
   }
 }
 
 export async function createBillingPortalSession(): Promise<StripeResult<{ url: string }>> {
-  const token = await getAuthToken();
-  if (!token) return { ok: false, error: 'You must be signed in to manage billing' };
+  if (!hasSession()) return { ok: false, error: 'You must be signed in to manage billing' };
 
   try {
-    const resp = await fetch('/api/portal', {
+    const resp = await apiFetch('/api/portal', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(15000), // RT-06
     });
 
@@ -209,16 +180,12 @@ export async function createBillingPortalSession(): Promise<StripeResult<{ url: 
 }
 
 export async function changeSubscription(planId: string, billing: 'monthly' | 'annual'): Promise<StripeResult<{ success: boolean }>> {
-  const token = await getAuthToken();
-  if (!token) return { ok: false, error: 'You must be signed in to change your subscription' };
+  if (!hasSession()) return { ok: false, error: 'You must be signed in to change your subscription' };
 
   try {
-    const resp = await fetch('/api/subscription', {
+    const resp = await apiFetch('/api/subscription', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ planId, billing }),
       signal: AbortSignal.timeout(15000), // RT-06
     });
@@ -235,13 +202,11 @@ export async function changeSubscription(planId: string, billing: 'monthly' | 'a
 }
 
 export async function cancelSubscription(): Promise<StripeResult<{ success: boolean }>> {
-  const token = await getAuthToken();
-  if (!token) return { ok: false, error: 'You must be signed in to cancel your subscription' };
+  if (!hasSession()) return { ok: false, error: 'You must be signed in to cancel your subscription' };
 
   try {
-    const resp = await fetch('/api/subscription', {
+    const resp = await apiFetch('/api/subscription', {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(15000), // RT-06
     });
 

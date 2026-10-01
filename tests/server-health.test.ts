@@ -6,6 +6,11 @@ import path from 'node:path';
 // send Cache-Control: no-store so cached health never defeats its purpose
 // (godmythos HR #22/#25). See `.omo/impl-spec.md` AF-2.
 //
+// F-D-03 — anonymous callers get the status and the SHA and NOTHING else: no
+// uptime, version or database detail. The key set is asserted exactly, so a
+// field added to the payload later fails here instead of leaking quietly. The
+// 503-when-degraded contract is covered in tests/server-hardening.test.ts.
+//
 // Approach: spawn `node server.cjs` as a child process with a random PORT and
 // GIT_SHA=testsha123, then fetch the endpoints. No new deps (no supertest) —
 // uses Node's built-in fetch (Node 22) and child_process.
@@ -50,6 +55,8 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
         ...process.env,
         PORT: String(port),
         GIT_SHA: TEST_SHA,
+        RAILWAY_GIT_COMMIT_SHA: '',
+        VERCEL_GIT_COMMIT_SHA: '',
         // Avoid accidental DB connection attempts during the test.
         INSFORGE_URL: '',
         NEXT_PUBLIC_INSFORGE_URL: '',
@@ -79,15 +86,13 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
     expect(r.status).toBe(200);
   });
 
-  it('/api/health body has status "ok" and sha equal to the GIT_SHA env value', async () => {
+  it('/api/health body is exactly status "ok" plus the sha from the GIT_SHA env value (F-D-03)', async () => {
     const r = await fetch(`${baseUrl}/api/health`);
     const body = await r.json();
-    expect(body.status).toBe('ok');
     // sha must be self-reported from env (GIT_SHA), never hardcoded.
-    expect(body.sha).toBe(TEST_SHA);
-    // build alias mirrors /api/version (impl-spec AF-2).
-    expect(body.build).toBe(TEST_SHA);
-    expect(body.db).toBe('not configured');
+    expect(body).toEqual({ status: 'ok', sha: TEST_SHA });
+    // Exact key set: uptime/version/db/timestamp must not come back.
+    expect(Object.keys(body).sort()).toEqual(['sha', 'status']);
   });
 
   it('/api/health response includes Cache-Control: no-store', async () => {
@@ -97,11 +102,11 @@ describe('AF-2 — /api/health and /health endpoint contract', () => {
     expect(cc!.toLowerCase()).toContain('no-store');
   });
 
-  it('/health (alias) returns 200 with the same sha + no-store contract', async () => {
+  it('/health (alias) returns 200 with the same body + no-store contract', async () => {
     const r = await fetch(`${baseUrl}/health`);
     expect(r.status).toBe(200);
     const body = await r.json();
-    expect(body.sha).toBe(TEST_SHA);
+    expect(body).toEqual({ status: 'ok', sha: TEST_SHA });
     const cc = r.headers.get('cache-control');
     expect(cc).toBeTruthy();
     expect(cc!.toLowerCase()).toContain('no-store');

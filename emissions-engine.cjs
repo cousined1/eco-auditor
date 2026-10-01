@@ -8,12 +8,21 @@
 // not Scope 2; location-based Scope 2 is consumption x grid factor. The old
 // 4.75% gross-up also existed only on this side, so it was a second reason the
 // two paths disagreed. Scope 3 Cat 3 accounting for T&D is not built yet.
-const { factorFor, getSource, getCategory } = require('./emission-factors.cjs');
+//
+// Every row is priced AND classified by the catalog it names (catalogFor): a
+// row stored without a pin resolves against the frozen 2026-07-24 catalog
+// forever, so a factor or scope-rule correction never restates stored history.
+// A caller pricing a NEW entry or a preview passes the current CATALOG_VERSION.
+// The classification rules (biogenic CO2, non-Kyoto gases, market-based Scope 2,
+// emissions-weighted confidence) are fields of the newer catalog; a catalog
+// without them, the frozen one, summarises exactly as it always did.
+const { catalogFor } = require('./emission-factors.cjs');
 
 const CONFIDENCE_BY_CATEGORY = {
   stationary_combustion: 90,
   mobile_combustion: 88,
   purchased_electricity: 97,
+  renewable_electricity: 97,
   purchased_goods: 65,
   capital_goods: 65,
   fuel_transport: 72,
@@ -50,10 +59,27 @@ function round(value, decimals = 6) {
   return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
 }
 
-function factorForEntry(entry) {
+// F-B-16: an unknown category used to fall through to "Unsupported Scope 1
+// source/unit: natural_gas therms", blaming the most common valid combination.
+function unknownCategoryError(entry, scope, lookup) {
+  const scopeNumber = Number(scope.replace('scope', ''));
+  const given = String(entry.category == null ? '' : entry.category).trim() || '(blank)';
+  return new Error(
+    `Unknown category: ${given}. Scope ${scopeNumber} categories: ${lookup.categoryKeysForScope(scopeNumber).join(', ')}.`
+  );
+}
+
+// "Unsupported ..." plus the catalog's own pointer for that category, if any
+// (e.g. where renewable contracts went).
+function unsupported(message, catalogCategory) {
+  return new Error(catalogCategory && catalogCategory.sourceHint ? `${message}. ${catalogCategory.sourceHint}` : message);
+}
+
+function factorForEntry(entry, lookup) {
   const scope = normalizeScope(entry.scope);
   const category = normalizeKey(entry.category);
   const unit = normalizeKey(entry.unit);
+  const { getCategory, getSource, factorFor } = lookup;
 
   const catalogCategory = getCategory(category);
   if (catalogCategory && Number(catalogCategory.scope) !== Number(scope.replace('scope', ''))) {
@@ -73,33 +99,50 @@ function factorForEntry(entry) {
   // report's provisional-factor disclosure undercounted.
   if (unit === 'kg_co2e' || unit === 'kgco2e') {
     const known = getSource(category, entry.source);
-    return { factor: 0.001, category: category || 'precalculated', verified: known ? known.verified : true };
+    return { factor: 0.001, category: category || 'precalculated', verified: known ? known.verified : true, source: known, categoryEntry: catalogCategory, precomputed: true };
   }
   if (unit === 't_co2e' || unit === 'tco2e' || unit === 'tonnes_co2e' || unit === 'tonne_co2e') {
     const known = getSource(category, entry.source);
-    return { factor: 1, category: category || 'precalculated', verified: known ? known.verified : true };
+    return { factor: 1, category: category || 'precalculated', verified: known ? known.verified : true, source: known, categoryEntry: catalogCategory, precomputed: true };
   }
+
+  // A row written by the server entry API carries the factor it was computed
+  // with (factor_value, kg CO2e per activity unit). Use that, not today's
+  // catalog: re-deriving it would silently restate every stored row, and every
+  // signed report, the day a catalog factor is corrected (review R2). Rows
+  // without it (older rows, CSV imports saved before K4 pinned them) resolve
+  // from their catalog below.
+  const pinned = entry.factor_value === null || entry.factor_value === undefined || entry.factor_value === ''
+    ? NaN
+    : Number(entry.factor_value);
+  if (Number.isFinite(pinned) && pinned >= 0) {
+    const known = getSource(category, entry.source);
+    return { factor: pinned / 1000, category: category || 'precalculated', verified: known ? known.verified : true, source: known, categoryEntry: catalogCategory };
+  }
+
+  if (!catalogCategory) throw unknownCategoryError(entry, scope, lookup);
 
   // The catalog is kg CO2e per unit; this engine reports tonnes.
   const kgPerUnit = factorFor(category, entry.source, entry.unit);
   const known = getSource(category, entry.source);
   const toTonnes = (kg) => kg / 1000;
+  const priced = (factor) => ({ factor, category, verified: known.verified, source: known, categoryEntry: catalogCategory });
 
   if (scope === 'scope1') {
     if (category === 'mobile_combustion') {
       if (kgPerUnit == null) {
-        if (!known) throw new Error(`Unsupported mobile combustion source: ${entry.source}`);
-        throw new Error(`Unsupported mobile combustion unit: ${entry.source} ${entry.unit}`);
+        if (!known) throw unsupported(`Unsupported mobile combustion source: ${entry.source}`, catalogCategory);
+        throw unsupported(`Unsupported mobile combustion unit: ${entry.source} ${entry.unit}`, catalogCategory);
       }
-      return { factor: toTonnes(kgPerUnit), category: 'mobile_combustion', verified: known.verified };
+      return priced(toTonnes(kgPerUnit));
     }
     if (kgPerUnit == null) {
-      throw new Error(`Unsupported Scope 1 source/unit: ${entry.source} ${entry.unit}`);
+      throw unsupported(`Unsupported Scope 1 source/unit: ${entry.source} ${entry.unit}`, catalogCategory);
     }
     // Process and fugitive rows used to be rejected on import even though the
     // in-app form accepted them; they resolve now, so keep their own category
     // rather than flattening everything to stationary_combustion.
-    return { factor: toTonnes(kgPerUnit), category: category || 'stationary_combustion', verified: known.verified };
+    return priced(toTonnes(kgPerUnit));
   }
 
   if (scope === 'scope2') {
@@ -109,19 +152,49 @@ function factorForEntry(entry) {
       // Texas or Midwest row was understated with no warning. Fail the row;
       // the CSV route already surfaces per-row errors to the user.
       if (!known && category === 'purchased_electricity') {
-        throw new Error(`Unsupported eGRID subregion: ${entry.source}`);
+        throw unsupported(`Unsupported eGRID subregion: ${entry.source}`, catalogCategory);
       }
-      throw new Error(`Unsupported Scope 2 source/unit: ${entry.source} ${entry.unit}`);
+      throw unsupported(`Unsupported Scope 2 source/unit: ${entry.source} ${entry.unit}`, catalogCategory);
     }
-    return { factor: toTonnes(kgPerUnit), category: category || 'purchased_electricity', verified: known.verified };
+    return priced(toTonnes(kgPerUnit));
   }
 
   if (kgPerUnit == null) {
     // Spend-based factors are per USD. A row that gives a mass or distance for
     // one of them used to be priced as if it were dollars; now it fails.
-    throw new Error(`Unsupported Scope 3 category/source: ${entry.category}/${entry.source} ${entry.unit}`);
+    throw unsupported(`Unsupported Scope 3 category/source: ${entry.category}/${entry.source} ${entry.unit}`, catalogCategory);
   }
-  return { factor: toTonnes(kgPerUnit), category, verified: known.verified };
+  return priced(toTonnes(kgPerUnit));
+}
+
+// F-E-09: one rule for every route. A confidence the caller gives must be a
+// number from 0 to 100; /api/calculate used to echo 1e9 back as the score. An
+// explicit 0 is kept: it is the value a user sets to mean "do not trust this
+// row". Unset, a row takes its category's score, except that a CO2e total typed
+// in directly (no activity, no factor) takes the catalog's own lower score
+// where the catalog defines one (the frozen 2026-07-24 catalog does not).
+function rowConfidence(entry, factor, lookup) {
+  const given = entry.confidence;
+  if (given !== null && given !== undefined && given !== '') {
+    const value = Number(given);
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      throw new Error('confidence must be a number between 0 and 100.');
+    }
+    return value;
+  }
+  if (factor.precomputed && lookup.catalog.precomputedConfidence !== undefined) {
+    return lookup.catalog.precomputedConfidence;
+  }
+  return CONFIDENCE_BY_CATEGORY[factor.category] || 70;
+}
+
+// kg per unit from a { unit: value } map, matching units the way factorFor does.
+function perUnit(values, unit) {
+  const wanted = normalizeKey(unit);
+  for (const [name, value] of Object.entries(values || {})) {
+    if (normalizeKey(name) === wanted) return Number(value);
+  }
+  return null;
 }
 
 function calculateEntry(entry) {
@@ -142,9 +215,14 @@ function calculateEntry(entry) {
   }
 
   const scope = normalizeScope(entry.scope);
-  const factor = factorForEntry(entry);
+  const lookup = catalogFor(entry.catalog_version);
+  const factor = factorForEntry(entry, lookup);
   const co2e = round(amount * factor.factor);
   const category = factor.category;
+  // Where the row is reported. A catalog may move a whole source out of its
+  // category's scope: HCFC-22 (R-22) is not a Kyoto gas, so the GHG Protocol
+  // keeps it out of Scope 1 and reports it on a separate line.
+  const bucket = factor.source && factor.source.reportingBucket ? factor.source.reportingBucket : scope;
 
   const result = {
     ...entry,
@@ -155,10 +233,24 @@ function calculateEntry(entry) {
     // `Number(x) || default` treats an explicit confidence of 0 as "unset" and
     // silently replaces it with the category default — the one value a user
     // sets deliberately to mean "do not trust this row".
-    confidence: Number.isFinite(Number(entry.confidence)) && entry.confidence !== null && entry.confidence !== ''
-      ? Number(entry.confidence)
-      : (CONFIDENCE_BY_CATEGORY[category] || 70),
+    confidence: rowConfidence(entry, factor, lookup),
+    reporting_bucket: bucket,
+    pricing_catalog: lookup.version,
   };
+  // Biogenic CO2 from burning biomass is reported outside the scopes; only the
+  // row's CH4 and N2O count in Scope 1 (GHG Protocol Corporate Standard ch. 4).
+  const biogenic = factor.source && !factor.precomputed ? perUnit(factor.source.biogenicCO2, entry.unit) : null;
+  if (biogenic !== null) result.biogenic_co2_tonnes = round((amount * biogenic) / 1000);
+  // Scope 2 is reported twice (Scope 2 Guidance 1.5.1). The location-based
+  // value is always the grid factor; a renewable contract is 0 only in the
+  // market-based total. Without a residual-mix factor, every other row's
+  // market-based value equals its location-based one.
+  if (bucket === 'scope2') {
+    const share = factor.categoryEntry && factor.categoryEntry.marketBasedShare !== undefined
+      ? Number(factor.categoryEntry.marketBasedShare)
+      : 1;
+    result.scope2_market_tonnes = round(co2e * share);
+  }
   // REL-001: factors self-flagged verified:false are industry-typical values
   // pending citation verification. Attach provenance so reports and API
   // consumers can surface them instead of presenting every factor as
@@ -169,43 +261,95 @@ function calculateEntry(entry) {
   return result;
 }
 
+// F-E-09: an unweighted row average showed 94 % for an inventory that rested
+// 99.99 % on a 65 % spend estimate. A catalog that says so scores confidence by
+// emissions: sum(co2e x confidence) / sum(co2e), over the rows in the totals.
+// A period whose rows all come from a catalog without that rule (the frozen
+// 2026-07-24 one) keeps the row average it has always shown, so deploying this
+// does not move a past period's score; a period with rows priced by the current
+// catalog is weighted throughout. The rule is stated on /methodology (Data
+// confidence) and needs human review.
+function aggregateConfidence(rows) {
+  if (!rows.length) return 0;
+  const average = Math.round(rows.reduce((sum, row) => sum + row.confidence, 0) / rows.length);
+  if (!rows.some((row) => catalogFor(row.pricing_catalog).catalog.confidenceWeighting === 'emissions')) return average;
+  let weight = 0;
+  let weighted = 0;
+  for (const row of rows) {
+    if (!/^scope[123]$/.test(row.reporting_bucket)) continue;
+    weight += row.co2e_tonnes;
+    weighted += row.co2e_tonnes * row.confidence;
+  }
+  // Only zero-emission rows (or only memo lines): nothing to weight by.
+  return weight > 0 ? Math.round(weighted / weight) : average;
+}
+
+// F-E-10: rows the engine cannot price used to vanish from every total with no
+// message. They are reported, grouped by reason; the ids are capped so a large
+// broken import cannot bloat every summary response.
+function excludedRows(excluded) {
+  const reasons = new Map();
+  for (const { entryId, reason } of excluded) {
+    const group = reasons.get(reason) || { reason, count: 0, entry_ids: [] };
+    group.count += 1;
+    if (entryId !== null && group.entry_ids.length < 20) group.entry_ids.push(entryId);
+    reasons.set(reason, group);
+  }
+  return { count: excluded.length, reasons: [...reasons.values()].slice(0, 20) };
+}
+
 function summarizeEntries(entries, options = {}) {
   // H21: isolate per-row calculation failures so one unsupported entry does
   // not 500 summary, trend, and reports for the whole company. Bad rows are
-  // skipped from totals and surfaced in `errors` for operator logging.
+  // skipped from totals and reported in `excluded_rows` (and `errors`).
   const byScope = { scope1: 0, scope2: 0, scope3: 0 };
   const byCategory = {};
-  let confidenceTotal = 0;
+  let scope2Market = 0;
+  let biogenicCo2 = 0;
+  let nonKyoto = 0;
   const calculated = [];
   const errors = [];
+  const excluded = [];
 
   for (const entry of entries) {
     try {
       calculated.push(calculateEntry(entry));
     } catch (err) {
-      errors.push({ error: String(err.message || err) });
+      const reason = String(err.message || err);
+      errors.push({ error: reason });
+      excluded.push({ entryId: entry && entry.id !== undefined ? entry.id : null, reason });
     }
   }
 
   for (const row of calculated) {
+    if (row.biogenic_co2_tonnes) biogenicCo2 = round(biogenicCo2 + row.biogenic_co2_tonnes);
+    if (row.reporting_bucket === 'memo:non-kyoto') {
+      nonKyoto = round(nonKyoto + row.co2e_tonnes);
+      continue;
+    }
     byScope[row.scope] = round(byScope[row.scope] + row.co2e_tonnes);
     byCategory[row.normalized_category] = round((byCategory[row.normalized_category] || 0) + row.co2e_tonnes);
-    confidenceTotal += row.confidence;
+    if (row.scope === 'scope2') scope2Market = round(scope2Market + row.scope2_market_tonnes);
   }
 
   const total = round(byScope.scope1 + byScope.scope2 + byScope.scope3);
-  // An empty inventory used to report confidence 100 — "no data, total
-  // confidence" — which flows straight into the dashboard's confidence_score.
-  const confidence = calculated.length ? Math.round(confidenceTotal / calculated.length) : 0;
 
   const result = {
     company_id: options.companyId || options.company_id || null,
     period: String(options.period || new Date().getFullYear()),
+    // Location-based: memo lines and the market-based Scope 2 total are
+    // reported beside the scopes, never added into them.
     total_emissions_tCO2e: total,
     by_scope: byScope,
     by_category: byCategory,
-    confidence_score: confidence,
+    scope2_market_tCO2e: scope2Market,
+    biogenic_co2_t: biogenicCo2,
+    non_kyoto_tCO2e: nonKyoto,
+    // An empty inventory used to report confidence 100 — "no data, total
+    // confidence" — which flows straight into the dashboard's confidence_score.
+    confidence_score: aggregateConfidence(calculated),
     methodology: 'EPA GHG Protocol + IPCC AR5',
+    excluded_rows: excludedRows(excluded),
     entries: calculated,
   };
   if (errors.length) result.errors = errors;
@@ -223,7 +367,13 @@ function buildTrend(entries, options = {}) {
 
   const monthly = monthNames.map(function (month, index) {
     const monthEntries = entries.filter(function (entry) {
-      const date = entry.created_at ? new Date(entry.created_at) : null;
+      // The activity date ('YYYY-MM-DD', parsed as UTC midnight) decides the
+      // month when a row has one; older rows fall back to created_at, which the
+      // CSV route used to set to the row's date (since K4 it is the insert time
+      // and the row carries an activity_date). Same rule as the period filter in
+      // server.cjs loadEmissionEntries.
+      const stamp = entry.activity_date || entry.created_at;
+      const date = stamp ? new Date(stamp) : null;
       // getMonth()/getFullYear() are LOCAL-time accessors on a UTC timestamp.
       // The CSV route stores date-only values as UTC midnight, so on any
       // server west of UTC every row dated the 1st of a month was bucketed
@@ -295,6 +445,11 @@ function toDashboardSummary(summary, priorSummary) {
           scope3: trend(summary.by_scope.scope3, priorByScope.scope3),
         }
       : null,
+    // Reported beside the totals above, never inside them (F-E-02, F-E-10).
+    scope2_market_co2e_tonnes: summary.scope2_market_tCO2e ?? summary.by_scope.scope2,
+    biogenic_co2_tonnes: summary.biogenic_co2_t ?? 0,
+    non_kyoto_co2e_tonnes: summary.non_kyoto_tCO2e ?? 0,
+    excluded_rows: summary.excluded_rows ?? { count: 0, reasons: [] },
   };
 }
 

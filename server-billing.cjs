@@ -67,16 +67,22 @@ function hasPlanAccess(planId, minPlanId) {
 
 function planAccessDecision(state, minPlanId) {
   if (!state || !state.active || !hasPlanAccess(state.plan, minPlanId)) {
-    return {
-      allowed: false,
-      status: 402,
-      body: {
-        success: false,
-        error: 'An active subscription is required for this feature',
-        code: 'upgrade_required',
-        requiredPlan: minPlanId,
-      },
+    const body = {
+      success: false,
+      error: 'An active subscription is required for this feature',
+      code: 'upgrade_required',
+      requiredPlan: minPlanId,
     };
+    // The card-free trial ran out and nothing was ever bought. Say so, with the
+    // date, instead of asking for "a subscription" from someone who never had one
+    // (F-B-10). `code` stays 'upgrade_required' so every existing client still
+    // reads this as the plan gate; `reason` only adds the detail.
+    if (state && state.trialEnded) {
+      body.error = 'Your trial has ended. Choose a plan to continue.';
+      body.reason = 'trial_expired';
+      body.trialEndedAt = state.trialEndsAt;
+    }
+    return { allowed: false, status: 402, body };
   }
   return { allowed: true };
 }
@@ -86,6 +92,13 @@ function isFuture(value, now) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return false;
   return date > now;
+}
+
+function hasElapsed(value, now) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date <= now;
 }
 
 // Maps a Stripe subscription object to the companies billing columns.
@@ -204,12 +217,29 @@ function billingStateFromCompany(company, now = new Date()) {
   const trialActive = !subscriptionActive && isFuture(company.trial_ends_at, now);
   const plan = subscriptionActive ? subscriptionPlan : trialActive ? 'starter' : null;
 
+  // Every company is created with a card-free trial clock (companies.trial_ends_at),
+  // so the clock being set says nothing about whether a trial was used: it does
+  // once it has run out. A company the Stripe webhook ever wrote subscription
+  // columns for is past the trial stage whatever the clock says.
+  const everSubscribed = Boolean(
+    company.stripe_subscription_id || company.stripe_customer_id || subscriptionStatus || subscriptionPlan
+  );
+  const trialRanOut = hasElapsed(company.trial_ends_at, now);
+
   return {
     active: Boolean(plan),
     plan,
     status: subscriptionActive ? subscriptionStatus : trialActive ? 'trialing' : subscriptionStatus,
     trialActive,
     trialEndsAt: company.trial_ends_at || null,
+    // Nothing is active, the card-free trial ran out and nothing was ever bought:
+    // the "your trial has ended" state. A cancelled subscriber is not a trial that
+    // ended, so this stays false for them.
+    trialEnded: !plan && trialRanOut && !everSubscribed,
+    // Whether checkout may still attach a free trial, from this company's own
+    // record. Stripe's history for the customer is checked on top of it
+    // (checkoutTrialDecision).
+    trialEligible: !everSubscribed && !trialRanOut,
     currentPeriodEnd: company.subscription_current_period_end || null,
     billingCycle: company.subscription_billing_cycle || null,
     cancelAtPeriodEnd: Boolean(company.subscription_cancel_at_period_end),
@@ -218,11 +248,36 @@ function billingStateFromCompany(company, now = new Date()) {
   };
 }
 
+// Days of free trial a Checkout Session may carry. Mirrors TRIAL_DAYS in
+// src/content/pricing.ts, the "14-day free trial" the public pages promise; a
+// test keeps the two equal.
+const CHECKOUT_TRIAL_DAYS = 14;
+
+/**
+ * Whether checkout may attach a free trial to the subscription it creates. One
+ * trial per company, decided here from the company's billing state and Stripe's
+ * history for the customer. The client's `trial` flag only asks for one; it
+ * never grants it, and nothing else in the request reaches the decision.
+ *
+ * `state` is null for a company that has not been provisioned yet, which is a
+ * first-time customer. A state without `trialEligible` is refused: unknown
+ * means no trial.
+ */
+function checkoutTrialDecision(state, hadPriorStripeSubscription) {
+  if (hadPriorStripeSubscription) return { eligible: false, reason: 'prior_subscription' };
+  if (state && !state.trialEligible) {
+    return { eligible: false, reason: state.trialEnded ? 'trial_used' : 'prior_subscription' };
+  }
+  return { eligible: true, reason: 'first_trial' };
+}
+
 // ACTIVE_SUBSCRIPTION_STATUSES, PLAN_ORDER, and PRICE_ENV_KEYS stay internal —
 // they are implementation detail of the helpers below, and nothing outside this
 // file read them.
 module.exports = {
   billingStateFromCompany,
+  checkoutTrialDecision,
+  CHECKOUT_TRIAL_DAYS,
   hasPlanAccess,
   planAccessDecision,
   planFromPriceId,

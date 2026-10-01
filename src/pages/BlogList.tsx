@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import { useTheme } from '../hooks/useTheme';
+import { discardEmbeddedJson, readEmbeddedJson } from '../lib/embedded-data';
+import routeMeta from '@/content/route-meta.json';
+
+// Title and description come from src/content/route-meta.json, the file the
+// prerender step writes into the HTML, so raw and JS-rendered meta agree.
+const BLOG_META = routeMeta['/blog'];
 
 // PERF-006: the list endpoint ships a computed excerpt + read time instead of
 // full HTML bodies — the list never renders them (detail page has its own route).
@@ -28,19 +33,33 @@ function formatDate(iso: string): string {
   }
 }
 
+const EMBEDDED_LIST_ID = 'blog-list-data';
+
 export default function BlogList() {
-  const { theme, toggle } = useTheme();
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  // A hard load of /blog/ arrives with its post list rendered and embedded (F-F-01):
+  // start from it, so replacing the server's HTML shows the same list, not a spinner.
+  const [embedded] = useState(() => readEmbeddedJson<{ posts: BlogPost[] }>(EMBEDDED_LIST_ID));
+  const [posts, setPosts] = useState<BlogPost[]>(embedded?.posts ?? []);
+  const [loading, setLoading] = useState(embedded === null);
   const [error, setError] = useState<string | null>(null);
+  const alreadyServed = useRef(embedded !== null);
 
   useEffect(() => {
-    document.title = 'Blog — Eco-Auditor | Carbon Accounting Insights';
+    document.title = BLOG_META.title;
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Insights on carbon accounting, GHG Protocol reporting, SB 253 compliance, and supply chain emissions for SMBs.';
+    if (desc) desc.content = BLOG_META.description;
   }, []);
 
   useEffect(() => {
+    discardEmbeddedJson(EMBEDDED_LIST_ID);
+  }, []);
+
+  useEffect(() => {
+    // The first render already has the list from the server-rendered page.
+    if (alreadyServed.current) {
+      alreadyServed.current = false;
+      return;
+    }
     let cancelled = false;
     async function fetchPosts() {
       try {
@@ -66,19 +85,7 @@ export default function BlogList() {
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex flex-col">
-      <Header
-        variant="marketing"
-        extra={
-          <button
-            type="button"
-            onClick={toggle}
-            className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-          >
-            {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-          </button>
-        }
-      />
+      <Header variant="marketing" />
 
       <main id="main-content" tabIndex={-1} className="flex-1">
         {/* Hero */}
@@ -133,7 +140,7 @@ export default function BlogList() {
                     )}
                   </div>
                   <h2 className="text-xl font-semibold text-surface-900 dark:text-white mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
-                    <Link to={`/blog/${post.slug}`} className="no-underline">
+                    <Link to={`/blog/${post.slug}/`} className="no-underline">
                       {post.title}
                     </Link>
                   </h2>
@@ -141,7 +148,7 @@ export default function BlogList() {
                     {post.excerpt}
                   </p>
                   <Link
-                    to={`/blog/${post.slug}`}
+                    to={`/blog/${post.slug}/`}
                     className="inline-flex items-center gap-1 mt-4 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
                   >
                     Read more
@@ -159,11 +166,4 @@ export default function BlogList() {
       <Footer />
     </div>
   );
-}
-
-function MoonIcon() {
-  return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 12.5A5.5 5.5 0 018 2.5a5.5 5.5 0 010 11z"/></svg>;
-}
-function SunIcon() {
-  return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>;
 }

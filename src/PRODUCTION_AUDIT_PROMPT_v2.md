@@ -215,7 +215,7 @@ This phase is **mandatory**. The app deploys to Railway — every item below mus
 - Server listens on `0.0.0.0`, not `localhost` or `127.0.0.1`.
 - Port comes from `process.env.PORT` with no fallback in production (fail fast if missing).
 - `GET /health` and `GET /ready` are exposed and return within 5 seconds.
-- Stripe webhook URL uses the Railway public domain (`https://<service>.up.railway.app/api/webhooks/stripe`). Webhook endpoint is registered in Stripe dashboard with correct path.
+- Stripe webhook URL uses the Railway public domain (`https://<service>.up.railway.app/api/webhook`). Webhook endpoint is registered in Stripe dashboard with correct path.
 - No firewall or middleware blocks incoming POST to webhook routes.
 
 ### 7D. Database
@@ -258,7 +258,7 @@ Before declaring ready, verify each scenario:
 | Build | `npm run build` exits 0, output exists, no missing deps |
 | Startup | App starts, binds to `$PORT`, `/health` returns 200 within 10s |
 | DB connection | App connects to `$DATABASE_URL`, migrations run, queries succeed |
-| Stripe webhook | POST to `/api/webhooks/stripe` with valid signature → 200, invalid signature → 400 |
+| Stripe webhook | POST to `/api/webhook` with valid signature → 200, invalid signature → 400 |
 | Health check | `GET /health` returns 200 with `{ status: "ok", db: "connected", version: "..." }` |
 | Graceful shutdown | Send `SIGTERM` → app closes connections and exits 0 within 10s |
 | Missing env var | Remove a required var → app fails fast with clear error, not a cryptic crash |

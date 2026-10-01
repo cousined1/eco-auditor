@@ -1,0 +1,494 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-30T14:22:05.123Z",
+  "generated_by": "user-1",
+  "company": {
+    "id": "3",
+    "name": "Müller Umwelt GmbH"
+  },
+  "period": {
+    "type": "calendar_year",
+    "value": "2026",
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "label": "Calendar year 2026",
+    "basis": "activity date, else the date the entry was recorded"
+  },
+  "consolidation_approach": null,
+  "base_year": null,
+  "total_emissions_tCO2e": 47.0418,
+  "by_scope": {
+    "scope1": 16.087,
+    "scope2": 23.4048,
+    "scope3": 7.55
+  },
+  "confidence_score": 87,
+  "entry_count": 10,
+  "excluded_count": 1,
+  "scopes_covered": [
+    "Scope 1",
+    "Scope 2",
+    "Scope 3"
+  ],
+  "scope3_categories": [
+    "Business Travel",
+    "Purchased Goods"
+  ],
+  "by_facility": [
+    {
+      "facility_id": "7",
+      "name": "Werk Süd",
+      "scope1": 16.087,
+      "scope2": 0,
+      "scope3": 7.55,
+      "total": 23.637,
+      "entries": 8
+    },
+    {
+      "facility_id": null,
+      "name": "No facility assigned",
+      "scope1": 0,
+      "scope2": 23.4048,
+      "scope3": 0,
+      "total": 23.4048,
+      "entries": 2
+    }
+  ],
+  "by_category": [
+    {
+      "scope": "Scope 1",
+      "category": "fugitive_emissions",
+      "label": "Fugitive Emissions",
+      "tco2e": 5.28,
+      "entries": 1
+    },
+    {
+      "scope": "Scope 1",
+      "category": "mobile_combustion",
+      "label": "Mobile Combustion",
+      "tco2e": 1.021,
+      "entries": 1
+    },
+    {
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "label": "Stationary Combustion",
+      "tco2e": 9.786,
+      "entries": 3
+    },
+    {
+      "scope": "Scope 2",
+      "category": "purchased_electricity",
+      "label": "Purchased Electricity",
+      "tco2e": 23.4048,
+      "entries": 3
+    },
+    {
+      "scope": "Scope 3",
+      "category": "business_travel",
+      "label": "Business Travel",
+      "tco2e": 2.55,
+      "entries": 1
+    },
+    {
+      "scope": "Scope 3",
+      "category": "purchased_goods",
+      "label": "Purchased Goods",
+      "tco2e": 5,
+      "entries": 1
+    }
+  ],
+  "factors": [
+    {
+      "scope": "Scope 1",
+      "category": "fugitive_emissions",
+      "category_label": "Fugitive Emissions",
+      "source": "refrigerant_r22",
+      "source_label": "Refrigerant R-22 (reported separately)",
+      "unit": "kg",
+      "kg_co2e_per_unit": 1760,
+      "precalculated": false,
+      "factor_source": "ipcc-ar5-gwp100",
+      "dataset": "IPCC AR5 GWP-100",
+      "catalog_version": "2026-09-30",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 5.28
+    },
+    {
+      "scope": "Scope 1",
+      "category": "mobile_combustion",
+      "category_label": "Mobile Combustion",
+      "source": "diesel",
+      "source_label": "Diesel",
+      "unit": "gallons",
+      "kg_co2e_per_unit": 10.21,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "dataset": "US EPA GHG Emission Factors Hub 2025",
+      "catalog_version": "2026-09-30",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 1.021
+    },
+    {
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "category_label": "Stationary Combustion",
+      "source": "natural_gas",
+      "source_label": "Natural Gas",
+      "unit": "kg CO2e",
+      "kg_co2e_per_unit": 1,
+      "precalculated": true,
+      "factor_source": "epa-efh-2025",
+      "dataset": "US EPA GHG Emission Factors Hub 2025",
+      "catalog_version": "2026-09-30",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 1.2
+    },
+    {
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "category_label": "Stationary Combustion",
+      "source": "natural_gas",
+      "source_label": "Natural Gas",
+      "unit": "therms",
+      "kg_co2e_per_unit": 5.306,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "dataset": "US EPA GHG Emission Factors Hub 2025",
+      "catalog_version": "2026-09-30",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 5.306
+    },
+    {
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "category_label": "Stationary Combustion",
+      "source": "wood",
+      "source_label": "Wood and Wood Residuals",
+      "unit": "short tons",
+      "kg_co2e_per_unit": 1640,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "dataset": "US EPA GHG Emission Factors Hub 2025",
+      "catalog_version": "2026-09-30",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 3.28
+    },
+    {
+      "scope": "Scope 2",
+      "category": "purchased_electricity",
+      "category_label": "Purchased Electricity",
+      "source": "RENEWABLE",
+      "source_label": "RENEWABLE",
+      "unit": "kWh",
+      "kg_co2e_per_unit": 0,
+      "precalculated": false,
+      "factor_source": null,
+      "dataset": "source not recorded",
+      "catalog_version": "2026-09-30",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 0
+    },
+    {
+      "scope": "Scope 2",
+      "category": "purchased_electricity",
+      "category_label": "Purchased Electricity",
+      "source": "CAMX",
+      "source_label": "WECC California (CAMX)",
+      "unit": "kWh",
+      "kg_co2e_per_unit": 0.19504,
+      "precalculated": false,
+      "factor_source": "epa-egrid-2023",
+      "dataset": "US EPA eGRID2023",
+      "catalog_version": "2026-09-30",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 19.504
+    },
+    {
+      "scope": "Scope 2",
+      "category": "purchased_electricity",
+      "category_label": "Purchased Electricity",
+      "source": "CAMX",
+      "source_label": "WECC California (CAMX)",
+      "unit": "kWh",
+      "kg_co2e_per_unit": 0.19504,
+      "precalculated": false,
+      "factor_source": "epa-egrid-2023",
+      "dataset": "US EPA eGRID2023",
+      "catalog_version": "2026-07-24+9841b57be1f6",
+      "provisional": false,
+      "entries": 1,
+      "tco2e": 3.9008
+    },
+    {
+      "scope": "Scope 3",
+      "category": "business_travel",
+      "category_label": "Business Travel",
+      "source": "air_short_haul",
+      "source_label": "Air, short haul (under 300 miles)",
+      "unit": "passenger-miles",
+      "kg_co2e_per_unit": 0.255,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "dataset": "US EPA GHG Emission Factors Hub 2025",
+      "catalog_version": "2026-09-30",
+      "provisional": true,
+      "entries": 1,
+      "tco2e": 2.55
+    },
+    {
+      "scope": "Scope 3",
+      "category": "purchased_goods",
+      "category_label": "Purchased Goods",
+      "source": "purchased_goods",
+      "source_label": "Spend-based (all purchased goods)",
+      "unit": "USD",
+      "kg_co2e_per_unit": 0.25,
+      "precalculated": false,
+      "factor_source": "internal-estimate",
+      "dataset": "Eco-Auditor provisional estimate (not a published dataset)",
+      "catalog_version": "2026-09-30",
+      "provisional": true,
+      "entries": 1,
+      "tco2e": 5
+    }
+  ],
+  "datasets": [
+    {
+      "id": "internal-estimate",
+      "label": "Eco-Auditor provisional estimate (not a published dataset)"
+    },
+    {
+      "id": "ipcc-ar5-gwp100",
+      "label": "IPCC AR5 GWP-100"
+    },
+    {
+      "id": "epa-efh-2025",
+      "label": "US EPA GHG Emission Factors Hub 2025"
+    },
+    {
+      "id": "epa-egrid-2023",
+      "label": "US EPA eGRID2023"
+    }
+  ],
+  "memos": {
+    "biomass": 1,
+    "non_kyoto": 1,
+    "zero_rated_electricity": 0
+  },
+  "gases": null,
+  "catalog": {
+    "version": "2026-09-30",
+    "sha256": "0ec7ea1af74baab118ed58b615b1694f66c677e2eebbc89db49d21e59ddc53ef",
+    "gwp_basis": "ipcc-ar5-gwp100",
+    "basis": "kg CO2e per activity unit: CO2, CH4 and N2O at IPCC AR5 GWP-100, unless a source's own basis says otherwise"
+  },
+  "entries": [
+    {
+      "entry_id": "201",
+      "date": "2026-01-15",
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "category_label": "Stationary Combustion",
+      "source": "natural_gas",
+      "source_label": "Natural Gas",
+      "facility_id": "7",
+      "amount": 1000,
+      "unit": "therms",
+      "kg_co2e_per_unit": 5.306,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "catalog_version": "2026-09-30",
+      "tco2e": 5.306,
+      "confidence": 90
+    },
+    {
+      "entry_id": "202",
+      "date": "2026-02-15",
+      "scope": "Scope 1",
+      "category": "mobile_combustion",
+      "category_label": "Mobile Combustion",
+      "source": "diesel",
+      "source_label": "Diesel",
+      "facility_id": "7",
+      "amount": 100,
+      "unit": "gallons",
+      "kg_co2e_per_unit": 10.21,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "catalog_version": "2026-09-30",
+      "tco2e": 1.021,
+      "confidence": 88
+    },
+    {
+      "entry_id": "203",
+      "date": "2026-03-15",
+      "scope": "Scope 2",
+      "category": "purchased_electricity",
+      "category_label": "Purchased Electricity",
+      "source": "CAMX",
+      "source_label": "WECC California (CAMX)",
+      "facility_id": null,
+      "amount": 100000,
+      "unit": "kWh",
+      "kg_co2e_per_unit": 0.19504,
+      "precalculated": false,
+      "factor_source": "epa-egrid-2023",
+      "catalog_version": "2026-09-30",
+      "tco2e": 19.504,
+      "confidence": 97
+    },
+    {
+      "entry_id": "204",
+      "date": "2026-03-16",
+      "scope": "Scope 2",
+      "category": "purchased_electricity",
+      "category_label": "Purchased Electricity",
+      "source": "RENEWABLE",
+      "source_label": "RENEWABLE",
+      "facility_id": "7",
+      "amount": 50000,
+      "unit": "kWh",
+      "kg_co2e_per_unit": 0,
+      "precalculated": false,
+      "factor_source": null,
+      "catalog_version": "2026-09-30",
+      "tco2e": 0,
+      "confidence": 97
+    },
+    {
+      "entry_id": "205",
+      "date": "2026-04-01",
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "category_label": "Stationary Combustion",
+      "source": "wood",
+      "source_label": "Wood and Wood Residuals",
+      "facility_id": "7",
+      "amount": 2,
+      "unit": "short tons",
+      "kg_co2e_per_unit": 1640,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "catalog_version": "2026-09-30",
+      "tco2e": 3.28,
+      "confidence": 90
+    },
+    {
+      "entry_id": "206",
+      "date": "2026-04-02",
+      "scope": "Scope 1",
+      "category": "fugitive_emissions",
+      "category_label": "Fugitive Emissions",
+      "source": "refrigerant_r22",
+      "source_label": "Refrigerant R-22 (reported separately)",
+      "facility_id": "7",
+      "amount": 3,
+      "unit": "kg",
+      "kg_co2e_per_unit": 1760,
+      "precalculated": false,
+      "factor_source": "ipcc-ar5-gwp100",
+      "catalog_version": "2026-09-30",
+      "tco2e": 5.28,
+      "confidence": 85
+    },
+    {
+      "entry_id": "208",
+      "date": "2026-05-02",
+      "scope": "Scope 2",
+      "category": "purchased_electricity",
+      "category_label": "Purchased Electricity",
+      "source": "CAMX",
+      "source_label": "WECC California (CAMX)",
+      "facility_id": null,
+      "amount": 20000,
+      "unit": "kWh",
+      "kg_co2e_per_unit": 0.19504,
+      "precalculated": false,
+      "factor_source": "epa-egrid-2023",
+      "catalog_version": "2026-07-24+9841b57be1f6",
+      "tco2e": 3.9008,
+      "confidence": 97,
+      "pinned_factor_value": 0.19504
+    },
+    {
+      "entry_id": "209",
+      "date": "2026-06-01",
+      "scope": "Scope 3",
+      "category": "business_travel",
+      "category_label": "Business Travel",
+      "source": "air_short_haul",
+      "source_label": "Air, short haul (under 300 miles)",
+      "facility_id": "7",
+      "amount": 10000,
+      "unit": "passenger-miles",
+      "kg_co2e_per_unit": 0.255,
+      "precalculated": false,
+      "factor_source": "epa-efh-2025",
+      "catalog_version": "2026-09-30",
+      "tco2e": 2.55,
+      "confidence": 72,
+      "provenance": {
+        "verified": false
+      }
+    },
+    {
+      "entry_id": "210",
+      "date": "2026-06-02",
+      "scope": "Scope 3",
+      "category": "purchased_goods",
+      "category_label": "Purchased Goods",
+      "source": "purchased_goods",
+      "source_label": "Spend-based (all purchased goods)",
+      "facility_id": "7",
+      "amount": 20000,
+      "unit": "USD",
+      "kg_co2e_per_unit": 0.25,
+      "precalculated": false,
+      "factor_source": "internal-estimate",
+      "catalog_version": "2026-09-30",
+      "tco2e": 5,
+      "confidence": 65,
+      "provenance": {
+        "verified": false
+      }
+    },
+    {
+      "entry_id": "211",
+      "date": "2026-06-03",
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "category_label": "Stationary Combustion",
+      "source": "natural_gas",
+      "source_label": "Natural Gas",
+      "facility_id": "7",
+      "amount": 1200,
+      "unit": "kg CO2e",
+      "kg_co2e_per_unit": 1,
+      "precalculated": true,
+      "factor_source": "epa-efh-2025",
+      "catalog_version": "2026-09-30",
+      "tco2e": 1.2,
+      "confidence": 90
+    }
+  ],
+  "entry_lines_omitted": 0,
+  "excluded_entries": [
+    {
+      "entry_id": "207",
+      "date": "2026-05-01",
+      "scope": "Scope 1",
+      "category": "stationary_combustion",
+      "source": "natural_gas",
+      "reason": "Unsupported Scope 1 source/unit: natural_gas therm"
+    }
+  ],
+  "excluded_lines_omitted": 0
+}

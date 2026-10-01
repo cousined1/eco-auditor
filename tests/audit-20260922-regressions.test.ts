@@ -12,13 +12,15 @@
  *     adopts the first writer's customer id. Two parallel POST /api/checkout
  *     are not feasible without Stripe network, so the SQL semantics are pinned
  *     against the real schema via psql.
- *   UXE-001 (High) — /api/leads production rethrow (integration lives in
+ *   UXE-001 (High) — /api/leads rethrow, a 503 in every environment since
+ *     F-G-12 removed the development file fallback (integration lives in
  *     tests/leads-route.test.ts; structural pin here).
  *   UXE-006 (Medium) — /api/consent-audit: one bounded retry, then
  *     503 {"error":"Failed to record consent","retryable":true}; no PII
  *     fallback files in production.
- *   UAD-02 (Low)  — CSV ingest warnings are only collected for rows that
- *     actually persist (rowErrors.length === 0 gates the merge).
+ *   UAD-02 (Low)  — CSV ingest warnings must not describe storage that never
+ *     happened. K4 replaced the ingest loop (nothing is stored while any row
+ *     has an error), so this pin moved to tests/csv-import-handler.test.ts.
  *   RT-09 (Medium) — the REAL /api/checkout price allowlist gate (replaces the
  *     tautological test-local-Set assertion in tests/server.test.ts).
  */
@@ -26,17 +28,18 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { runInNewContext } from 'node:vm';
 import http from 'node:http';
 import {
   E2eCleanup,
   applySchema,
   dockerRunPg,
   e2eEnv,
+  freePort,
   pgUrl,
   psql,
   registerExitSafety,
   spawnServer,
+  uniqueContainerName,
   waitForServer,
 } from './e2e-helpers';
 
@@ -48,24 +51,27 @@ const { createPublishHandler } = require('../server-publish.cjs') as {
 const serverSource = readFileSync(resolve(__dirname, '..', 'server.cjs'), 'utf8');
 const publishSource = readFileSync(resolve(__dirname, '..', 'server-publish.cjs'), 'utf8');
 
-const CONTAINER = 'fix-tests-pg-reg';
-const PG_PORT = 54394;
-const BOGUS_DB_1 = 'postgresql://postgres:e2e@127.0.0.1:59997/postgres'; // nothing listens there
-const BOGUS_DB_2 = 'postgresql://postgres:e2e@127.0.0.1:59996/postgres';
+const CONTAINER = uniqueContainerName('fix-tests-pg-reg');
 const DEV_TOKEN = 'dev-e2e-secret';
 const DEPLOY_TOKEN = 'e2e-deploy-token';
-const MOCK_INSFORGE_PORT = 59992;
 const E2E_USER_ID = '55555555-5555-5555-5555-555555555555';
 
 const cleanup = new E2eCleanup();
+let pgPort = 0;
+// DATABASE_URLs on ports nothing listens on (OS-assigned, not fixed numbers).
+let bogusDb1 = '';
+let bogusDb2 = '';
 let mockInsforge: http.Server | null = null;
+let mockInsforgeUrl = '';
 let consentBase = '';
 
 beforeAll(async () => {
   registerExitSafety(cleanup);
   try {
     cleanup.container(CONTAINER);
-    await dockerRunPg(CONTAINER, PG_PORT);
+    pgPort = await dockerRunPg(CONTAINER);
+    bogusDb1 = `postgresql://postgres:e2e@127.0.0.1:${await freePort()}/postgres`;
+    bogusDb2 = `postgresql://postgres:e2e@127.0.0.1:${await freePort()}/postgres`;
     await applySchema(CONTAINER);
 
     // Local stand-in for the InsForge auth backend: /api/checkout's authGuard
@@ -80,15 +86,17 @@ beforeAll(async () => {
         res.end(JSON.stringify({ error: 'invalid token' }));
       }
     });
+    // Port 0: the OS picks a free port, read back once listening.
     await new Promise<void>((resolveMock) => {
-      mockInsforge!.listen(MOCK_INSFORGE_PORT, '127.0.0.1', () => resolveMock());
+      mockInsforge!.listen(0, '127.0.0.1', () => resolveMock());
     });
+    mockInsforgeUrl = `http://127.0.0.1:${(mockInsforge.address() as { port: number }).port}`;
 
     // Production instance with a healthy data store for the UXE-006 contract
     // (202 on success, 503 retryable after the bounded retry fails).
-    const consent = spawnServer(8783, e2eEnv({
+    const consent = spawnServer(await freePort(), e2eEnv({
       NODE_ENV: 'production',
-      DATABASE_URL: pgUrl(PG_PORT),
+      DATABASE_URL: pgUrl(pgPort),
     }));
     cleanup.track(consent.child);
     await waitForServer(consent);
@@ -113,8 +121,8 @@ describe('SVR-01 — /api/account/delete-data survives a rejected pgPool.connect
     // Boot with a DATABASE_URL nothing listens on: pgPool is configured, so
     // requireCompanyAccess -> ensureCompanyForUser -> pgPool.connect() rejects
     // (after connectionTimeoutMillis) instead of crashing the process.
-    const spawned = spawnServer(8782, e2eEnv({
-      DATABASE_URL: BOGUS_DB_1,
+    const spawned = spawnServer(await freePort(), e2eEnv({
+      DATABASE_URL: bogusDb1,
       DEV_AUTH_SECRET: DEV_TOKEN,
     }));
     cleanup.track(spawned.child);
@@ -133,7 +141,7 @@ describe('SVR-01 — /api/account/delete-data survives a rejected pgPool.connect
     // point is that the PROCESS answers (a dead process cannot).
     const health = await fetch(`${spawned.base}/api/health`);
     expect(health.status).toBe(503);
-    expect((await health.json() as { status: string; db: string }).db).toBe('unreachable');
+    expect((await health.json() as { status: string }).status).toBe('degraded'); // F-D-03: the anonymous body no longer carries db detail
     expect(spawned.child.exitCode ?? null).toBeNull();
   }, 30_000);
 
@@ -202,8 +210,8 @@ describe('SVR-R1 — POST /api/publish survives a rejected pgPool.connect()', ()
   });
 
   it('integration: a server with an unreachable data store answers the same 503 and stays alive', async () => {
-    const spawned = spawnServer(8785, e2eEnv({
-      DATABASE_URL: BOGUS_DB_2,
+    const spawned = spawnServer(await freePort(), e2eEnv({
+      DATABASE_URL: bogusDb2,
       SITE_DEPLOY_TOKEN: DEPLOY_TOKEN,
     }));
     cleanup.track(spawned.child);
@@ -221,7 +229,7 @@ describe('SVR-R1 — POST /api/publish survives a rejected pgPool.connect()', ()
     // 503 degraded — the process is alive.
     const health = await fetch(`${spawned.base}/api/health`);
     expect(health.status).toBe(503);
-    expect((await health.json() as { status: string; db: string }).db).toBe('unreachable');
+    expect((await health.json() as { status: string }).status).toBe('degraded'); // F-D-03: the anonymous body no longer carries db detail
     expect(spawned.child.exitCode ?? null).toBeNull();
   }, 30_000);
 
@@ -329,71 +337,19 @@ describe('SVR-02 — users mapping race semantics (real schema, ON CONFLICT DO N
 });
 
 // ─── UAD-02 ──────────────────────────────────────────────────────────────────
-
-describe('UAD-02 — ingest warnings are only collected for rows that actually persist', () => {
-  const start = serverSource.indexOf('    const companyFacilities = await loadFacilities(companyId);');
-  const end = serverSource.indexOf('    // Persist valid entries.');
-  const mergeLoop = serverSource.slice(start, end);
-
-  async function evaluate(
-    rawRows: Array<Record<string, unknown>>,
-    calculateEntry: (row: Record<string, unknown>) => Record<string, unknown>,
-  ): Promise<{ entries: unknown[]; importErrors: string[]; importWarnings: string[] }> {
-    const scope = {
-      crypto: require('node:crypto'),
-      companyId: 7,
-      rawRows,
-      loadFacilities: async () => [],
-      calculateEntry,
-    };
-    const result = await runInNewContext(
-      '(async () => {' + mergeLoop + '\nreturn JSON.stringify({ entries, importErrors, importWarnings });\n})()',
-      scope,
-    ) as string;
-    return JSON.parse(result);
-  }
-
-  const okCalc = () => ({ scope: 'scope1', co2e_tonnes: 0.05, factor: 'nat-gas', confidence: 95 });
-  const boomCalc = () => { throw new Error('unsupported fuel'); };
-  const ghostRow = { facility_name: 'Ghost Facility', scope: 'Scope 1', category: 'c', source: 's', amount: '10', unit: 'therms' };
-
-  it('a rejected row collects NO warnings — nothing was stored', async () => {
-    const result = await evaluate([ghostRow], boomCalc);
-    expect(result.importErrors.length).toBeGreaterThan(0);
-    expect(result.importWarnings).toEqual([]); // UAD-02: rowErrors.length === 0 gates the merge
-    expect(result.entries).toEqual([]);
-  });
-
-  it('a persisted row with an unknown facility still reports the association note', async () => {
-    const result = await evaluate([ghostRow], okCalc);
-    expect(result.importErrors).toEqual([]);
-    expect(result.entries.length).toBe(1);
-    expect(result.importWarnings.join(' ')).toMatch(/stored without facility association/);
-  });
-
-  it('an unparseable-date note is suppressed too when the row is rejected', async () => {
-    // The engine computes fine but maps to no DB scope label -> the row is
-    // rejected, AND the row has an unparseable date -> two notes; the error
-    // must win and the warning must be dropped.
-    const unrecognizedCalc = () => ({ scope: 'scopeX', co2e_tonnes: 0.05, factor: 'f', confidence: 90 });
-    const result = await evaluate(
-      [{ ...ghostRow, scope: 'Bogus', date: 'not-a-date' }],
-      unrecognizedCalc,
-    );
-    expect(result.importErrors.length).toBe(1);
-    expect(result.importErrors[0]).toMatch(/Unrecognized scope/);
-    expect(result.importWarnings).toEqual([]);
-  });
-});
+// Moved to tests/csv-import-handler.test.ts ("UAD-02"): K4 replaced the ingest
+// loop this block evaluated, and those pins need no database.
 
 // ─── RT-09 ───────────────────────────────────────────────────────────────────
 
 describe('RT-09 — /api/checkout enforces the server-side price allowlist', () => {
-  const checkoutServer = () => spawnServer(8786, e2eEnv({
-    DATABASE_URL: pgUrl(PG_PORT),
+  // A fresh port per spawn: with one fixed port, the 2nd and 3rd servers failed
+  // to bind and their tests were answered by the 1st server.
+  const checkoutServer = async () => spawnServer(await freePort(), e2eEnv({
+    DATABASE_URL: pgUrl(pgPort),
     STRIPE_SECRET_KEY: 'sk_test_dummy',
     STRIPE_PRICE_STARTER_MONTHLY: 'price_test_allowed_mo',
-    INSFORGE_BASE_URL: `http://127.0.0.1:${MOCK_INSFORGE_PORT}`,
+    INSFORGE_BASE_URL: mockInsforgeUrl,
   }));
 
   const postCheckout = (base: string, body: unknown) => fetch(`${base}/api/checkout`, {
@@ -403,7 +359,7 @@ describe('RT-09 — /api/checkout enforces the server-side price allowlist', () 
   });
 
   it('rejects a missing priceId with 400', async () => {
-    const spawned = checkoutServer();
+    const spawned = await checkoutServer();
     cleanup.track(spawned.child);
     await waitForServer(spawned);
     const res = await postCheckout(spawned.base, {});
@@ -412,7 +368,7 @@ describe('RT-09 — /api/checkout enforces the server-side price allowlist', () 
   }, 60_000);
 
   it('rejects a priceId the server never configured with 400 (the real allowlist gate)', async () => {
-    const spawned = checkoutServer();
+    const spawned = await checkoutServer();
     cleanup.track(spawned.child);
     await waitForServer(spawned);
     const res = await postCheckout(spawned.base, { priceId: 'price_attack_inject' });
@@ -421,7 +377,7 @@ describe('RT-09 — /api/checkout enforces the server-side price allowlist', () 
   }, 60_000);
 
   it('a CONFIGURED priceId passes the gate and fails on Stripe (failure path, not success)', async () => {
-    const spawned = checkoutServer();
+    const spawned = await checkoutServer();
     cleanup.track(spawned.child);
     await waitForServer(spawned);
     const res = await postCheckout(spawned.base, { priceId: 'price_test_allowed_mo' });
@@ -435,19 +391,18 @@ describe('RT-09 — /api/checkout enforces the server-side price allowlist', () 
 
 // ─── UXE-001 structural pin (integration lives in tests/leads-route.test.ts) ─
 
-describe('UXE-001 — writeLead production rethrow is pinned', () => {
-  it('writeLead rethrows on pg failure only in production; the route maps failures to 500', () => {
+describe('UXE-001 — writeLead rethrow is pinned', () => {
+  it('writeLead rethrows every pg failure, in every environment and with no file fallback (F-G-12); the route answers 503', () => {
     const writeLead = serverSource.slice(
       serverSource.indexOf('async function writeLead('),
       serverSource.indexOf('async function writeChatLead('),
     );
-    const prodIdx = writeLead.indexOf("process.env.NODE_ENV === 'production'");
-    expect(prodIdx).toBeGreaterThan(-1);
-    expect(writeLead.slice(prodIdx, prodIdx + 60)).toContain('throw err;');
+    expect(writeLead).toContain('throw err;');
+    expect(writeLead).not.toMatch(/NODE_ENV|writeFileSync|leads\.json/);
 
     const route = serverSource.slice(serverSource.indexOf("app.post('/api/leads'"));
     const routeBody = route.slice(0, route.indexOf('\napp.', 10));
-    expect(routeBody).toContain("status(500)");
+    expect(routeBody).toContain('res.status(failureStatus(err))');
     expect(routeBody).toContain('Failed to capture lead. Please try again.');
   });
 });

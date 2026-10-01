@@ -11,7 +11,7 @@
  * against the route Stripe actually delivers to.
  *
  * Pattern: spawn-boot integration with a throwaway Postgres container
- * (fix-tests-pg, port 54398), Stripe-signed events, and direct SQL
+ * (fix-tests-pg-<pid>-<random>, Docker-assigned port), Stripe-signed events, and direct SQL
  * assertions via psql. The whole suite is wrapped so a crashed beforeAll
  * still tears the container and every spawned server down.
  */
@@ -23,10 +23,12 @@ import {
   applySchema,
   dockerRunPg,
   e2eEnv,
+  freePort,
   pgUrl,
   psql,
   registerExitSafety,
   spawnServer,
+  uniqueContainerName,
   waitForServer,
 } from './e2e-helpers';
 
@@ -42,12 +44,14 @@ const Stripe = require('stripe') as new (key: string) => {
 // generation; the test process itself makes no Stripe network calls.
 const sign = new Stripe('sk_test_dummy');
 
-const CONTAINER = 'fix-tests-pg';
-const PG_PORT = 54398;
+const CONTAINER = uniqueContainerName('fix-tests-pg');
 const WEBHOOK_SECRET = 'whsec_testsecret';
-const INSFORGE_UNREACHABLE = 'http://127.0.0.1:59998'; // webhooks need no auth backend
 
 const cleanup = new E2eCleanup();
+let pgPort = 0;
+// Webhooks need no auth backend: a port nothing listens on. The old fixed
+// 59998 was the local e2e stack's live mock InsForge.
+let insforgeUnreachable = '';
 let baseA = '';
 let childA: ChildProcess | null = null;
 
@@ -130,7 +134,8 @@ beforeAll(async () => {
   registerExitSafety(cleanup);
   try {
     cleanup.container(CONTAINER);
-    await dockerRunPg(CONTAINER, PG_PORT);
+    pgPort = await dockerRunPg(CONTAINER);
+    insforgeUnreachable = `http://127.0.0.1:${await freePort()}`;
     await applySchema(CONTAINER);
 
     await psql(
@@ -151,12 +156,12 @@ beforeAll(async () => {
     // /api/webhook carries its own signature verification and needs no auth
     // backend. STRIPE_PRICE_STARTER_MONTHLY is configured so subscription
     // events with that price map to the starter plan (plan-mapping pin).
-    const spawned = spawnServer(8777, e2eEnv({
-      DATABASE_URL: pgUrl(PG_PORT),
+    const spawned = spawnServer(await freePort(), e2eEnv({
+      DATABASE_URL: pgUrl(pgPort),
       STRIPE_SECRET_KEY: 'sk_test_dummy',
       STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET,
       STRIPE_PRICE_STARTER_MONTHLY: PRICE_ALLOWED,
-      INSFORGE_BASE_URL: INSFORGE_UNREACHABLE,
+      INSFORGE_BASE_URL: insforgeUnreachable,
     }));
     cleanup.track(spawned.child);
     childA = spawned.child;
@@ -323,11 +328,11 @@ describe('RT-01 — missing STRIPE_WEBHOOK_SECRET contract (second spawn)', () =
     childA = null;
     baseA = '';
 
-    const spawned = spawnServer(8778, e2eEnv({
-      DATABASE_URL: pgUrl(PG_PORT),
+    const spawned = spawnServer(await freePort(), e2eEnv({
+      DATABASE_URL: pgUrl(pgPort),
       STRIPE_SECRET_KEY: 'sk_test_dummy',
       // STRIPE_WEBHOOK_SECRET deliberately unset
-      INSFORGE_BASE_URL: INSFORGE_UNREACHABLE,
+      INSFORGE_BASE_URL: insforgeUnreachable,
     }));
     cleanup.track(spawned.child);
     await waitForServer(spawned);

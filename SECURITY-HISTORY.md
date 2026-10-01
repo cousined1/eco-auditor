@@ -6,6 +6,24 @@ contains **no secret values** — only locations, commit references, and status.
 Anyone re-running a history scan (`gitleaks detect` without `--no-git`) will
 hit the findings below until the optional history purge is performed.
 
+> **NOTE 2026-09-30: status stays OPEN until rotation is confirmed.** A history
+> re-scan on 2026-09-29 (US Pacific; gitleaks with `--redact` and `.gitleaks.toml`)
+> found 243 commits, 12 findings, and a clean HEAD tree. The findings are:
+> - 3 Railway team-token matches at `907877a` (item 2). The ledger says two
+>   distinct tokens, and the values are redacted, so every team token that
+>   existed on 2026-08-22 has to be revoked.
+> - The Ollama key at `edfa108` (item 3).
+> - 4 InsForge `ik_` matches in `findings.sarif` at `907877a` (item 1).
+> - One InsForge `ik_` key in `opencode.json` at `f2eaf94`, removed in `cc62540`.
+>   It is not listed under item 1, and nobody has confirmed it is the key rotated
+>   on 2026-09-10.
+> - 3 non-functional test fixtures at `b20555c`.
+>
+> Items 2 and 3 remain OPEN. Item 1 needs confirmation that no `ik_` key created
+> before 2026-09-10 is still active. From 2026-09-22 until the CI fixture fix,
+> both gitleaks steps described at the end of this file were skipped, because
+> the Test step failed first. Owner procedure: `docs/runbooks/credential-rotation.md`.
+
 ## Incident ledger
 
 ### 1. InsForge `ik_` API key in `findings.sarif` — rotated (2026-09-10)

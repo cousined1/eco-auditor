@@ -5,8 +5,8 @@ PFC-2026-S1-003,primary,hvac_maintenance_log_q1.pdf,HVAC-2026-Q1,j.patel,2026-03
 PFC-2026-S1-004,primary,fuel_invoice_propane_q1.csv,PROP-2026-Q1,m.smith,2026-03-05,L2,,,Supplier invoice
 PFC-2026-S2-001,primary,utility_bill_pg&e_q1.pdf,UB-2026-Q1A,m.smith,2026-02-18,L2,,,Utility meter reading
 PFC-2026-S2-002,primary,utility_bill_socal_q1.pdf,UB-2026-Q1B,m.smith,2026-03-05,L2,,,Utility meter reading
-PFC-2026-S3-001,industry_average,procurement_spend_q1.csv,PROC-2026-Q1,j.patel,2026-03-10,L3,,,Spend-based EEIO estimate
-PFC-2026-S3-002,industry_average,procurement_spend_q1.csv,PROC-2026-Q1,j.patel,2026-03-10,L3,,,Spend-based EEIO estimate
-PFC-2026-S3-003,industry_average,travel_booking_log_q1.csv,TRAV-2026-Q1,j.patel,2026-03-12,L3,,,Segment-based estimate
+PFC-2026-S3-001,industry_average,carrier_trip_log_q1.csv,TRIP-2026-Q1,j.patel,2026-03-10,L3,,,Vehicle-miles from carrier trip reports; industry-average factor
+PFC-2026-S3-002,industry_average,procurement_spend_q1.csv,PROC-2026-Q1,j.patel,2026-03-10,L3,,,"Spend-based estimate; provisional factor, not a published dataset"
+PFC-2026-S3-003,industry_average,travel_booking_log_q1.csv,TRAV-2026-Q1,j.patel,2026-03-12,L3,,,42 segments from the booking log at 250 miles per segment (assumed)
 PFC-2026-S3-004,proxy,waste_hauler_q1_summary.pdf,WASTE-2026-Q1,j.patel,2026-03-12,L4,,,Tonnage provided; factor from EPA waste factors. Improvement target Q3.
-PFC-2026-S3-005,proxy,commute_survey_2026_estimated.xlsx,COMM-2026-Q1,j.patel,2026-03-15,L4,,,42% of employees responded; remaining estimated by regional average. Improvement target Q2.
+PFC-2026-S3-005,proxy,commute_survey_2026_estimated.xlsx,COMM-2026-Q1,j.patel,2026-03-15,L4,,,"42% of employees responded; remaining estimated by regional average (about 204 drive-alone vehicle-miles per employee-month, 120 employees). Improvement target Q2."

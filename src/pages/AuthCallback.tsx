@@ -3,19 +3,29 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { insforge } from '../lib/insforge';
 import { destinationFor, takeAuthIntent } from '../lib/authIntent';
 
+// The page never shows the raw reason (F-C-25). An SDK error reads like
+// "No valid refresh token provided", and a provider's `error_description` is
+// whatever text is in the callback URL, which anyone can link to. The reason
+// goes to the console; the visitor gets a sentence they can act on.
+const SIGN_IN_FAILED = 'We could not finish signing you in. Go back to the login page and try again.';
+const SIGN_IN_CANCELLED = 'Sign-in was cancelled before it finished. Go back to the login page to try again.';
+
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [authError, setAuthError] = useState<string | null>(null);
 
   const providerError = searchParams.get('error');
+  const providerDescription = searchParams.get('error_description');
   const error = providerError
-    ? searchParams.get('error_description') ||
-      `The sign-in provider returned an error: ${providerError}`
+    ? providerError === 'access_denied' ? SIGN_IN_CANCELLED : SIGN_IN_FAILED
     : authError;
 
   useEffect(() => {
-    if (providerError) return;
+    if (providerError) {
+      console.warn('[AuthCallback] the sign-in provider returned an error', { error: providerError, description: providerDescription });
+      return;
+    }
 
     let cancelled = false;
 
@@ -36,7 +46,8 @@ export default function AuthCallback() {
       if (cancelled) return;
 
       if (sessionError || !data?.user) {
-        setAuthError(sessionError?.message || 'We could not finish signing you in. Please try again.');
+        if (sessionError) console.warn('[AuthCallback] could not read the session after sign-in:', sessionError.message);
+        setAuthError(SIGN_IN_FAILED);
         return;
       }
 
@@ -54,7 +65,7 @@ export default function AuthCallback() {
     return () => {
       cancelled = true;
     };
-  }, [navigate, providerError]);
+  }, [navigate, providerError, providerDescription]);
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950 flex items-center justify-center px-6">
@@ -69,7 +80,7 @@ export default function AuthCallback() {
           {error || 'Securely confirming your Eco-Auditor session.'}
         </p>
         {error && (
-          <Link to="/login" className="btn-primary mt-5 inline-flex">
+          <Link to="/login/" className="btn-primary mt-5 inline-flex">
             Back to login
           </Link>
         )}

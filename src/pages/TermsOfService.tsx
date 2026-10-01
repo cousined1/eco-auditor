@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { contactDetails } from '@/content/trust-facts';
+import { dataFacts } from '@/content/data-facts';
 
 const SECTIONS = [
   { id: 'acceptance', label: 'Acceptance of Terms' },
@@ -42,7 +44,8 @@ export default function TermsOfService() {
 
       <article className="flex-1 max-w-3xl mx-auto px-6 py-10 lg:px-12">
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Terms of Service</h1>
-        <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
+        {/* COUNSEL-REVIEW: the date is the drafting date of these factual corrections (K14), not a publication date. NEEDS-OWNER: set the effective date at publication. */}
+        <p className="text-sm text-surface-500">Last updated: September 30, 2026</p>
 
         <Sec id="acceptance" title="1. Acceptance of Terms" onScroll={setActiveSection}>
           <p>By accessing or using the Eco-Auditor platform ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you are using the Service on behalf of an organization, you represent that you have the authority to bind that organization to these Terms.</p>
@@ -51,12 +54,13 @@ export default function TermsOfService() {
 
         <Sec id="company" title="2. Company Identity" onScroll={setActiveSection}>
           <p>The Eco-Auditor platform is operated by Developer312. Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-          <p>Contact: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a> | <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
+          <p>Contact: <a href={`mailto:${contactDetails.email}`} className="text-accent-text hover:underline">{contactDetails.email}</a> | <a href={contactDetails.phoneHref} className="text-accent-text hover:underline">{contactDetails.phone}</a></p>
         </Sec>
 
         <Sec id="eligibility" title="3. Eligibility and Business Use" onScroll={setActiveSection}>
           <p>The Service is intended for business and professional use. By using the Service, you represent that you are at least 18 years of age and have the legal capacity to enter into these Terms.</p>
-          <p>The Service is designed for organizations seeking to track, estimate, organize, and report emissions data for internal workflow and audit-readiness purposes. It is not a substitute for professional environmental, legal, accounting, or tax advice.</p>
+          {/* COUNSEL-REVIEW: VF-9 (post-web) - "audit-readiness purposes" is replaced by "reporting-preparation purposes". The product offers no audit trail and the claims register withdrew "audit-ready" (claims.ts, audit-ready): the Service produces a PDF emissions summary and a JSON export, and assurance is performed by an independent provider. tests/legal-evidence-coupling.test.tsx fails if a legal page names audit readiness again. NEEDS-OWNER: confirm the new wording describes the intended use. */}
+          <p>The Service is designed for organizations seeking to track, estimate, organize, and report emissions data for internal workflow and reporting-preparation purposes. It is not a substitute for professional environmental, legal, accounting, or tax advice.</p>
         </Sec>
 
         <Sec id="accounts" title="4. Accounts and Credentials" onScroll={setActiveSection}>
@@ -70,14 +74,14 @@ export default function TermsOfService() {
         </Sec>
 
         <Sec id="permitted-use" title="5. Permitted Use" onScroll={setActiveSection}>
+          {/* COUNSEL-REVIEW: VF-9 (post-web) - this list named features the product does not have: uploading documents and integrating data sources (no document is stored; data comes in by CSV import), audit trails (none; an audit trail is on the roadmap), AI-assisted tools (the AI Carbon Assistant is not built) and supplier communications (the Supplier request hub is not built). It now lists what exists, as the claims register words it: a calculator, CSV import, a PDF emissions summary and a JSON download of your data, and the paragraph below says plainly what is not offered. That paragraph is the only sentence on a legal page allowed to name those features, by a short allowlist in tests/legal-evidence-coupling.test.tsx. "For external disclosure" is kept as the customer's own use of a report; Sections 14 and 18 say the Service does not ensure compliance or acceptance. NEEDS-OWNER: confirm the list and the "not yet available" statement; counsel may prefer to say nothing about planned features. */}
           <p>You may use the Service to:</p>
           <ul>
             <li>Track, organize, and estimate emissions data across Scope 1, 2, and 3 categories</li>
-            <li>Upload documents and integrate data sources for emissions processing</li>
-            <li>Generate reports and audit trails for internal review and external disclosure</li>
-            <li>Use AI-assisted tools for classification suggestions and methodology guidance</li>
-            <li>Manage supplier communications and data requests related to emissions</li>
+            <li>Import activity data from CSV files for emissions processing</li>
+            <li>Generate reports as PDF emissions summaries for internal review and external disclosure, and export your data as JSON</li>
           </ul>
+          <p>The Service does not currently offer document upload, an audit trail, an AI assistant or supplier requests; the last three are on our product roadmap and are not yet available.</p>
         </Sec>
 
         <Sec id="prohibited-use" title="6. Prohibited Use" onScroll={setActiveSection}>
@@ -101,7 +105,8 @@ export default function TermsOfService() {
           <ul>
             <li><strong>Billing cycle:</strong> Subscriptions are billed in advance on a monthly or annual basis, depending on your selected plan</li>
             <li><strong>Auto-renewal:</strong> Subscriptions renew automatically at the end of each billing period unless canceled before the renewal date</li>
-            <li><strong>Plan changes:</strong> Upgrades take effect immediately with a prorated charge for the remaining billing period. Downgrades take effect at the end of the current billing period</li>
+            {/* COUNSEL-REVIEW: VF-3 (post-web) - this item said downgrades take effect at the end of the current billing period. They do not: PATCH /api/subscription (server.cjs) swaps the price at once for every plan change with proration_behavior create_prorations, and Settings offers every plan, downgrades included; there is no end-of-period schedule. Stripe puts the prorated charge or credit on the next invoice and does not refund a credit (Stripe documentation, "Prorations"). The item now says what the handler does, and tests/legal-evidence-coupling.test.tsx reads the handler: if a downgrade is ever scheduled for the end of the period, or prorations are invoiced at once, it fails until this item is rewritten. OWNER DECISION: keep the behaviour and this wording, or change the code to schedule downgrades (a Stripe subscription schedule, or proration_behavior none at renewal) and restore the old sentence. NEEDS-OWNER: counsel to confirm that "take effect immediately" and the invoice timing are acceptable to publish. */}
+            <li><strong>Plan changes:</strong> Upgrades and downgrades take effect immediately. The difference in price for the rest of the current billing period is prorated: an upgrade adds a prorated charge and a downgrade gives a prorated credit, which appear on your next invoice</li>
             <li><strong>Annual discounts:</strong> Annual subscriptions are offered at a discounted rate compared to monthly billing. The annual rate represents an approximate 17% savings over the equivalent monthly cost</li>
             <li><strong>Taxes:</strong> Applicable taxes may be added to your invoice based on your billing location</li>
           </ul>
@@ -120,11 +125,18 @@ export default function TermsOfService() {
               *** HAVE COUNSEL REVIEW THIS WORDING BEFORE PUBLISHING. ***
               See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-6).
             */}
-            <li><strong>Free trials:</strong> We may offer 14-day free trials on eligible monthly plans. There are two ways to start one. <em>If you sign up directly without selecting a plan</em>, no payment method is required; if you do not select a paid plan before the trial ends, access to the workspace is paused until you do, and no charge occurs. <em>If you start a trial by selecting a plan</em>, you will be asked for a payment method at checkout, and unless you cancel before the trial ends the selected subscription begins automatically at the end of the trial period and you authorize the charge at that time. You may cancel at any point during the trial from your account settings</li>
+            {/* COUNSEL-REVIEW: F-B-18 (K16 follow-up; VF-13 post-web) - the last sentence of this item states the rule checkoutTrialDecision in server-billing.cjs applies to POST /api/checkout: no trial is attached when the company's card-free trial has run out, when its own record shows a subscription, or when Stripe lists a past subscription for the customer. It used to say that "a free trial" is offered once per company, which was not literally true: a company still inside its card-free trial is trialEligible (billingStateFromCompany: not ever subscribed and the trial not run out), so it can also start a card-backed trial at checkout (up to 14 + 14 days, K16 decision D-K16-1). The sentence now speaks of the trial started at checkout, which is offered once per company, and says when it is not offered; it still does not mention that a company within its free trial may start one, which the owner can state or remove by tightening the code (no checkout trial while trialActive). tests/legal-evidence-coupling.test.tsx runs that function and requires this sentence while it refuses a second checkout trial. NEEDS-OWNER: decide D-K16-1: tighten checkoutTrialDecision, or keep the code and, if counsel wants it said, add that a company within its free trial may also start one trial at checkout. */}
+            <li><strong>Free trials:</strong> We may offer 14-day free trials on eligible monthly plans. There are two ways to start one. <em>If you sign up directly without selecting a plan</em>, no payment method is required; if you do not select a paid plan before the trial ends, access to the workspace is paused until you do, and no charge occurs. <em>If you start a trial by selecting a plan</em>, you will be asked for a payment method at checkout, and unless you cancel before the trial ends the selected subscription begins automatically at the end of the trial period and you authorize the charge at that time. You may cancel at any point during the trial from your account settings. A trial started at checkout is offered once per company: it is not offered if your company's free trial has already ended or if your company has already had a subscription, and billing then begins when you subscribe</li>
             <li><strong>Cancellation:</strong> You may cancel your subscription at any time through your account settings or by contacting us. Cancellation prevents future charges but does not result in a refund for the current billing period</li>
             <li><strong>Suspension:</strong> We may suspend access to the Service for overdue payments, Terms violations, or suspected fraudulent activity</li>
             <li><strong>Termination:</strong> We may terminate your account for material breach of these Terms with notice. Upon termination, your right to access the Service ceases immediately</li>
-            <li><strong>Data after termination:</strong> You can export your data at any time from Settings as a machine-readable JSON download. You can delete your audit data (emissions entries and facilities) at any time from Settings, and deletion takes effect immediately. Your account record is retained while your subscription is active; full account deletion is available via support, and such requests are processed within 30 days unless otherwise required by law</li>
+            {/*
+              COUNSEL-REVIEW: F-A-20 (D-10) / F-D-06 - the previous text listed in-account controls that termination removes and said nothing about what happens to data afterwards. It now says plainly that cancelling or terminating deletes nothing and that nothing is deleted automatically. No post-termination period is stated: none exists (the DPA no longer refers to one).
+              NEEDS-OWNER: decide whether to commit to automatic deletion after termination (needs a job or runbook) and the period, and whether a departing customer can request an export after access ends.
+              COUNSEL-REVIEW: VF-2 (post-web) - the sentence about deleting audit data now adds, from src/content/data-facts.ts, that generated reports are not part of that deletion and that a stored report keeps a copy of the entries it covers (the delete-data handler touches no reports column; migrations/20260930110000_report-snapshots.sql stores the snapshot and PDF). Same sentence as Settings, Security, Privacy Section 9 and the DPA; tests/legal-evidence-coupling.test.tsx ties it to the handler. OWNER DECISION: whether "Delete my audit data" should also delete draft reports (see the Privacy Policy marker in Section 9).
+              COUNSEL-REVIEW: K3 follow-up (VERIFY-W2A-DATA F5) - the one automatic deletion is the trigger reports_prune_drafts (migrations/20260930110000_report-snapshots.sql): storing a new frozen draft report deletes the same company's older unsigned drafts beyond the newest 25 (MAX_DRAFT_REPORTS in src/lib/reports/report-limits.cjs); signed-off reports are never deleted by it and a pruned draft cannot be recovered. Same sentence as Privacy Section 9, Security (Data export and deletion) and DPA Section 11. OWNER DECISION: is a 25-draft bound acceptable?
+            */}
+            <li><strong>Data after termination:</strong> Cancelling your subscription or terminating your account does not delete your data, and nothing is deleted automatically, with one exception: we keep only the 25 most recent unsigned draft reports per workspace and delete older drafts when a new report is generated; signed-off reports are not deleted this way. While you have access to the Service you can export your data at any time from Settings as a machine-readable JSON download, and you can delete your audit data (emissions entries and facilities) at any time from Settings; deletion takes effect immediately. {dataFacts.deleteAuditData.reports}. Your account record is retained until you ask for it to be deleted; full account deletion is available via support, and such requests are processed within 30 days unless otherwise required by law. The Privacy Policy and the Data Processing Addendum describe what is kept</li>
           </ul>
         </Sec>
 
@@ -135,7 +147,8 @@ export default function TermsOfService() {
 
         <Sec id="customer-data" title="11. Customer Data and Content" onScroll={setActiveSection}>
           <p>You retain ownership of the data and content you upload to the Service, including emissions data, documents, reports, and configuration settings.</p>
-          <p>You grant Developer312 a limited, non-exclusive license to process your data solely for the purpose of providing the Service, including generating emissions estimates, organizing audit trails, and producing reports.</p>
+          {/* COUNSEL-REVIEW: VF-9 (post-web) - "organizing audit trails" is replaced by "organizing emissions data": the product has no audit trail (claims.ts, audit-ready; an audit trail is on the roadmap). The limit of the licence, processing solely to provide the Service, is unchanged. NEEDS-OWNER: confirm the wording. */}
+          <p>You grant Developer312 a limited, non-exclusive license to process your data solely for the purpose of providing the Service, including generating emissions estimates, organizing emissions data, and producing reports.</p>
           <p>You are responsible for ensuring that any data you upload complies with applicable laws and does not infringe the rights of third parties.</p>
         </Sec>
 
@@ -150,7 +163,8 @@ export default function TermsOfService() {
         </Sec>
 
         <Sec id="disclaimer" title="14. Disclaimer and Important Notices" onScroll={setActiveSection}>
-          <p><strong>Eco-Auditor is a software platform for workflow support, data organization, estimation assistance, audit readiness, and reporting preparation.</strong></p>
+          {/* COUNSEL-REVIEW: VF-9 (post-web) - "audit readiness" is removed from the list of what the platform is for: the claims register withdrew "audit-ready" (claims.ts, audit-ready), the product has no audit trail, and llms.txt says it is not an assurance or audit tool. The other four purposes are unchanged. NEEDS-OWNER: confirm the wording. */}
+          <p><strong>Eco-Auditor is a software platform for workflow support, data organization, estimation assistance, and reporting preparation.</strong></p>
           <p>The Service does not provide legal advice, accounting advice, tax advice, environmental consulting advice, or regulatory certification. Customers remain responsible for reviewing classifications, assumptions, calculations, filings, and reports before use or submission.</p>
           <p>AI-generated content, emissions estimates, and automated categorizations provided by the Service may be incomplete, require human validation, and should not be relied upon as final or verified outputs without appropriate review.</p>
           <p>Use of the platform does not guarantee compliance with any specific regulation, does not guarantee audit outcomes or report acceptance, and does not guarantee the avoidance of fines, penalties, or adverse legal consequences. The Service is not a substitute for professional environmental, legal, or financial advice.</p>
@@ -203,8 +217,8 @@ export default function TermsOfService() {
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312</p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href={`mailto:${contactDetails.email}`} className="text-accent-text hover:underline">{contactDetails.email}</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href={contactDetails.phoneHref} className="text-accent-text hover:underline">{contactDetails.phone}</a></p>
           </div>
         </Sec>
       </article>

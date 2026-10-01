@@ -9,12 +9,12 @@ Developer312 (subsidiary of NIGHT LITE USA LLC)
 Website: https://developer312.com
 
 /* SITE */
-Last update: 2026-05-21
+Last update: 2026-09-30
 Language: English
 Framework: React 19 + Vite + TypeScript
 Styling: Tailwind CSS 3.4
 Backend: Express.js + PostgreSQL
-Hosting: (to be confirmed)
+Hosting: Railway (application), InsForge (database and sign-in), Cloudflare (DNS and content delivery)
 
 /* SUITE */
 ProvenanceOS: https://provenance-os.com

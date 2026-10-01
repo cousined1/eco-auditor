@@ -52,3 +52,28 @@ export function takeAuthIntent(): AuthIntent | null {
 export function destinationFor(intent: AuthIntent | null): string {
   return intent ? `/app?checkout=${intent.plan}_${intent.billing}` : '/app';
 }
+
+/**
+ * Where a user goes after signing in or verifying their email: the `?redirect=`
+ * path when it is a safe same-origin path, otherwise the purchase intent's
+ * destination. Shared by /login and the email-verification step so the
+ * open-redirect guard exists once.
+ *
+ * Only same-origin paths: prevents protocol-relative (//evil.com), backslash
+ * (/\evil.com) and cross-origin bypasses. `window` is read only once a
+ * candidate path passed the prefix checks, because /login is prerendered.
+ */
+export function resolvePostAuthRedirect(params: URLSearchParams, origin?: string): string {
+  const fallback = destinationFor(readIntentFromParams(params));
+  const redirect = params.get('redirect');
+  if (!redirect || !redirect.startsWith('/') || redirect.startsWith('//') || redirect.startsWith('/\\')) {
+    return fallback;
+  }
+  try {
+    const base = origin ?? window.location.origin;
+    const parsed = new URL(redirect, base);
+    return parsed.origin === base && parsed.pathname.startsWith('/') ? redirect : fallback;
+  } catch {
+    return fallback;
+  }
+}

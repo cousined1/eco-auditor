@@ -1,0 +1,87 @@
+Eco-Auditor Emissions Report
+Company: Müller Umwelt GmbH
+Report ID: 42
+Reporting period: Calendar year 2026 (2026-01-01 to 2026-12-31)
+Generated: 2026-09-30 14:22 UTC
+The figures were calculated once, when this report was generated, and are stored with it. Later changes to the
+  data do not change this report.
+
+SUMMARY (metric tonnes of CO2 equivalent, tCO2e)
+Total: 47.042 tCO2e
+Scope 1: 16.087 tCO2e
+Scope 2: 23.405 tCO2e
+Scope 3: 7.55 tCO2e
+Scopes covered: Scope 1, Scope 2, Scope 3
+Entries included: 10. Entries excluded: 1 (see Exclusions and limitations).
+Confidence: 87% (unweighted average of the per-entry confidence scores)
+
+ORGANISATIONAL BOUNDARY
+Consolidation approach: not specified
+Boundary: the facilities and entries recorded in Eco-Auditor for this company (see Facility breakdown).
+
+GREENHOUSE GASES
+Reported as a CO2e aggregate; per-gas breakdown not available.
+Biogenic CO2 (wood or wood-residual combustion, 1 entry): included in Scope 1 in full, not reported separately.
+HCFC-22 (R-22, 1 entry): not covered by the Kyoto Protocol, but included in Scope 1 here rather than reported
+  separately.
+
+BASE YEAR
+Base year: not set
+
+FACILITY BREAKDOWN (tCO2e)
+  Werk Süd: Scope 1 16.087, Scope 2 0, Scope 3 7.55; total 23.637 (8 entries)
+  No facility assigned: Scope 1 0, Scope 2 23.405, Scope 3 0; total 23.405 (2 entries)
+
+EMISSIONS BY CATEGORY (tCO2e)
+  Scope 1 - Fugitive Emissions: 5.28 (1 entry)
+  Scope 1 - Mobile Combustion: 1.021 (1 entry)
+  Scope 1 - Stationary Combustion: 9.786 (3 entries)
+  Scope 2 - Purchased Electricity: 23.405 (3 entries)
+  Scope 3 - Business Travel: 2.55 (1 entry)
+  Scope 3 - Purchased Goods: 5 (1 entry)
+
+METHODOLOGY
+Methodology: Each entry is activity data multiplied by an emission factor; entries are grouped into Scopes 1-3 as
+  defined by the GHG Protocol Corporate Standard and summed in metric tonnes CO2e.
+Global warming potentials: IPCC AR5, 100-year global warming potentials
+Emission factor catalog: version 2026-09-30, SHA-256 0ec7ea1af74baab1
+Factor datasets used: Eco-Auditor provisional estimate (not a published dataset); IPCC AR5 GWP-100; US EPA
+  GHG Emission Factors Hub 2025; US EPA eGRID2023
+Factors applied (category / source (activity unit): factor - dataset):
+  Fugitive Emissions / Refrigerant R-22 (reported separately) (kg): 1760 kg CO2e per unit - IPCC AR5 GWP-100
+    (1 entry)
+  Mobile Combustion / Diesel (gallons): 10.21 kg CO2e per unit - US EPA GHG Emission Factors Hub 2025 (1
+    entry)
+  Stationary Combustion / Natural Gas (kg CO2e): entered as CO2e, calculated in the app with a factor from US
+    EPA GHG Emission Factors Hub 2025 (1 entry)
+  Stationary Combustion / Natural Gas (therms): 5.306 kg CO2e per unit - US EPA GHG Emission Factors Hub
+    2025 (1 entry)
+  Stationary Combustion / Wood and Wood Residuals (short tons): 1640 kg CO2e per unit - US EPA GHG
+    Emission Factors Hub 2025 (1 entry)
+  Purchased Electricity / RENEWABLE (kWh): 0 kg CO2e per unit - source not recorded (1 entry)
+  Purchased Electricity / WECC California (CAMX) (kWh): 0.19504 kg CO2e per unit - US EPA eGRID2023 (1
+    entry)
+  Purchased Electricity / WECC California (CAMX) (kWh): 0.19504 kg CO2e per unit - US EPA eGRID2023,
+    catalog 2026-07-24+9841b57be1f6 (1 entry)
+  Business Travel / Air, short haul (under 300 miles) (passenger-miles): 0.255 kg CO2e per unit - US EPA GHG
+    Emission Factors Hub 2025 [provisional] (1 entry)
+  Purchased Goods / Spend-based (all purchased goods) (USD): 0.25 kg CO2e per unit - Eco-Auditor provisional
+    estimate (not a published dataset) [provisional] (1 entry)
+2 of 10 factors applied are provisional (industry-typical values pending citation verification)
+
+EXCLUSIONS AND LIMITATIONS
+- Scope 3: only these categories are included: Business Travel, Purchased Goods. Other Scope 3 categories are
+  not reported.
+- Scope 2: purchased electricity uses eGRID grid-average (location-based) factors. A market-based Scope 2
+  total is not reported.
+- 1 entry could not be calculated and is excluded from every total:
+    Entry 207 (2026-05-01): Unsupported Scope 1 source/unit: natural_gas therm
+- Entries are assigned to the reporting period by their activity date, or by the date they were recorded when no
+  activity date was given.
+- Per-entry confidence scores are preset values (by category, or as stored with the entry); they are not an
+  assessment of the underlying documents.
+- This report has not been reviewed or assured by an independent third party, and it is not a regulatory filing.
+
+SIGN-OFF
+Status when generated: draft, not signed off. A sign-off is recorded in Eco-Auditor against this report and does
+  not change this document.

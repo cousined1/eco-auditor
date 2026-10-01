@@ -3,6 +3,7 @@
   "revision": "1",
   "revisionLabel": "DRAFT — FOR REVIEW",
   "fictional": true,
+  "generatedOn": "2026-09-30",
   "boundary": "Operational control",
   "baseYear": 2025,
   "company": {
@@ -12,27 +13,51 @@
     "reportingFramework": "GHG Protocol"
   },
   "assumptions": [
-    "All activity data, emission factors, and reviewer names are fictional and for illustrative purposes only.",
+    "The company, its activity quantities, reviewers and document names are fictional and for illustrative purposes only.",
     "No real customer data is represented in this fixture.",
-    "Emission factors are sourced from US EPA, IPCC AR6, Exiobase, and UK DEFRA 2024 as listed in the factor register.",
-    "Quality scoring bands reflect a representative mix of primary, industry-average, and proxy data sources."
+    "Emission factors are published values from US EPA (GHG Emission Factors Hub 2025, eGRID2023 Revision 2, WARM) and IPCC AR5 GWP-100, listed with their table in the factor register. One Scope 3 spend-based factor is an Eco-Auditor provisional estimate and is flagged as such.",
+    "Each ledger row is activity x emission factor / 1,000, rounded to 0.001 tCO2e; scope totals are the sums of the rows.",
+    "Quality bands are the share of total emissions in each data-quality band."
   ],
   "metrics": {
-    "total": 12847,
+    "total": 1173.091,
     "unit": "tCO2e",
-    "scope1": { "value": 3421, "pct": 27 },
-    "scope2": { "value": 2156, "pct": 17 },
-    "scope3": { "value": 7270, "pct": 56 }
+    "displayDecimals": 0,
+    "provisionalEntries": 1,
+    "scope1": {
+      "value": 812.019,
+      "pct": 69.2
+    },
+    "scope2": {
+      "value": 107.838,
+      "pct": 9.2
+    },
+    "scope3": {
+      "value": 253.234,
+      "pct": 21.6
+    }
   },
   "quality": [
-    { "label": "Metered electricity (97%)", "score": 34, "color": "bg-brand-500" },
-    { "label": "Metered fuel (88–90%)", "score": 25, "color": "bg-brand-400" },
-    { "label": "Activity-based Scope 3 (72–75%)", "score": 24, "color": "bg-amber-400" },
-    { "label": "Spend-based Scope 3 (65%)", "score": 17, "color": "bg-orange-400" }
-  ],
-  "year": [
-    { "year": 2025, "total": 11204, "change": null },
-    { "year": 2026, "total": 12847, "change": "+14.7%" }
+    {
+      "label": "Metered electricity (97%)",
+      "score": 9.2,
+      "color": "bg-brand-500"
+    },
+    {
+      "label": "Metered fuel and refrigerant (85–90%)",
+      "score": 69.2,
+      "color": "bg-brand-400"
+    },
+    {
+      "label": "Activity-based Scope 3 (72–75%)",
+      "score": 20.2,
+      "color": "bg-amber-400"
+    },
+    {
+      "label": "Spend-based Scope 3 (65%)",
+      "score": 1.4,
+      "color": "bg-orange-400"
+    }
   ],
   "activityData": [
     {
@@ -42,10 +67,10 @@
       "activity": "Natural gas - boiler A",
       "activity_value": 128400,
       "activity_unit": "therms",
-      "emission_factor": 5.30,
+      "emission_factor": 5.3114,
       "emission_factor_unit": "kgCO2e/therm",
-      "emission_factor_source": "epa-efh-2025",
-      "tCO2e": 707,
+      "emission_factor_source": "epa-efh-2025:natural-gas",
+      "tCO2e": 681.984,
       "data_quality_level": "L1",
       "source_document": "utility_bill_pg&e_jan2026.pdf",
       "reviewer": "m.smith",
@@ -60,8 +85,8 @@
       "activity_unit": "gallons",
       "emission_factor": 10.21,
       "emission_factor_unit": "kgCO2e/gallon",
-      "emission_factor_source": "epa-efh-2025",
-      "tCO2e": 104,
+      "emission_factor_source": "epa-efh-2025:diesel",
+      "tCO2e": 100.058,
       "data_quality_level": "L2",
       "source_document": "fuel_card_feb2026.csv",
       "reviewer": "m.smith",
@@ -74,10 +99,10 @@
       "activity": "Refrigerant R-410A top-up",
       "activity_value": 12,
       "activity_unit": "kg",
-      "emission_factor": 2088,
+      "emission_factor": 1924,
       "emission_factor_unit": "kgCO2e/kg",
-      "emission_factor_source": "ipcc-ar6-gwp100",
-      "tCO2e": 2603,
+      "emission_factor_source": "ipcc-ar5-gwp100:r-410a",
+      "tCO2e": 23.088,
       "data_quality_level": "L2",
       "source_document": "hvac_maintenance_log_q1.pdf",
       "reviewer": "j.patel",
@@ -90,10 +115,10 @@
       "activity": "Propane - forklifts",
       "activity_value": 1200,
       "activity_unit": "gallons",
-      "emission_factor": 5.74,
+      "emission_factor": 5.7408,
       "emission_factor_unit": "kgCO2e/gallon",
-      "emission_factor_source": "epa-efh-2025",
-      "tCO2e": 7,
+      "emission_factor_source": "epa-efh-2025:propane",
+      "tCO2e": 6.889,
       "data_quality_level": "L2",
       "source_document": "fuel_invoice_propane_q1.csv",
       "reviewer": "m.smith",
@@ -102,14 +127,14 @@
     {
       "entry_id": "PFC-2026-S2-001",
       "scope": "Scope 2",
-      "category": "Purchased electricity",
+      "category": "Purchased electricity (location-based)",
       "activity": "Grid power - Facility A",
       "activity_value": 548000,
       "activity_unit": "kWh",
-      "emission_factor": 0.4296,
+      "emission_factor": 0.19504,
       "emission_factor_unit": "kgCO2e/kWh",
-      "emission_factor_source": "epa-egrid-2023 (CAMX subregion)",
-      "tCO2e": 2137,
+      "emission_factor_source": "epa-egrid-2023:camx",
+      "tCO2e": 106.882,
       "data_quality_level": "L2",
       "source_document": "utility_bill_pg&e_q1.pdf",
       "reviewer": "m.smith",
@@ -118,14 +143,14 @@
     {
       "entry_id": "PFC-2026-S2-002",
       "scope": "Scope 2",
-      "category": "Purchased electricity",
+      "category": "Purchased electricity (location-based)",
       "activity": "Grid power - Facility B",
       "activity_value": 4900,
       "activity_unit": "kWh",
-      "emission_factor": 0.4296,
+      "emission_factor": 0.19504,
       "emission_factor_unit": "kgCO2e/kWh",
-      "emission_factor_source": "epa-egrid-2023 (CAMX subregion)",
-      "tCO2e": 19,
+      "emission_factor_source": "epa-egrid-2023:camx",
+      "tCO2e": 0.956,
       "data_quality_level": "L2",
       "source_document": "utility_bill_socal_q1.pdf",
       "reviewer": "m.smith",
@@ -135,15 +160,15 @@
       "entry_id": "PFC-2026-S3-001",
       "scope": "Scope 3",
       "category": "Upstream transportation",
-      "activity": "Freight inbound (road)",
-      "activity_value": 1850000,
-      "activity_unit": "USD-km spend",
-      "emission_factor": 0.000118,
-      "emission_factor_unit": "tCO2e/USD",
-      "emission_factor_source": "exiobase-3-eeio-2021",
-      "tCO2e": 6139,
+      "activity": "Freight inbound (road, dedicated trucks)",
+      "activity_value": 165200,
+      "activity_unit": "vehicle-miles",
+      "emission_factor": 1.3083,
+      "emission_factor_unit": "kgCO2e/vehicle-mile",
+      "emission_factor_source": "epa-efh-2025:truck-medium-heavy",
+      "tCO2e": 216.131,
       "data_quality_level": "L3",
-      "source_document": "procurement_spend_q1.csv",
+      "source_document": "carrier_trip_log_q1.csv",
       "reviewer": "j.patel",
       "review_timestamp": "2026-03-10T10:00:00Z"
     },
@@ -151,13 +176,13 @@
       "entry_id": "PFC-2026-S3-002",
       "scope": "Scope 3",
       "category": "Purchased goods",
-      "activity": "Paper & packaging",
+      "activity": "Paper & packaging (spend)",
       "activity_value": 64000,
-      "activity_unit": "USD spend",
-      "emission_factor": 0.000242,
-      "emission_factor_unit": "tCO2e/USD",
-      "emission_factor_source": "exiobase-3-eeio-2021",
-      "tCO2e": 436,
+      "activity_unit": "USD",
+      "emission_factor": 0.25,
+      "emission_factor_unit": "kgCO2e/USD",
+      "emission_factor_source": "internal-estimate:purchased-goods-spend",
+      "tCO2e": 16,
       "data_quality_level": "L3",
       "source_document": "procurement_spend_q1.csv",
       "reviewer": "j.patel",
@@ -167,13 +192,13 @@
       "entry_id": "PFC-2026-S3-003",
       "scope": "Scope 3",
       "category": "Business travel",
-      "activity": "Air travel (short-haul)",
-      "activity_value": 42,
-      "activity_unit": "flights-segment",
-      "emission_factor": 0.18,
-      "emission_factor_unit": "tCO2e/segment",
-      "emission_factor_source": "uk-defra-2024",
-      "tCO2e": 213,
+      "activity": "Air travel (short-haul, 42 segments)",
+      "activity_value": 10500,
+      "activity_unit": "passenger-miles",
+      "emission_factor": 0.20893,
+      "emission_factor_unit": "kgCO2e/passenger-mile",
+      "emission_factor_source": "epa-efh-2025:air-short-haul",
+      "tCO2e": 2.194,
       "data_quality_level": "L3",
       "source_document": "travel_booking_log_q1.csv",
       "reviewer": "j.patel",
@@ -183,13 +208,13 @@
       "entry_id": "PFC-2026-S3-004",
       "scope": "Scope 3",
       "category": "Waste",
-      "activity": "Landfill waste",
-      "activity_value": 18,
-      "activity_unit": "tonnes",
-      "emission_factor": 0.547,
-      "emission_factor_unit": "tCO2e/tonne",
-      "emission_factor_source": "epa-efh-2025 (waste factors)",
-      "tCO2e": 277,
+      "activity": "Landfill waste (mixed MSW)",
+      "activity_value": 20,
+      "activity_unit": "short tons",
+      "emission_factor": 580,
+      "emission_factor_unit": "kgCO2e/short ton",
+      "emission_factor_source": "epa-warm-2023:mixed-msw-landfilled",
+      "tCO2e": 11.6,
       "data_quality_level": "L4",
       "source_document": "waste_hauler_q1_summary.pdf",
       "reviewer": "j.patel",
@@ -199,13 +224,13 @@
       "entry_id": "PFC-2026-S3-005",
       "scope": "Scope 3",
       "category": "Employee commuting",
-      "activity": "Estimated commute",
-      "activity_value": 120,
-      "activity_unit": "employees-month",
-      "emission_factor": 0.061,
-      "emission_factor_unit": "tCO2e/employee-month",
-      "emission_factor_source": "survey-proxy-2026",
-      "tCO2e": 205,
+      "activity": "Estimated commute (drive-alone)",
+      "activity_value": 24480,
+      "activity_unit": "vehicle-miles",
+      "emission_factor": 0.29857,
+      "emission_factor_unit": "kgCO2e/vehicle-mile",
+      "emission_factor_source": "epa-efh-2025:passenger-car",
+      "tCO2e": 7.309,
       "data_quality_level": "L4",
       "source_document": "commute_survey_2026_estimated.xlsx",
       "reviewer": "j.patel",
@@ -214,94 +239,174 @@
   ],
   "factorRegister": [
     {
-      "factor_id": "epa-efh-2025",
+      "dataset_id": "epa-efh-2025",
       "source_organization": "US EPA",
       "dataset_name": "GHG Emission Factors Hub",
       "dataset_version": "2025",
-      "publication_date": "2025-04-15",
-      "imported_at": "2025-04-20",
-      "effective_from": "2025-01-01",
-      "effective_to": "",
+      "publication_date": "2025-01-15",
       "geography": "USA",
-      "activity_unit": "therms",
-      "output_unit": "kgCO2e",
-      "factor_value": 5.30,
-      "factor_gas": "CO2e",
-      "gwp_basis": "AR5",
-      "checksum": "sha256:ab12",
-      "status": "active"
+      "status": "active",
+      "source_url": "https://www.epa.gov/system/files/documents/2025-01/ghg-emission-factors-hub-2025.pdf",
+      "factors": [
+        {
+          "factor_id": "epa-efh-2025:natural-gas",
+          "table_reference": "Table 1 Stationary Combustion, Natural Gas: 53.06 kg CO2, 1.0 g CH4, 0.10 g N2O per mmBtu; 1 therm = 0.1 mmBtu",
+          "geography": "USA",
+          "activity_unit": "therm",
+          "factor_value": 5.3114,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR5",
+          "notes": ""
+        },
+        {
+          "factor_id": "epa-efh-2025:diesel",
+          "table_reference": "Table 2 Mobile Combustion CO2, Diesel Fuel: 10.21 kg CO2 per gallon",
+          "geography": "USA",
+          "activity_unit": "gallon",
+          "factor_value": 10.21,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2",
+          "gwp_basis": "AR5",
+          "notes": "CO2 only. CH4 and N2O for on-road diesel are published per vehicle-mile (Hub Tables 3-5), so they cannot be added from gallons."
+        },
+        {
+          "factor_id": "epa-efh-2025:propane",
+          "table_reference": "Table 1 Stationary Combustion, Propane: 5.72 kg CO2, 0.27 g CH4, 0.05 g N2O per gallon",
+          "geography": "USA",
+          "activity_unit": "gallon",
+          "factor_value": 5.7408,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR5",
+          "notes": ""
+        },
+        {
+          "factor_id": "epa-efh-2025:truck-medium-heavy",
+          "table_reference": "Table 8 Scope 3 Categories 4 and 9, Medium- and Heavy-Duty Truck: 1.298 kg CO2, 0.0115 g CH4, 0.0376 g N2O per vehicle-mile",
+          "geography": "USA",
+          "activity_unit": "vehicle-mile",
+          "factor_value": 1.3083,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR5",
+          "notes": "Vehicle-mile factors apply when the whole vehicle is dedicated to the reporting company's freight."
+        },
+        {
+          "factor_id": "epa-efh-2025:air-short-haul",
+          "table_reference": "Table 10 Scope 3 Categories 6 and 7, Air Travel Short Haul (< 300 miles): 0.207 kg CO2, 0.0064 g CH4, 0.0066 g N2O per passenger-mile",
+          "geography": "USA",
+          "activity_unit": "passenger-mile",
+          "factor_value": 0.20893,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR5",
+          "notes": ""
+        },
+        {
+          "factor_id": "epa-efh-2025:passenger-car",
+          "table_reference": "Table 10 Scope 3 Categories 6 and 7, Passenger Car: 0.297 kg CO2, 0.0059 g CH4, 0.0053 g N2O per vehicle-mile",
+          "geography": "USA",
+          "activity_unit": "vehicle-mile",
+          "factor_value": 0.29857,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR5",
+          "notes": ""
+        }
+      ]
     },
     {
-      "factor_id": "epa-egrid-2023",
+      "dataset_id": "epa-egrid-2023",
       "source_organization": "US EPA",
-      "dataset_name": "eGRID",
-      "dataset_version": "CAMD 2023 data (released 2024)",
-      "publication_date": "2024-01-09",
-      "imported_at": "2024-01-15",
-      "effective_from": "2023-01-01",
-      "effective_to": "",
-      "geography": "USA-CAMX",
-      "activity_unit": "kWh",
-      "output_unit": "kgCO2e",
-      "factor_value": 0.4296,
-      "factor_gas": "CO2e",
-      "gwp_basis": "AR5",
-      "checksum": "sha256:cd34",
-      "status": "active"
+      "dataset_name": "eGRID summary tables",
+      "dataset_version": "eGRID2023 Revision 2",
+      "publication_date": "2025-06-12",
+      "geography": "USA",
+      "status": "active",
+      "source_url": "https://www.epa.gov/system/files/documents/2025-06/summary_tables_rev2.pdf",
+      "factors": [
+        {
+          "factor_id": "epa-egrid-2023:camx",
+          "table_reference": "Table 1 Subregion Output Emission Rates, CAMX total output CO2e: 430.0 lb per MWh",
+          "geography": "USA-CAMX",
+          "activity_unit": "kWh",
+          "factor_value": 0.19504,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR5",
+          "notes": "Location-based. 430.0 lb/MWh x 0.45359237 kg/lb / 1,000 kWh/MWh."
+        }
+      ]
     },
     {
-      "factor_id": "ipcc-ar6-gwp100",
+      "dataset_id": "ipcc-ar5-gwp100",
       "source_organization": "IPCC",
-      "dataset_name": "AR6 GWP-100",
-      "dataset_version": "AR6",
-      "publication_date": "2021-08-09",
-      "imported_at": "2022-01-10",
-      "effective_from": "2021-01-01",
-      "effective_to": "",
+      "dataset_name": "AR5 GWP-100, as tabulated in the EPA GHG Emission Factors Hub 2025 (Tables 11-12)",
+      "dataset_version": "AR5",
+      "publication_date": "2013",
       "geography": "Global",
-      "activity_unit": "kg",
-      "output_unit": "kgCO2e",
-      "factor_value": 2088,
-      "factor_gas": "CH4/HFC",
-      "gwp_basis": "AR6",
-      "checksum": "sha256:ef56",
-      "status": "active"
+      "status": "active",
+      "source_url": "https://www.epa.gov/system/files/documents/2025-01/ghg-emission-factors-hub-2025.pdf",
+      "factors": [
+        {
+          "factor_id": "ipcc-ar5-gwp100:r-410a",
+          "table_reference": "Hub Table 12 Blended Refrigerants, R-410A (50% HFC-32, 50% HFC-125): GWP-100 1,924",
+          "geography": "Global",
+          "activity_unit": "kg",
+          "factor_value": 1924,
+          "output_unit": "kgCO2e",
+          "factor_gas": "HFC-32 + HFC-125 blend",
+          "gwp_basis": "AR5",
+          "notes": "HFC-32 (677) and HFC-125 (3,170) at 50/50 give 1,923.5; Hub Table 12 publishes 1,924."
+        }
+      ]
     },
     {
-      "factor_id": "exiobase-3-eeio-2021",
-      "source_organization": "Exiobase",
-      "dataset_name": "EEIO spend-based factors",
-      "dataset_version": "v3.8.2",
-      "publication_date": "2022-06-01",
-      "imported_at": "2022-07-01",
-      "effective_from": "2021-01-01",
-      "effective_to": "",
-      "geography": "Global",
-      "activity_unit": "USD",
-      "output_unit": "tCO2e",
-      "factor_value": 0.000118,
-      "factor_gas": "CO2e",
-      "gwp_basis": "AR5",
-      "checksum": "sha256:gh78",
-      "status": "active"
+      "dataset_id": "epa-warm-2023",
+      "source_organization": "US EPA",
+      "dataset_name": "Waste Reduction Model (WARM) factors, as published in the EPA GHG Emission Factors Hub 2025 (Table 9)",
+      "dataset_version": "WARM documentation, December 2023",
+      "publication_date": "2023-12",
+      "geography": "USA",
+      "status": "active",
+      "source_url": "https://www.epa.gov/system/files/documents/2025-01/ghg-emission-factors-hub-2025.pdf",
+      "factors": [
+        {
+          "factor_id": "epa-warm-2023:mixed-msw-landfilled",
+          "table_reference": "Table 9 Scope 3 Categories 5 and 12, Mixed MSW, landfilled: 0.58 metric tons CO2e per short ton",
+          "geography": "USA",
+          "activity_unit": "short ton",
+          "factor_value": 580,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR4",
+          "notes": "Hub Table 9 converts with AR4 GWPs. Excludes avoided emissions and landfill carbon storage."
+        }
+      ]
     },
     {
-      "factor_id": "uk-defra-2024",
-      "source_organization": "UK DEFRA",
-      "dataset_name": "Conversion factors",
-      "dataset_version": "2024",
-      "publication_date": "2024-06-06",
-      "imported_at": "2024-06-10",
-      "effective_from": "2024-01-01",
-      "effective_to": "",
-      "geography": "Global",
-      "activity_unit": "segment",
-      "output_unit": "tCO2e",
-      "factor_value": 0.18,
-      "factor_gas": "CO2e",
-      "gwp_basis": "AR5",
-      "checksum": "sha256:ij90",
-      "status": "active"
+      "dataset_id": "internal-estimate",
+      "source_organization": "Eco-Auditor",
+      "dataset_name": "Factor library - provisional internal estimates (not a published dataset)",
+      "dataset_version": "2026-09-30",
+      "publication_date": "",
+      "geography": "",
+      "status": "provisional",
+      "source_url": "",
+      "factors": [
+        {
+          "factor_id": "internal-estimate:purchased-goods-spend",
+          "table_reference": "Eco-Auditor factor library, purchased goods, spend-based",
+          "geography": "",
+          "activity_unit": "USD",
+          "factor_value": 0.25,
+          "output_unit": "kgCO2e",
+          "factor_gas": "CO2e",
+          "gwp_basis": "AR5",
+          "notes": "Provisional: an industry-typical value pending citation verification. Not a published factor; the product flags it the same way."
+        }
+      ]
     }
   ],
   "evidenceIndex": [
@@ -380,14 +485,14 @@
     {
       "entry_id": "PFC-2026-S3-001",
       "source_type": "industry_average",
-      "source_reference": "procurement_spend_q1.csv",
-      "document_id": "PROC-2026-Q1",
+      "source_reference": "carrier_trip_log_q1.csv",
+      "document_id": "TRIP-2026-Q1",
       "uploader": "j.patel",
       "upload_date": "2026-03-10",
       "data_quality_level": "L3",
       "override_reason": "",
       "override_reviewer": "",
-      "notes": "Spend-based EEIO estimate"
+      "notes": "Vehicle-miles from carrier trip reports; industry-average factor"
     },
     {
       "entry_id": "PFC-2026-S3-002",
@@ -399,7 +504,7 @@
       "data_quality_level": "L3",
       "override_reason": "",
       "override_reviewer": "",
-      "notes": "Spend-based EEIO estimate"
+      "notes": "Spend-based estimate; provisional factor, not a published dataset"
     },
     {
       "entry_id": "PFC-2026-S3-003",
@@ -411,7 +516,7 @@
       "data_quality_level": "L3",
       "override_reason": "",
       "override_reviewer": "",
-      "notes": "Segment-based estimate"
+      "notes": "42 segments from the booking log at 250 miles per segment (assumed)"
     },
     {
       "entry_id": "PFC-2026-S3-004",
@@ -435,7 +540,7 @@
       "data_quality_level": "L4",
       "override_reason": "",
       "override_reviewer": "",
-      "notes": "42% of employees responded; remaining estimated by regional average. Improvement target Q2."
+      "notes": "42% of employees responded; remaining estimated by regional average (about 204 drive-alone vehicle-miles per employee-month, 120 employees). Improvement target Q2."
     }
   ]
 }

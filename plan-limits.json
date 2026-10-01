@@ -18,8 +18,10 @@
     }
   },
   "enforcement": {
-    "facilities": "server.cjs POST /api/companies/:id/facilities",
-    "csvImportsPerMonth": "server.cjs POST /api/ingest/csv, counted from public.csv_import_events",
-    "scope3": "server.cjs POST /api/calculate and POST /api/ingest/csv"
+    "facilities": "server.cjs POST /api/companies/:id/facilities, counted under a company-row lock (server-entry-routes.cjs insertFacilityWithinCap)",
+    "csvImportsPerMonth": "server.cjs POST /api/ingest/csv (server-csv-import-routes.cjs), counted from public.csv_import_events under a company-row lock: one per committed import; dry runs, refused files, duplicates and replayed requests spend nothing; an undone import still counts",
+    "scope3": "server.cjs POST /api/calculate, POST /api/ingest/csv, POST /api/entries and PATCH /api/entries/:id",
+    "activePlan": "server.cjs requirePlan on every data route, including GET/POST /api/entries and PATCH /api/entries/:id (DELETE /api/entries/:id stays open after the trial, like the export)",
+    "directWrites": "Until docs/deferred-migrations/20260930130000_revoke-authenticated-writes.sql is applied, the records API still accepts direct emission_entries/facilities writes from the browser role: the limits above bind the app, not a hand-made records API call"
   }
 }

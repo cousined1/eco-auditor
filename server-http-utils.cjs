@@ -43,6 +43,10 @@ function parseRange(rangeHeader, fileSize) {
  * express.static setHeaders handler in server.cjs:
  *
  *   - immutable forever for hashed /assets/*.js|.css bundles
+ *   - immutable forever for the self-hosted /fonts/*.woff2 files (F-F-06). They
+ *     are not content-hashed; their names carry the font version instead
+ *     (inter-v20-latin.woff2), so a replacement font must get a new name.
+ *     Without this every page view revalidated the preloaded font.
  *   - no-cache, no-transform for every HTML page — a deploy must never leave a
  *     stale SPA shell behind (the "no-transform" part is Cloudflare-specific
  *     and was the live drift the RT-05 tautological test masked)
@@ -54,6 +58,9 @@ function parseRange(rangeHeader, fileSize) {
  */
 function getStaticCacheHeaders(filePath) {
   if (filePath.includes('/assets/') && (filePath.endsWith('.js') || filePath.endsWith('.css'))) {
+    return 'public, max-age=31536000, immutable';
+  }
+  if (filePath.includes('/fonts/') && filePath.endsWith('.woff2')) {
     return 'public, max-age=31536000, immutable';
   }
   if (filePath.endsWith('.html')) {

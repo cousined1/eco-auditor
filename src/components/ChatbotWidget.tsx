@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useConsent } from '../lib/consent-context';
+import BrandMark from './BrandMark';
+import { plainQuickReply, rateLimitMessage, renderChatMarkdown } from './chat/chatText';
 
 /**
  * Dialog shell for the chat panel.
@@ -14,16 +16,18 @@ import { useConsent } from '../lib/consent-context';
  */
 function ChatDialog({
   onClose,
+  className,
   style,
   children,
 }: {
   onClose: () => void;
+  className: string;
   style: React.CSSProperties;
   children: React.ReactNode;
 }) {
   const ref = useFocusTrap<HTMLDivElement>(onClose);
   return (
-    <div ref={ref} role="dialog" aria-modal="true" aria-label="EcoAuditor chat" style={style}>
+    <div ref={ref} role="dialog" aria-modal="true" aria-label="Eco-Auditor chat" className={className} style={style}>
       {children}
     </div>
   );
@@ -39,12 +43,27 @@ interface Message {
 
 interface ChatWidgetProps {
   appId?: string;
-  primaryColor?: string;
   position?: 'bottom-right' | 'bottom-left';
   welcomeMessage?: string;
 }
 
-const QUICK_REPLIES = ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', '📞 Contact Sales'];
+const QUICK_REPLIES = ['Pricing', 'Book a Demo', 'How it works', 'Contact Sales'];
+
+// Quick replies belong to the open conversation only. During the demo/contact
+// flow the server leaves them out because its next question wants a typed answer,
+// and offering the defaults anyway meant a click on "Pricing" was consumed as the
+// visitor's name. Trust the server's list when it sends one; otherwise offer the
+// defaults only when no flow is running.
+function quickRepliesFor(serverReplies: unknown, state: Record<string, unknown> | undefined): string[] | undefined {
+  if (Array.isArray(serverReplies)) {
+    const labels = serverReplies
+      .filter((reply): reply is string => typeof reply === 'string')
+      .map(plainQuickReply)
+      .filter(Boolean);
+    return labels.length > 0 ? labels : undefined;
+  }
+  return state?.flow ? undefined : QUICK_REPLIES;
+}
 
 // Browser-only: read/seed persisted chat session id lazily so SSR never
 // touches localStorage. Keeps prerender output stable and avoids the
@@ -73,10 +92,14 @@ function createMessage(
   return quickReplies ? { ...base, quickReplies } : base;
 }
 
+const BUBBLE = 'max-w-[85%] whitespace-pre-wrap break-words px-3.5 py-2.5 text-sm leading-normal shadow-sm';
+const USER_BUBBLE = 'self-end rounded-[12px_12px_4px_12px] bg-brand-600 text-white';
+const BOT_BUBBLE =
+  'self-start rounded-[12px_12px_12px_4px] border border-surface-200 bg-white text-surface-800 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-100';
+
 export default function ChatWidget({
-  primaryColor = '#059669',
   position = 'bottom-right',
-  welcomeMessage = "Hi! 👋 I'm your EcoAuditor sales assistant. I can help you with pricing, book a demo, or answer questions about carbon accounting and emissions reporting. What would you like to explore?",
+  welcomeMessage = "Hi! I'm the Eco-Auditor sales assistant, an automated chatbot. I can help with pricing, book a demo, or answer common questions about carbon accounting and emissions reporting. What would you like to explore?",
 }: ChatWidgetProps) {
   const { consentState } = useConsent();
   const [isOpen, setIsOpen] = useState(false);
@@ -125,6 +148,8 @@ export default function ChatWidget({
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
+    // What an error bubble may offer: the defaults, but never mid-flow.
+    const errorReplies = quickRepliesFor(undefined, chatState);
 
     try {
       const response = await fetch('/api/chat', {
@@ -138,14 +163,18 @@ export default function ChatWidget({
         }),
       });
 
-      const data = await response.json();
+      // A proxy's 429/5xx page is not JSON; that must not read as "network error".
+      const data = await response.json().catch(() => ({}));
 
-      if (data.success && data.response) {
+      if (response.status === 429) {
+        const wait = data.retryAfter ?? response.headers.get('Retry-After');
+        setMessages(prev => [...prev, createMessage('error', 'assistant', rateLimitMessage(wait))]);
+      } else if (data.success && data.response) {
         const assistantMessage = createMessage(
           'assistant',
           'assistant',
           data.response,
-          data.quickReplies || QUICK_REPLIES,
+          quickRepliesFor(data.quickReplies, data.state ?? chatState),
         );
         setMessages(prev => [...prev, assistantMessage]);
         if (data.state) {
@@ -156,7 +185,7 @@ export default function ChatWidget({
           'error',
           'assistant',
           data.error || 'Sorry, something went wrong. Please try again.',
-          QUICK_REPLIES,
+          errorReplies,
         );
         setMessages(prev => [...prev, errorMsg]);
       }
@@ -165,7 +194,7 @@ export default function ChatWidget({
         'error',
         'assistant',
         'Network error. Please check your connection and try again.',
-        QUICK_REPLIES,
+        errorReplies,
       );
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -191,36 +220,16 @@ export default function ChatWidget({
   if (!consentState.hasConsented) return null;
 
   return (
-    <div style={{ position: 'fixed', ...positionStyle, zIndex: 9999, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ position: 'fixed', ...positionStyle, zIndex: 9999 }}>
       {/* Floating button */}
       {!isOpen && (
         <button
           ref={launcherRef}
           onClick={handleOpen}
-          aria-label="Open EcoAuditor chat"
-          style={{
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            backgroundColor: primaryColor,
-            border: 'none',
-            boxShadow: '0 4px 16px rgba(5, 150, 105, 0.4)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.boxShadow = '0 6px 20px rgba(5, 150, 105, 0.5)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 16px rgba(5, 150, 105, 0.4)';
-          }}
+          aria-label="Open Eco-Auditor chat"
+          className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-brand-600 shadow-lg shadow-brand-600/40 transition duration-200 hover:scale-110 hover:bg-brand-700"
         >
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="white" aria-hidden="true">
             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
           </svg>
         </button>
@@ -230,72 +239,30 @@ export default function ChatWidget({
       {isOpen && (
         <ChatDialog
           onClose={() => setIsOpen(false)}
+          // Was a fixed 380px, which overflowed a 375px viewport and pushed the
+          // close button off-screen — and covered the cookie banner's buttons.
           style={{
-            // Was a fixed 380px, which overflowed a 375px viewport and pushed the
-            // close button off-screen — and covered the cookie banner's buttons.
             width: 'min(380px, calc(100vw - 32px))',
             height: 'min(540px, calc(100dvh - 96px))',
-            backgroundColor: '#ffffff',
-            borderRadius: '16px',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            border: '1px solid #e5e7eb',
           }}
+          className="flex flex-col overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-2xl dark:border-surface-700 dark:bg-surface-900"
         >
           {/* Header */}
-          <div style={{
-            padding: '16px 20px',
-            backgroundColor: primaryColor,
-            color: 'white',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexShrink: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <svg width="20" height="20" viewBox="0 0 512 512" fill="white">
-                  <path fill="none" stroke="white" strokeWidth="24" strokeLinecap="round" d="M380 310 A150 150 0 0 0 132 310" />
-                  <polygon points="115,295 132,270 148,298" fill="white" />
-                  <path fill="none" stroke="white" strokeWidth="24" strokeLinecap="round" d="M132 202 A150 150 0 0 0 380 202" />
-                  <polygon points="397,217 380,242 364,214" fill="white" />
-                  <path fill="#52b788" d="M256 120 C256 120 200 170 200 260 C200 310 225 350 256 380 C287 350 312 310 312 260 C312 170 256 120 256 120Z" />
-                  <path fill="#1e3a5f" d="M256 160 C256 160 225 200 225 260 C225 300 240 330 256 350 C272 330 287 300 287 260 C287 200 256 160 256 160Z" />
-                  <circle cx="256" cy="430" r="28" fill="#1e3a5f" />
-                  <polyline points="242,430 252,440 270,420" fill="none" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+          <div className="flex shrink-0 items-center justify-between bg-brand-600 px-5 py-4 text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
+                <BrandMark className="h-7 w-7" />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>EcoAuditor Sales</h3>
-                <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>Online now</p>
+                <h3 className="text-[15px] font-bold">Eco-Auditor Sales</h3>
+                {/* It is a scripted bot, not a person: "Online now" implied staffing. */}
+                <p className="text-xs">Automated assistant</p>
               </div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
               aria-label="Close chat"
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '18px',
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/20 text-lg text-white hover:bg-black/30"
             >
               ×
             </button>
@@ -308,66 +275,20 @@ export default function ChatWidget({
             aria-live="polite"
             aria-atomic="false"
             aria-label="Conversation"
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '16px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              backgroundColor: '#f9fafb',
-            }}
+            className="flex flex-1 flex-col gap-3 overflow-y-auto bg-surface-50 px-5 py-4 dark:bg-surface-950"
           >
             {messages.map((msg) => (
-              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div
-                  style={{
-                    maxWidth: '85%',
-                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    backgroundColor: msg.role === 'user' ? primaryColor : '#ffffff',
-                    color: msg.role === 'user' ? '#ffffff' : '#1f2937',
-                    padding: '10px 14px',
-                    borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                    fontSize: '14px',
-                    lineHeight: 1.5,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                    border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {msg.content}
+              <div key={msg.id} className="flex flex-col gap-2">
+                <div className={`${BUBBLE} ${msg.role === 'user' ? USER_BUBBLE : BOT_BUBBLE}`}>
+                  {msg.role === 'assistant' ? renderChatMarkdown(msg.content) : msg.content}
                 </div>
                 {msg.quickReplies && msg.role === 'assistant' && (
-                  <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '8px',
-                    alignSelf: 'flex-start',
-                    marginTop: '4px',
-                  }}>
+                  <div className="mt-1 flex flex-wrap gap-2 self-start">
                     {msg.quickReplies.map((reply) => (
                       <button
                         key={reply}
                         onClick={() => handleQuickReply(reply)}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: '18px',
-                          border: `1.5px solid ${primaryColor}`,
-                          backgroundColor: 'white',
-                          color: primaryColor,
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = primaryColor;
-                          e.currentTarget.style.color = 'white';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'white';
-                          e.currentTarget.style.color = primaryColor;
-                        }}
+                        className="rounded-full border-[1.5px] border-brand-600 bg-white px-3.5 py-2 text-[13px] font-medium text-brand-700 transition-colors hover:bg-brand-600 hover:text-white dark:border-brand-400 dark:bg-transparent dark:text-brand-300 dark:hover:bg-brand-600 dark:hover:text-white"
                       >
                         {reply}
                       </button>
@@ -378,32 +299,20 @@ export default function ChatWidget({
             ))}
 
             {isLoading && (
-              <div style={{
-                maxWidth: '85%',
-                alignSelf: 'flex-start',
-                backgroundColor: '#ffffff',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-              }}>
-                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                  <div style={{
-                    width: '8px', height: '8px', borderRadius: '50%',
-                    backgroundColor: primaryColor, opacity: 0.5,
-                    animation: 'ecoBounce 1.2s infinite ease-in-out',
-                  }}/>
-                  <div style={{
-                    width: '8px', height: '8px', borderRadius: '50%',
-                    backgroundColor: primaryColor, opacity: 0.7,
-                    animation: 'ecoBounce 1.2s infinite ease-in-out 0.15s',
-                  }}/>
-                  <div style={{
-                    width: '8px', height: '8px', borderRadius: '50%',
-                    backgroundColor: primaryColor, opacity: 0.9,
-                    animation: 'ecoBounce 1.2s infinite ease-in-out 0.3s',
-                  }}/>
-                </div>
+              <div
+                aria-hidden="true"
+                className="flex max-w-[85%] items-center gap-[5px] self-start rounded-xl border border-surface-200 bg-white px-4 py-3 shadow-sm dark:border-surface-700 dark:bg-surface-800"
+              >
+                {[0, 0.15, 0.3].map((delay, index) => (
+                  <div
+                    key={delay}
+                    className="h-2 w-2 rounded-full bg-brand-600"
+                    style={{
+                      opacity: 0.5 + index * 0.2,
+                      animation: `ecoBounce 1.2s infinite ease-in-out ${delay}s`,
+                    }}
+                  />
+                ))}
               </div>
             )}
 
@@ -413,55 +322,30 @@ export default function ChatWidget({
           {/* Input */}
           <form
             onSubmit={handleSubmit}
-            style={{
-              padding: '12px 16px',
-              borderTop: '1px solid #e5e7eb',
-              display: 'flex',
-              gap: '10px',
-              backgroundColor: '#ffffff',
-              flexShrink: 0,
-            }}
+            className="flex shrink-0 gap-2.5 border-t border-surface-200 bg-white px-4 py-3 dark:border-surface-700 dark:bg-surface-900"
           >
+            {/* readOnly, not disabled: a disabled input drops focus to <body> while
+                a reply loads, and refocusing it in `finally` runs before React
+                re-enables it, so every step of the typed demo/contact flow needed a
+                click. A read-only input keeps focus and still ignores keystrokes. */}
             <input
               ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={chatState.flow ? 'Type your answer...' : 'Ask about carbon accounting...'}
-              disabled={isLoading}
-              style={{
-                flex: 1,
-                padding: '10px 16px',
-                borderRadius: '24px',
-                border: '1.5px solid #e5e7eb',
-                fontSize: '14px',
-                outline: 'none',
-                transition: 'border-color 0.2s',
-                color: '#1f2937',
-              }}
-              onFocus={(e) => e.target.style.borderColor = primaryColor}
-              onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+              aria-label="Message the Eco-Auditor assistant"
+              readOnly={isLoading}
+              aria-busy={isLoading}
+              className="input min-w-0 flex-1 !rounded-full !border-[1.5px] !px-4 !py-2.5"
             />
             <button
               type="submit"
               disabled={!inputValue.trim() || isLoading}
               aria-label="Send message"
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '50%',
-                backgroundColor: !inputValue.trim() || isLoading ? '#9ca3af' : primaryColor,
-                border: 'none',
-                color: 'white',
-                cursor: !inputValue.trim() || isLoading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background-color 0.2s',
-                flexShrink: 0,
-              }}
+              className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
               </svg>
             </button>

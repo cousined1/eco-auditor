@@ -1,6 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { submitLead } from '../lib/leads';
+import routeMeta from '@/content/route-meta.json';
+import { contactDetails } from '@/content/trust-facts';
+
+// Title and description come from src/content/route-meta.json, the file the
+// prerender step writes into the HTML, so raw and JS-rendered meta agree.
+const CONTACT_META = routeMeta['/contact'];
+const HOME_META = routeMeta['/'];
 
 type TopicValue = 'sales' | 'billing' | 'product' | 'legal' | 'dpa' | 'security' | 'support' | 'other';
 
@@ -24,6 +31,33 @@ export default function ContactUs() {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  const submitErrorRef = useRef<HTMLParagraphElement>(null);
+  const sentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.title = CONTACT_META.title;
+    const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    if (desc) desc.content = CONTACT_META.description;
+    return () => {
+      document.title = HOME_META.title;
+      if (desc) desc.content = HOME_META.description;
+    };
+  }, []);
+
+  // After a submit, focus moves to the message that says what happened (F-C-25).
+  // It used to stay on the submit button, so nothing new was announced and a
+  // keyboard user had to hunt for what to fix. validate() sets a new fieldErrors
+  // object on every failed attempt, so a repeat failure moves focus again.
+  useEffect(() => {
+    if (Object.keys(fieldErrors).length > 0) summaryRef.current?.focus();
+  }, [fieldErrors]);
+  useEffect(() => {
+    if (submitError) submitErrorRef.current?.focus();
+  }, [submitError]);
+  useEffect(() => {
+    if (submitted) sentRef.current?.focus();
+  }, [submitted]);
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
@@ -66,14 +100,14 @@ export default function ContactUs() {
     }
   };
 
-  const mailtoHref = `mailto:hello@developer312.com?subject=${encodeURIComponent(form.subject || 'Contact request')}&body=${encodeURIComponent(form.message)}`;
+  const mailtoHref = `mailto:${contactDetails.email}?subject=${encodeURIComponent(form.subject || 'Contact request')}&body=${encodeURIComponent(form.message)}`;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Contact Us</h1>
         <p className="text-sm text-surface-500 mt-1 max-w-xl">
-          Have a question about Eco-Auditor, need help with your account, or want to discuss how we can support your carbon accounting workflow? We typically respond within 1–2 business days.
+          Have a question about Eco-Auditor, need help with your account, or want to discuss how we can support your carbon accounting workflow? {contactDetails.followUp}.
         </p>
       </div>
 
@@ -83,8 +117,8 @@ export default function ContactUs() {
             <svg className="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Email</h3>
-            <a href="mailto:hello@developer312.com" className="text-sm text-accent-text hover:underline">hello@developer312.com</a>
+            <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Email</h2>
+            <a href={`mailto:${contactDetails.email}`} className="text-sm text-accent-text hover:underline">{contactDetails.email}</a>
             <p className="text-2xs text-surface-500 mt-0.5">For all inquiries</p>
           </div>
         </div>
@@ -93,8 +127,8 @@ export default function ContactUs() {
             <svg className="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Phone</h3>
-            <a href="tel:+15105910163" className="text-sm text-accent-text hover:underline">(510) 591-0163</a>
+            <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Phone</h2>
+            <a href={contactDetails.phoneHref} className="text-sm text-accent-text hover:underline">{contactDetails.phone}</a>
             <p className="text-2xs text-surface-500 mt-0.5">Mon–Fri, 9am–5pm PT</p>
           </div>
         </div>
@@ -103,8 +137,9 @@ export default function ContactUs() {
             <svg className="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 7.5h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Company</h3>
+            <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Company</h2>
             <p className="text-sm text-surface-600 dark:text-surface-400">Eco-Auditor</p>
+            <p className="text-2xs text-surface-500 mt-0.5">Operated by {contactDetails.operator}</p>
           </div>
         </div>
       </div>
@@ -114,17 +149,17 @@ export default function ContactUs() {
           <div className="card">
             <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Send us a message</h2>
             {submitted ? (
-              <div className="text-center py-8">
+              <div ref={sentRef} role="status" tabIndex={-1} className="text-center py-8 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 rounded-lg">
                 <div className="w-12 h-12 mx-auto rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center mb-3">
                   <svg className="w-6 h-6 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
                 <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Message sent</h3>
-                <p className="text-xs text-surface-500 mt-1">We typically respond within 1–2 business days.</p>
+                <p className="text-xs text-surface-500 mt-1">{contactDetails.followUp}.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {Object.keys(fieldErrors).length > 0 && (
-                  <div role="alert" aria-live="polite" className="rounded-lg border border-risk-high/30 bg-risk-high/10 px-3 py-2 text-sm text-risk-high" tabIndex={-1}>
+                  <div ref={summaryRef} role="alert" aria-live="polite" className="rounded-lg border border-risk-high/30 bg-risk-high/10 px-3 py-2 text-sm text-risk-high focus:outline-none focus-visible:ring-2 focus-visible:ring-risk-high/40" tabIndex={-1}>
                     <p className="font-semibold mb-1">Please fix the following:</p>
                     <ul className="list-disc pl-5 text-xs">
                       {Object.entries(fieldErrors).map(([field, msg]) => (
@@ -213,10 +248,10 @@ export default function ContactUs() {
                 </div>
                 <button type="submit" className="btn-primary" disabled={submitting}>{submitting ? 'Sending...' : 'Send message'}</button>
                 {submitError && (
-                  <p className="text-xs text-risk-high mt-2">
+                  <p ref={submitErrorRef} role="alert" tabIndex={-1} className="text-xs text-risk-high mt-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-risk-high/40">
                     {submitError} You can still reach us — email{' '}
-                    <a href={mailtoHref} className="text-accent-text hover:underline">hello@developer312.com</a>{' '}
-                    and we&apos;ll get back to you within 1–2 business days.
+                    <a href={mailtoHref} className="text-accent-text hover:underline">{contactDetails.email}</a>.{' '}
+                    {contactDetails.followUp}.
                   </p>
                 )}
               </form>
@@ -226,7 +261,7 @@ export default function ContactUs() {
 
         <div className="lg:col-span-2 space-y-4">
           <div className="card">
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">How can we help?</h3>
+            <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">How can we help?</h2>
             <div className="space-y-2">
               {[
                 { label: 'Sales inquiries', desc: 'Pricing, demos, and plan selection', icon: '💼' },
@@ -246,17 +281,18 @@ export default function ContactUs() {
           </div>
 
           <div className="card">
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Request DPA</h3>
-            <p className="text-xs text-surface-500 mb-3">EU-facing customers can request a Data Processing Addendum for GDPR compliance.</p>
+            <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Request DPA</h2>
+            <p className="text-xs text-surface-500 mb-3">Customers subject to the GDPR can request a Data Processing Addendum.</p>
             <button onClick={() => setForm({ ...form, subject: 'dpa' })} className="btn-secondary text-xs w-full">Request DPA / privacy documentation</button>
           </div>
 
           <div className="card">
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Direct help</h3>
+            <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Direct help</h2>
             <ul className="space-y-1.5 text-xs">
-              <li><a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">General help</a> <span className="text-surface-600 dark:text-surface-400">— hello@developer312.com</span></li>
-              <li><a href="mailto:hello@developer312.com?subject=Security%20report" className="text-accent-text hover:underline">Security reports</a> <span className="text-surface-600 dark:text-surface-400">— routed to the security team</span></li>
-              <li><a href="mailto:hello@developer312.com?subject=Privacy%20and%20DPA%20request" className="text-accent-text hover:underline">Privacy &amp; DPA requests</a> <span className="text-surface-600 dark:text-surface-400">— routed to the privacy team</span></li>
+              <li><a href={`mailto:${contactDetails.email}`} className="text-accent-text hover:underline">General help</a> <span className="text-surface-600 dark:text-surface-400">— {contactDetails.email}</span></li>
+              {/* One shared mailbox: these links only pre-fill a subject line. */}
+              <li><a href={`mailto:${contactDetails.email}?subject=Security%20report`} className="text-accent-text hover:underline">Security reports</a> <span className="text-surface-600 dark:text-surface-400">— sent to our team</span></li>
+              <li><a href={`mailto:${contactDetails.email}?subject=Privacy%20and%20DPA%20request`} className="text-accent-text hover:underline">Privacy &amp; DPA requests</a> <span className="text-surface-600 dark:text-surface-400">— sent to our team</span></li>
             </ul>
           </div>
         </div>

@@ -9,9 +9,13 @@
 
 ## Deployment Steps
 
+**Releasing the audit-fix change set (new migrations, new server image, production data fixes, late enforcement)? Follow
+[docs/runbooks/release-order.md](docs/runbooks/release-order.md) instead of the short list below: the order matters
+(migrate before you deploy the image, fix the live blog rows before the blog renders, apply the REVOKE last).**
+
 ### 1. Environment Variables
 
-Set these in Railway's service variables (Dashboard → Variables tab):
+Set these in Railway's service variables (Dashboard → Variables tab). The complete list, with defaults and what breaks without each one, is `railway.env.example`, which `tests/env-schema-parity.test.ts` holds to `server-config.cjs`; a production boot logs one warning per missing or development-only variable. The blog publisher also needs `SITE_DEPLOY_TOKEN`.
 
 ```env
 # Required
@@ -70,11 +74,12 @@ The Dockerfile is a multi-stage build that:
 
 ### 4. Health Checks
 
-Railway does **not** consume the Dockerfile's `HEALTHCHECK` instruction (that only applies to Docker-native runtimes). Railway gates deploys on the `healthcheckPath` configured in `railway.toml`:
+Railway does **not** consume the Dockerfile's `HEALTHCHECK` instruction (that only applies to Docker-native runtimes). Railway gates deploys on the `healthcheckPath` configured in `railway.toml`. Config as code is deprecated and honoured for legacy services only until 2026-12-01, so the same settings must also be in the service settings before then: see `docs/runbooks/railway-settings.md`.
 
-- **Deploy gate**: `[deploy] healthcheckPath = "/ready"` with `healthcheckTimeout = 100` — the deployment is marked live only after `/ready` responds within the timeout
-- **Liveness**: `GET /health` → 200 with `{ status: "ok", uptime, version, timestamp }`
-- **Readiness**: `GET /ready` → 200 with `{ status: "ok"|"degraded", video: "available"|"not-found" }` (a missing intro video reports `degraded` but still returns 200, so it does not block deploys)
+- **Deploy gate**: `[deploy] healthcheckPath = "/ready"` with `healthcheckTimeout = 100` — the deployment is marked live only after `/ready` answers 200 within the timeout
+- **Liveness**: `GET /health` (and `/api/health`) → 200 with `{ status: "ok", sha }`; 503 with `{ status: "degraded", sha }` when the database is unreachable
+- **Readiness**: `GET /ready` → 200 `{ "status": "ok" }` when the app can serve (database reachable, or none configured); 503 `{ "status": "degraded" }` when the configured database is unreachable. The body carries nothing else; the probe failure is logged (`Database health probe failed`). The intro video is not part of readiness.
+- **Version**: `GET /api/version` → `{ "version": "<package.json version>" }`. `APP_VERSION` overrides it only when it is valid semver and not older than `package.json`; otherwise it is ignored with a boot warning (delete a stale one).
 
 The Dockerfile also carries a `HEALTHCHECK` (15s timeout) for local `docker run` monitoring; Railway ignores it.
 
@@ -131,9 +136,10 @@ This is an infrastructure-only rule; it does not require any application code ch
 
 ## Monitoring
 
-- **Logs**: `railway logs` or Railway Dashboard → Deployments → Logs
+- **Logs**: `railway logs` or Railway Dashboard → Deployments → Logs. Every request writes one JSON `request` line (method, route pattern, status, `durationMs`, request id); a failed request also writes one `Request failed` line with the stack and driver code; browser errors arrive as `Client error report` lines.
 - **Metrics**: Railway Dashboard → Metrics tab
 - **Health**: `curl https://your-app.up.railway.app/health`
+- **Uptime checks and alerts**: `docs/runbooks/monitoring.md` (what to watch, which free tools fit, the thresholds)
 
 ## Troubleshooting
 

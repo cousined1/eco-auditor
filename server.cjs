@@ -2,46 +2,72 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const zlib = require('node:zlib');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const {
-  calculateEntry,
   summarizeEntries,
   buildTrend,
   toDashboardSummary,
-  parseEmissionCsv,
-  getComplianceStatus,
   buildFacilityEmissions,
   normalizeScope,
 } = require('./emissions-engine.cjs');
 const {
+  billingFailureStatus,
   buildSecurityHeaders,
   canUseDevAuth,
   classifyApiFailure,
   resolveAuthorizedCompanyId,
   sanitizeChatState,
+  sanitizeConsentDecidedAt,
   sanitizeLeadPayload,
+  summarizeCspReports,
 } = require('./server-security.cjs');
 const {
   billingStateFromCompany,
+  checkoutTrialDecision,
+  CHECKOUT_TRIAL_DAYS,
   planAccessDecision,
   planFromPriceId,
   priceIdFromEnv,
   resolvePlanPriceId,
   shouldRetryWebhook,
-  canAddFacility,
-  canImportCsv,
   planLimits,
   canUseScope3,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
 } = require('./server-billing.cjs');
+const { renderReportPdf } = require('./src/lib/reports/report-generator.cjs');
 const {
-  buildReportText,
-  createSimplePdf,
-} = require('./src/lib/reports/report-generator.cjs');
-const { createPublishHandler, sanitizeBlogHtml } = require('./server-publish.cjs');
+  buildReportSnapshot,
+  defaultReportingYear,
+  parseReportPeriod,
+  reportingPeriodBounds,
+} = require('./src/lib/reports/report-snapshot.cjs');
+const { createPublishHandler } = require('./server-publish.cjs');
+const { blogListExcerpt, blogListReadMinutes, isValidSlug, publicCta, publicLinks } = require('./server-blog-render.cjs');
+const { createPages } = require('./server-pages.cjs');
+const blogRouteMeta = require('./src/content/route-meta.json');
 const { parseRange, getStaticCacheHeaders } = require('./server-http-utils.cjs');
+const { createLeadNotifierFromEnv } = require('./server-notify.cjs');
+const { toDateOnly } = require('./server-entries.cjs');
+const { CATALOG_VERSION } = require('./emission-factors.cjs');
+const { DB_ID, createEntryHandlers, insertFacilityWithinCap } = require('./server-entry-routes.cjs');
+const { createCsvImportHandlers } = require('./server-csv-import-routes.cjs');
+const { prepareCalculatorEntry } = require('./units.cjs');
+const { loadServerConfig } = require('./server-config.cjs');
+const {
+  installAsyncErrorForwarding,
+  createErrorHandler,
+  createProcessGuards,
+  toLogValue,
+} = require('./server-errors.cjs');
+const { createAccessLog, createClientErrorHandler } = require('./server-observability.cjs');
+const { createCompression } = require('./server-compression.cjs');
+
+// The environment, read and checked once (F-G-13): typed values with documented
+// defaults, the reported version, and the warnings logged at boot.
+const serverConfig = loadServerConfig(process.env);
+const { createCompanyHandlers } = require('./server-company-routes.cjs');
+const { FACILITY_FIELD_MAX, FACILITY_TYPE_LIST, defaultCompanyName } = require('./server-company.cjs');
 
 // Per-request context for structured logging (INFRA-007): the request-ID
 // middleware below runs every handler inside this store, so log() can attach
@@ -58,7 +84,7 @@ const requestIdStore = new AsyncLocalStorage();
 // webhook — never runs. Production boot refuses to start without it rather than
 // silently shipping localhost redirects to real buyers.
 // See ecoauditor-mvp-readiness-audit-2026-08-20.md ("Config gaps").
-const APP_BASE_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+const APP_BASE_URL = serverConfig.get('APP_URL');
 
 // ─── Stripe SDK (lazy init) ───
 let stripe = null;
@@ -75,7 +101,9 @@ if (STRIPE_SECRET_KEY) {
       maxNetworkRetries: 2,
     });
   } catch (err) {
-    // stripe package not installed — billing routes will return 503
+    // Billing routes then answer 503 "Billing not configured", which reads like a
+    // missing key: say why instead of swallowing it (F-G-13).
+    log('error', 'Stripe SDK failed to initialise: billing routes answer 503', { error: err });
   }
 }
 
@@ -83,8 +111,30 @@ if (STRIPE_SECRET_KEY) {
 const INSFORGE_BASE_URL =
   process.env.INSFORGE_BASE_URL || process.env.VITE_INSFORGE_BASE_URL;
 
-// ─── Postgres pool (lazy init; used by billing user lookup) ───
-let pgPool = null;
+// ─── Postgres: the one data layer (F-G-07) ───
+// Every read and write goes to Postgres; there is no in-memory stand-in. Without
+// a usable pool (no DATABASE_URL, or one that could not be built), pgPool refuses
+// every call the way an unreachable database does, so each route answers the 503
+// it gives during an outage, in every environment, and none needs a "no database"
+// branch of its own. databaseConfigured only lets /health and /ready tell "not
+// configured" apart from "configured but down".
+function unconfiguredPool() {
+  function refuse() {
+    // SQLSTATE 08001: the client could not establish a connection.
+    return Promise.reject(Object.assign(new Error('Data store unavailable: no database is configured'), { code: '08001' }));
+  }
+  return { query: refuse, connect: refuse };
+}
+
+// 503 ("retry later") when the data store failed, 500 for anything else. Every
+// route that reads or writes the store answers with it, in every environment;
+// the routes that also call Stripe use billingFailureStatus (server-security.cjs).
+function failureStatus(err) {
+  return classifyApiFailure(err).status === 503 ? 503 : 500;
+}
+
+let pgPool = unconfiguredPool();
+let databaseConfigured = false;
 if (process.env.DATABASE_URL) {
   try {
     const { Pool } = require('pg');
@@ -99,13 +149,14 @@ if (process.env.DATABASE_URL) {
       idleTimeoutMillis: 30000,
       statement_timeout: 30000,
     });
+    databaseConfigured = true;
     // pg-pool emits 'error' on the pool when an IDLE client fails (DB restart,
     // maintenance, idle timeout). An unhandled EventEmitter 'error' throws,
     // reaches the uncaughtException handler below, and exits the process — so a
     // dropped idle connection would take down the whole server. Log and carry on;
     // the pool discards the broken client and opens a new one on next use.
     pgPool.on('error', function (err) {
-      log('error', 'Idle Postgres client error', { error: String(err) });
+      log('error', 'Idle Postgres client error', { error: err });
     });
     // Auto-migrate Railway-owned runtime tables, then seed public blog content.
     pgPool.query(`
@@ -147,7 +198,8 @@ if (process.env.DATABASE_URL) {
         dnt BOOLEAN NOT NULL DEFAULT false,
         user_agent TEXT,
         ip_hash TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        decided_at TIMESTAMPTZ
       );
       CREATE INDEX IF NOT EXISTS idx_consent_records_visitor_id
         ON public.consent_records(visitor_id);
@@ -162,14 +214,28 @@ if (process.env.DATABASE_URL) {
     })
     .then(() => { log('info', 'Runtime table migration + blog seed complete'); })
     .catch((migErr) => {
-      log('error', 'Runtime table migration/blog seed failed', { error: migErr.message });
+      log('error', 'Runtime table migration/blog seed failed', { error: migErr });
     });
   } catch (err) {
-    // pg package not installed — billing routes that need user lookup will return 503
+    // When the constructor throws, the server runs as if no database were
+    // configured (/health says ok, every data route 503): say why instead of
+    // swallowing it (F-G-13).
+    log('error', 'Postgres pool setup failed', { error: err });
   }
 }
 
 // ─── Blog seed data (inline so it ships inside the Docker image) ───
+// Corrected content (F-A-04, F-R5-01, F-R5-02): the four seed posts used to sell
+// features that do not exist (supplier surveys, CBAM data packs, CDP/GRI/TCFD
+// exports, DEFRA factors), misstate SB 253 and CBAM, and quote a $49 price.
+//
+// Editing this does NOT change production. The seed only runs against an EMPTY
+// blog_posts table and inserts with ON CONFLICT (slug) DO NOTHING, so the live
+// rows keep whatever they were seeded with (that is how the $49 to $149 fix of
+// 2026-08-22 never reached the live post). Production is corrected by the owner,
+// see docs/runbooks/blog-rows-update.md. Once those rows are fixed, delete this
+// function: it is a second source of truth that has already diverged from the
+// database once, and tests/blog-seed-claims.test.ts only holds it in line until then.
 async function seedBlogPosts(pool) {
   const posts = [
     {
@@ -181,12 +247,55 @@ async function seedBlogPosts(pool) {
       meta_title: 'SB 253 Compliance Guide for SMBs | Eco-Auditor',
       meta_description: 'A step-by-step SB 253 compliance roadmap for small and mid-sized businesses. Learn reporting thresholds, scope boundaries, and how to build a defensible GHG inventory.',
       primary_keyword: 'SB 253 compliance SMB',
-      body_html: '<h2>What SB 253 Means for Small and Mid-Sized Businesses</h2><p>California\'s Climate Corporate Data Accountability Act (SB 253) requires companies with over $1 billion in revenue operating in California to disclose their greenhouse gas (GHG) emissions. While the threshold places the direct reporting burden on large enterprises, the ripple effects reach small and mid-sized businesses (SMBs) throughout their supply chains.</p><p>If your SMB supplies goods or services to a covered entity, you will increasingly be asked to provide emissions data as part of their Scope 3 reporting. Getting ahead of this curve means building a defensible GHG inventory now — before it becomes a contract requirement.</p><h2>Understanding the Reporting Thresholds</h2><p>SB 253 applies a two-phase timeline:</p><ul><li><strong>Phase 1 (2026):</strong> Companies with revenue over $2 billion report Scope 1 and Scope 2 emissions.</li><li><strong>Phase 2 (2027):</strong> All covered companies ($1B+ revenue) report Scope 1, 2, and begin Scope 3.</li><li><strong>Phase 3 (2028+):</strong> Full Scope 3 reporting with third-party assurance.</li></ul><p>As an SMB, you are not directly covered by these thresholds. But your largest customers are. They need your emissions data to complete their own disclosures — and they will ask for it through procurement surveys, supplier portals, and ESG questionnaires.</p><h2>Building a Defensible GHG Inventory</h2><p>A defensible GHG inventory is one that can withstand external scrutiny — from auditors, customers, and regulators. The GHG Protocol Corporate Standard provides the accounting framework:</p><ol><li><strong>Define organizational and operational boundaries.</strong> Decide which facilities, vehicles, and activities are included. Use either the equity share or control approach.</li><li><strong>Collect activity data.</strong> Gather utility bills, fuel receipts, purchase records, and freight manifests. The more granular, the better.</li><li><strong>Apply emission factors.</strong> Convert activity data (therms, kWh, gallons, dollars) into CO2e using published factors from EPA, eGRID, and DEFRA.</li><li><strong>Document your methodology.</strong> Record which factors you used, where data came from, and any assumptions. This is what auditors check.</li></ol><h2>Scope 3: The Supply Chain Challenge</h2><p>Scope 3 emissions — those in your value chain — typically account for 70-90% of a company\'s total carbon footprint. For SMBs, the most relevant Scope 3 categories are:</p><ul><li><strong>Category 1: Purchased goods and services</strong> — The emissions embedded in everything you buy, from raw materials to office supplies.</li><li><strong>Category 4: Upstream transportation</strong> — Freight, shipping, and logistics.</li><li><strong>Category 11: Use of sold products</strong> — If your products consume energy during their lifetime.</li></ul><p>Start with a spend-based approach for Category 1: multiply purchase dollar amounts by industry-average emission factors. It is less precise than supplier-specific data, but it is defensible and scalable.</p><h2>How Eco-Auditor Helps</h2><p>Eco-Auditor automates the heavy lifting of GHG accounting for SMBs:</p><ul><li><strong>Emission factor library:</strong> Pre-loaded with EPA, eGRID, DEFRA, and GHG Protocol factors, updated quarterly.</li><li><strong>Scope 1, 2, and 3 calculations:</strong> Built-in formulas for stationary combustion, purchased electricity, purchased goods, and freight.</li><li><strong>SB 253-ready reports:</strong> Export disclosures in the format your customers\' auditors expect.</li><li><strong>Supply chain surveys:</strong> Send a single link to your suppliers and auto-calculate their contribution to your Scope 3.</li></ul><h2>Key Takeaways</h2><ul><li>SB 253 does not directly regulate SMBs, but supply chain pressure makes compliance unavoidable.</li><li>Start with Scope 1 and 2 — they are the easiest to measure and the first thing customers ask about.</li><li>Use spend-based methods for Scope 3 until you can collect supplier-specific data.</li><li>Document everything — a defensible methodology is worth more than precise numbers.</li></ul>',
+      body_html: [
+        `<h2>What SB 253 Means for Small and Mid-Sized Businesses</h2>`,
+        `<p>California's Climate Corporate Data Accountability Act (SB 253) requires companies with more than $1 billion in annual revenue that do business in California to report their greenhouse gas (GHG) emissions. The direct reporting duty sits with those large companies. Its effects reach small and mid-sized businesses (SMBs) through their supply chains.</p>`,
+        `<p>If your SMB supplies goods or services to a covered company, you may be asked for emissions data to support that company's own reporting. Building a defensible GHG inventory now puts you ahead of that request, before it becomes a contract requirement.</p>`,
+        `<h2>Understanding the Reporting Timeline</h2>`,
+        `<p>SB 253 phases in its requirements. The dates below reflect the statute and the California Air Resources Board (CARB) rulemaking as of September 29, 2026, and they are still moving. Check CARB's program page, linked below, for the current dates before you rely on them.</p>`,
+        `<ul>`,
+        `<li><strong>2026, Scope 1 and Scope 2:</strong> Covered companies report their Scope 1 and Scope 2 emissions. CARB's Initial Regulation sets November 10, 2026 as the first deadline. CARB has adopted that regulation, but as of September 29, 2026 it was still awaiting approval from California's Office of Administrative Law. Scope 3 is not required for 2026 reporting.</li>`,
+        `<li><strong>2027 onward, Scope 3:</strong> Scope 3 reporting starts in 2027 on a schedule CARB has not yet set. CARB is developing the requirements for 2027 and later years in a second rulemaking.</li>`,
+        `<li><strong>Assurance:</strong> The statute requires limited assurance on Scope 1 and Scope 2 reports beginning in 2026 and reasonable assurance beginning in 2030, and limited assurance on Scope 3 beginning in 2030. For the 2026 cycle, CARB has said it will accept reports whether or not assurance has been obtained.</li>`,
+        `</ul>`,
+        `<p>As an SMB, you are not directly covered by SB 253. Your larger customers may be, and they may ask for your emissions data through procurement surveys, supplier portals, and ESG questionnaires.</p>`,
+        `<h2>Building a Defensible GHG Inventory</h2>`,
+        `<p>A defensible GHG inventory is one that can withstand scrutiny from customers, assurance providers, and regulators. The GHG Protocol Corporate Standard provides the accounting framework:</p>`,
+        `<ol>`,
+        `<li><strong>Define organizational and operational boundaries.</strong> Decide which facilities, vehicles, and activities are included. Use either the equity share or control approach.</li>`,
+        `<li><strong>Collect activity data.</strong> Gather utility bills, fuel receipts, purchase records, and freight invoices. The more granular, the better.</li>`,
+        `<li><strong>Apply emission factors.</strong> Convert activity data (therms, kWh, gallons, dollars) into CO2e using published factors, such as those from the U.S. EPA (including eGRID for electricity).</li>`,
+        `<li><strong>Document your methodology.</strong> Record which factors you used, where the data came from, and any assumptions. Reviewers and assurance providers will ask for this.</li>`,
+        `</ol>`,
+        `<h2>Scope 3: The Supply Chain Challenge</h2>`,
+        `<p>Scope 3 emissions, those in your value chain, are often the largest part of a company's footprint, although the share varies widely by sector. For SMBs, the most relevant Scope 3 categories are usually:</p>`,
+        `<ul>`,
+        `<li><strong>Category 1: Purchased goods and services.</strong> The emissions embedded in everything you buy, from raw materials to office supplies.</li>`,
+        `<li><strong>Category 4: Upstream transportation and distribution.</strong> Freight, shipping, and logistics.</li>`,
+        `<li><strong>Category 11: Use of sold products.</strong> Relevant if your products consume energy during their lifetime.</li>`,
+        `</ul>`,
+        `<p>Start with a spend-based approach for Category 1: multiply purchase dollar amounts by industry-average emission factors. It is less precise than supplier-specific data, but it is a common starting point that you can refine over time.</p>`,
+        `<h2>How Eco-Auditor Fits In</h2>`,
+        `<p>Eco-Auditor is an emissions calculator for small and mid-sized businesses. It does not file anything with CARB and it does not provide assurance. Today it offers:</p>`,
+        `<ul>`,
+        `<li><strong>CSV import</strong> of activity data such as fuel, electricity, and spend records.</li>`,
+        `<li><strong>Scope 1 and Scope 2 calculations</strong> on every plan, and <strong>Scope 3 calculations</strong> on the Growth and Pro plans. Factors come from the U.S. EPA (including eGRID) with IPCC AR5 global-warming potentials. Some factors, mostly for Scope 3, are Eco-Auditor internal estimates or provisional values, and the Methodology page explains which.</li>`,
+        `<li><strong>A PDF emissions summary and a JSON data export</strong> that you can share with a customer who asks for your numbers.</li>`,
+        `</ul>`,
+        `<p>Not available yet (on the roadmap): supplier data requests, an audit trail of changes, framework-specific report templates, and accounting-software integrations.</p>`,
+        `<h2>Key Takeaways</h2>`,
+        `<ul>`,
+        `<li>SB 253 applies directly to companies with more than $1 billion in revenue that do business in California, not to most SMBs.</li>`,
+        `<li>Supply chain requests are the more likely way an SMB will feel SB 253. Start with Scope 1 and Scope 2, which are the easiest to measure and the first thing customers ask about.</li>`,
+        `<li>Use spend-based methods for Scope 3 until you can collect supplier-specific data.</li>`,
+        `<li>Document everything: a clear methodology matters more than false precision.</li>`,
+        `</ul>`,
+      ].join(''),
       faq: JSON.stringify([
-        { question: 'Does SB 253 apply to small businesses?', answer: 'SB 253 directly applies to companies with over $1 billion in revenue operating in California. However, SMBs in the supply chains of covered companies will be asked to provide emissions data as part of Scope 3 reporting requirements.' },
-        { question: 'What is the deadline for SB 253 reporting?', answer: 'Phase 1 reporting (Scope 1 and 2 for companies over $2B revenue) begins in 2026. Full Scope 3 reporting with third-party assurance is required by 2028.' },
-        { question: 'How do I calculate Scope 3 emissions as an SMB?', answer: 'Start with a spend-based approach: multiply purchase dollar amounts by industry-average emission factors. This provides a defensible estimate without requiring supplier-specific data.' },
-        { question: 'What emission factors should I use?', answer: 'Use EPA Center for Corporate Climate Leadership factors for US operations, eGRID for electricity, and DEFRA for international activities. Eco-Auditor includes all of these in its pre-loaded factor library.' },
+        { question: 'Does SB 253 apply to small businesses?', answer: `SB 253 directly applies to companies with more than $1 billion in annual revenue that do business in California. Smaller businesses are not directly covered, but customers that are covered may ask them for emissions data to support Scope 3 reporting.` },
+        { question: 'What is the deadline for SB 253 reporting?', answer: `CARB's Initial Regulation sets November 10, 2026 as the first deadline, for Scope 1 and Scope 2 emissions. As of September 29, 2026 that regulation was still awaiting approval from California's Office of Administrative Law. Scope 3 reporting is not required for 2026 and starts in 2027 on a schedule CARB has not yet set. Check CARB's program page for current dates.` },
+        { question: 'How do I calculate Scope 3 emissions as an SMB?', answer: `Start with a spend-based approach: multiply purchase dollar amounts by industry-average emission factors. This gives you an estimate without requiring supplier-specific data, and you can refine it over time.` },
+        { question: 'What emission factors should I use?', answer: `Use recognized published factors, for example U.S. EPA factors for US fuel and activity data and eGRID for electricity. Eco-Auditor uses EPA and eGRID factors with IPCC AR5 global-warming potentials; some factors, mostly for Scope 3, are internal estimates or provisional values, which its Methodology page explains.` },
       ]),
       internal_links: JSON.stringify([
         { href: 'https://ecoauditor.io/features', anchor: 'Eco-Auditor features' },
@@ -194,7 +303,7 @@ async function seedBlogPosts(pool) {
       ]),
       external_links: JSON.stringify([
         { href: 'https://ghgprotocol.org/corporate-standard', anchor: 'GHG Protocol Corporate Standard' },
-        { href: 'https://ww2.arb.ca.gov/our-work/programs/climate-corporate-data-accountability', anchor: 'CARB SB 253 program page' },
+        { href: 'https://ww2.arb.ca.gov/our-work/programs/california-corporate-greenhouse-gas-reporting-and-climate-related-financial-risk', anchor: 'CARB SB 253 program page' },
       ]),
       cta: JSON.stringify({ label: 'Start your free trial', href: '/signup' }),
       content_score: 82,
@@ -209,12 +318,64 @@ async function seedBlogPosts(pool) {
       meta_title: 'GHG Protocol Scope 3 Guide for SMBs | Eco-Auditor',
       meta_description: 'A practical guide to GHG Protocol Scope 3 emissions for small and mid-sized businesses. Learn which categories matter, how to measure them, and how to build a defensible inventory.',
       primary_keyword: 'GHG Protocol Scope 3 SMB',
-      body_html: '<h2>Why Scope 3 Matters for SMBs</h2><p>Scope 3 emissions — the indirect emissions in your value chain — typically represent 70-90% of a company\'s total carbon footprint. For small and mid-sized businesses, Scope 3 can feel overwhelming because it encompasses everything from purchased goods to employee commuting. But ignoring it is no longer an option.</p><p>Your enterprise customers need your emissions data to complete their own Scope 3 disclosures. Regulators like California\'s CARB are tightening reporting requirements. And investors increasingly factor carbon exposure into risk assessments. The good news: you do not need to measure all 15 Scope 3 categories to be defensible. You need to measure the ones that matter.</p><h2>The 15 Scope 3 Categories — Ranked for SMBs</h2><p>The GHG Protocol defines 15 Scope 3 categories. For most SMBs, only a handful are material:</p><h3>High priority (measure first)</h3><ul><li><strong>Category 1 — Purchased goods and services:</strong> The emissions embedded in everything you buy. Usually the largest Scope 3 category for product-based businesses.</li><li><strong>Category 4 — Upstream transportation and distribution:</strong> Freight, shipping, and logistics emissions from moving your inputs.</li><li><strong>Category 11 — Use of sold products:</strong> If your products consume energy during use, this can dwarf everything else.</li></ul><h3>Medium priority (estimate when feasible)</h3><ul><li><strong>Category 5 — Waste generated in operations:</strong> Use waste contractor data or estimate by waste type and volume.</li><li><strong>Category 6 — Business travel:</strong> Flight and hotel data from expense systems.</li><li><strong>Category 7 — Employee commuting:</strong> Survey-based or estimated by office size and region.</li></ul><h3>Low priority (screen and skip if immaterial)</h3><ul><li><strong>Categories 2, 3, 8, 9, 10, 12, 13, 14, 15:</strong> For most SMBs, these are either zero, negligible, or not applicable. Document that you screened them and explain why they are immaterial.</li></ul><h2>How to Measure Scope 3 Without a Sustainability Team</h2><p>You do not need a dedicated sustainability team to build a credible Scope 3 inventory. Here is the practical path:</p><ol><li><strong>Start with spend data.</strong> Export your accounts payable ledger and categorize purchases by industry sector. Multiply each category by an EPA or DEFRA spend-based emission factor.</li><li><strong>Pull freight records.</strong> Your shipping invoices contain mode, distance, and weight. Apply the EPA SmartWay factors to estimate Category 4.</li><li><strong>Estimate product use.</strong> If you sell physical products that consume energy, estimate lifetime energy consumption and multiply by the grid emission factor.</li><li><strong>Document what you skipped and why.</strong> A screening explanation for the categories you did not measure is itself part of a defensible inventory.</li></ol><h2>Building a Defensible Methodology</h2><p>Defensibility means your numbers can survive external review. Three principles:</p><ul><li><strong>Traceability:</strong> Every number should link back to a source document.</li><li><strong>Consistency:</strong> Use the same emission factors and boundary definitions year over year.</li><li><strong>Transparency:</strong> Document your assumptions, exclusions, and estimation methods.</li></ul><h2>How Eco-Auditor Simplifies Scope 3</h2><p>Eco-Auditor is built specifically for SMBs navigating Scope 3 for the first time:</p><ul><li><strong>Spend-based Category 1 calculator:</strong> Upload your AP ledger and get instant CO2e estimates.</li><li><strong>Freight emission estimator:</strong> Enter mode, distance, and weight to get Category 4 emissions.</li><li><strong>Pre-loaded emission factors:</strong> EPA, eGRID, DEFRA, and GHG Protocol factors — updated quarterly.</li><li><strong>Scope 3 screening template:</strong> Document which categories you assessed, measured, or excluded.</li><li><strong>Customer-ready exports:</strong> Generate reports in the format your enterprise customers\' auditors expect.</li></ul><h2>Key Takeaways</h2><ul><li>You do not need to measure all 15 Scope 3 categories. Focus on the 3-5 that are material to your business.</li><li>Spend-based methods are defensible for Category 1 — refine with supplier-specific data over time.</li><li>Documentation and screening explanations are part of a defensible inventory, not optional extras.</li><li>Start now. Your enterprise customers are already asking for this data.</li></ul>',
+      body_html: [
+        `<h2>Why Scope 3 Matters for SMBs</h2>`,
+        `<p>Scope 3 emissions, the indirect emissions in your value chain, are often the largest part of a company's total carbon footprint, although the share varies widely by sector. For small and mid-sized businesses, Scope 3 can feel overwhelming because it covers everything from purchased goods to employee commuting. But ignoring it is getting harder.</p>`,
+        `<p>Your larger customers may need your emissions data for their own Scope 3 disclosures. California's SB 253, for example, starts requiring Scope 3 reporting from large companies in 2027, on a schedule CARB has not yet set. Investors also increasingly factor carbon exposure into risk assessments. The good news: you do not need to measure all 15 Scope 3 categories to be defensible. You need to measure the ones that matter.</p>`,
+        `<h2>The 15 Scope 3 Categories, Ranked for SMBs</h2>`,
+        `<p>The GHG Protocol defines 15 Scope 3 categories. For most SMBs, only a handful are material:</p>`,
+        `<h3>High priority (measure first)</h3>`,
+        `<ul>`,
+        `<li><strong>Category 1, Purchased goods and services:</strong> The emissions embedded in everything you buy. Usually the largest Scope 3 category for product-based businesses.</li>`,
+        `<li><strong>Category 4, Upstream transportation and distribution:</strong> Freight, shipping, and logistics emissions from moving your inputs.</li>`,
+        `<li><strong>Category 11, Use of sold products:</strong> If your products consume energy during use, this can dwarf everything else.</li>`,
+        `</ul>`,
+        `<h3>Medium priority (estimate when feasible)</h3>`,
+        `<ul>`,
+        `<li><strong>Category 5, Waste generated in operations:</strong> Use waste contractor data or estimate by waste type and volume.</li>`,
+        `<li><strong>Category 6, Business travel:</strong> Flight and hotel data from expense systems.</li>`,
+        `<li><strong>Category 7, Employee commuting:</strong> Survey-based or estimated by office size and region.</li>`,
+        `</ul>`,
+        `<h3>Low priority (screen and skip if immaterial)</h3>`,
+        `<ul>`,
+        `<li><strong>Categories 2, 3, 8, 9, 10, 12, 13, 14, 15:</strong> For most SMBs, these are either zero, negligible, or not applicable. Document that you screened them and explain why they are immaterial.</li>`,
+        `</ul>`,
+        `<h2>How to Measure Scope 3 Without a Sustainability Team</h2>`,
+        `<p>You do not need a dedicated sustainability team to build a credible Scope 3 inventory. Here is the practical path:</p>`,
+        `<ol>`,
+        `<li><strong>Start with spend data.</strong> Export your accounts payable ledger and categorize purchases by industry sector. Multiply each category by a spend-based emission factor, such as the U.S. EPA's supply chain emission factors.</li>`,
+        `<li><strong>Pull freight records.</strong> Your shipping invoices contain mode, distance, and weight. Apply the EPA SmartWay factors to estimate Category 4.</li>`,
+        `<li><strong>Estimate product use.</strong> If you sell physical products that consume energy, estimate lifetime energy consumption and multiply by the grid emission factor.</li>`,
+        `<li><strong>Document what you skipped and why.</strong> A screening explanation for the categories you did not measure is itself part of a defensible inventory.</li>`,
+        `</ol>`,
+        `<h2>Building a Defensible Methodology</h2>`,
+        `<p>Defensibility means your numbers can survive external review. Three principles:</p>`,
+        `<ul>`,
+        `<li><strong>Traceability:</strong> Every number should link back to a source document.</li>`,
+        `<li><strong>Consistency:</strong> Use the same emission factors and boundary definitions year over year.</li>`,
+        `<li><strong>Transparency:</strong> Document your assumptions, exclusions, and estimation methods.</li>`,
+        `</ul>`,
+        `<h2>What Eco-Auditor Does for Scope 3 Today</h2>`,
+        `<p>Scope 3 workflows are included on the Growth and Pro plans. The Starter plan covers Scope 1 and Scope 2 only. Today they offer:</p>`,
+        `<ul>`,
+        `<li><strong>Spend-based estimates:</strong> import purchase spend by category through a CSV file and get CO2e estimates for purchased goods and services.</li>`,
+        `<li><strong>Activity-based estimates for some other categories,</strong> such as transportation, business travel, employee commuting, and waste.</li>`,
+        `<li><strong>Clear labels on estimates:</strong> some Scope 3 factors are Eco-Auditor internal estimates rather than published datasets, and the Methodology page explains which.</li>`,
+        `</ul>`,
+        `<p>Not available yet (on the roadmap): supplier data requests, Scope 3 screening templates, framework-specific export formats, and accounting-software integrations.</p>`,
+        `<h2>Key Takeaways</h2>`,
+        `<ul>`,
+        `<li>You do not need to measure all 15 Scope 3 categories. Focus on the 3-5 that are material to your business.</li>`,
+        `<li>Spend-based methods are a common starting point for Category 1. Refine with supplier-specific data over time.</li>`,
+        `<li>Documentation and screening explanations are part of a defensible inventory, not optional extras.</li>`,
+        `<li>Start now. Your larger customers may already be asking for this data.</li>`,
+        `</ul>`,
+      ].join(''),
       faq: JSON.stringify([
-        { question: 'Which Scope 3 categories should an SMB measure first?', answer: 'Start with Category 1 (purchased goods and services), Category 4 (upstream transportation), and Category 11 (use of sold products). These typically represent the largest share of Scope 3 emissions for SMBs.' },
-        { question: 'Is spend-based Scope 3 reporting defensible?', answer: 'Yes. The GHG Protocol explicitly accepts spend-based methods as a valid estimation approach for Scope 3 Category 1. Document your data sources, emission factors, and assumptions.' },
-        { question: 'How do I screen Scope 3 categories I decide not to measure?', answer: 'Document which categories you assessed, why they are immaterial, and keep this screening explanation as part of your inventory. This is standard GHG Protocol practice.' },
-        { question: 'Do I need third-party assurance for Scope 3?', answer: 'Under SB 253, third-party assurance for Scope 3 is required starting in 2028 for covered companies. SMBs should prepare for assurance-level data quality but are not directly subject to the requirement.' },
+        { question: 'Which Scope 3 categories should an SMB measure first?', answer: `Start with Category 1 (purchased goods and services), Category 4 (upstream transportation), and Category 11 (use of sold products). These typically represent the largest share of Scope 3 emissions for SMBs.` },
+        { question: 'Is spend-based Scope 3 reporting defensible?', answer: `Yes, as an estimate. The GHG Protocol's Scope 3 guidance describes spend-based methods as an accepted way to estimate Category 1. They are less precise than supplier-specific data, so document your data sources, emission factors, and assumptions, and refine them over time.` },
+        { question: 'How do I screen Scope 3 categories I decide not to measure?', answer: `Document which categories you assessed, why they are immaterial, and keep this screening explanation as part of your inventory. This is standard GHG Protocol practice.` },
+        { question: 'Do I need third-party assurance for Scope 3?', answer: `Under SB 253, limited assurance on Scope 3 reporting begins in 2030 for covered companies, meaning those with more than $1 billion in revenue that do business in California. Smaller businesses are not directly subject to it, but clear documentation makes any customer's review easier.` },
       ]),
       internal_links: JSON.stringify([
         { href: 'https://ecoauditor.io/features', anchor: 'Eco-Auditor features' },
@@ -237,12 +398,59 @@ async function seedBlogPosts(pool) {
       meta_title: 'Carbon Accounting Software for SMBs (2026 Guide) | Eco-Auditor',
       meta_description: 'A buyer\'s guide to carbon accounting software for small and mid-sized businesses. Compare features, pricing models, and must-have capabilities for 2026 compliance.',
       primary_keyword: 'carbon accounting software SMB',
-      body_html: '<h2>Why SMBs Need Carbon Accounting Software Now</h2><p>Carbon accounting used to be a spreadsheet exercise managed by an external consultant once a year. In 2026, that approach no longer holds up. Regulatory pressure from SB 253, CBAM, and SEC climate disclosure rules means emissions data needs to be audit-ready, continuously updated, and defensible.</p><p>For SMBs, the challenge is finding software that fits your budget and team size without sacrificing the rigor that enterprise customers and regulators expect. Here is what to look for.</p><h2>Must-Have Features for SMB Carbon Accounting</h2><h3>1. Pre-loaded emission factor libraries</h3><p>Your software should ship with emission factors from EPA, eGRID, DEFRA, and the GHG Protocol — not require you to research and input them manually. Factors should be versioned, sourced, and updated at least quarterly.</p><h3>2. Scope 1, 2, and 3 support</h3><p>Many tools handle Scope 1 and 2 well but treat Scope 3 as an afterthought. For SMBs in supply chains of regulated companies, Scope 3 is where the scrutiny is. Look for spend-based Category 1 calculation, freight estimation, and a screening template.</p><h3>3. Audit-ready documentation</h3><p>Every calculation should be traceable to its source data and emission factor. Look for audit trails that record who entered data, when it was modified, and which factors were applied.</p><h3>4. Customer-ready reporting</h3><p>Can the tool export reports in the formats your enterprise customers request? CDP, GRI, TCFD, and custom supplier questionnaire formats should all be supported.</p><h3>5. Supply chain survey tools</h3><p>The best way to improve Scope 3 data quality is to collect primary data from your suppliers. Look for tools that let you send a single survey link and auto-calculate supplier contributions.</p><h2>Pricing Models: What Makes Sense for SMBs</h2><ul><li><strong>Per-facility pricing:</strong> Charged based on the number of facilities. Gets expensive for distributed operations.</li><li><strong>Per-user pricing:</strong> Charged per seat. Best for teams where only a few people need access.</li><li><strong>Tiered plans:</strong> Fixed monthly or annual price with feature gates. Best for SMBs — predictable cost, no surprises.</li></ul><p>Eco-Auditor uses tiered pricing (Starter, Growth, Pro) with no per-facility or per-user penalties.</p><h2>Red Flags to Watch For</h2><ul><li><strong>"AI-generated" emission estimates with no methodology:</strong> If a tool gives you a carbon number without showing the underlying factors, it is not defensible.</li><li><strong>No Scope 3 support:</strong> Tools that only cover Scope 1 and 2 leave you unprepared for supply chain reporting requests.</li><li><strong>Annual-only factor updates:</strong> Emission factors change as grids decarbonize. If your tool updates once a year, your numbers are stale within months.</li><li><strong>No data export:</strong> If you cannot export your raw data, you are locked in.</li></ul><h2>The Spreadsheet Question</h2><p>Many SMBs start with Excel. That is fine for a first-pass estimate, but spreadsheets break down fast: no version control on emission factors, no audit trail, no validation, no factor updates. If you are spending more than two hours a month maintaining a carbon spreadsheet, dedicated software will pay for itself.</p><h2>How Eco-Auditor Compares</h2><ul><li><strong>Pre-loaded factors:</strong> EPA, eGRID, DEFRA, GHG Protocol — updated quarterly.</li><li><strong>All three scopes:</strong> Scope 1, 2, and 3 with spend-based methods and screening templates.</li><li><strong>Audit-ready:</strong> Every calculation links to source data, factor version, and methodology.</li><li><strong>Customer-ready exports:</strong> CDP, GRI, TCFD, and custom formats.</li><li><strong>Supply chain surveys:</strong> Send one link, auto-calculate supplier contributions.</li><li><strong>Tiered pricing:</strong> Starter at $149/month, no per-facility or per-user penalties.</li></ul><h2>Key Takeaways</h2><ul><li>Carbon accounting software is no longer optional for SMBs in regulated supply chains.</li><li>Look for pre-loaded emission factors, full Scope 3 support, audit trails, and customer-ready reporting.</li><li>Avoid tools with opaque estimates, no Scope 3, or no data export.</li><li>Tiered pricing without per-facility penalties is the SMB-friendly model.</li></ul>',
+      body_html: [
+        `<h2>Why SMBs Need Carbon Accounting Software Now</h2>`,
+        `<p>Carbon accounting used to be a spreadsheet exercise managed by an external consultant once a year. In 2026, that approach is harder to justify. Larger customers covered by California's SB 253, and importers subject to the EU's CBAM, may ask their suppliers for emissions data, and they expect numbers that are documented and repeatable.</p>`,
+        `<p>For SMBs, the challenge is finding software that fits your budget and team size without sacrificing the rigor that customers expect. Here is what to look for.</p>`,
+        `<h2>Must-Have Features for SMB Carbon Accounting</h2>`,
+        `<h3>1. Published emission factor libraries</h3>`,
+        `<p>Your software should ship with emission factors from recognized sources such as the U.S. EPA and eGRID, so you do not have to research and enter them manually. Factors should be versioned and sourced, with the year shown for every number, and reviewed on a regular schedule.</p>`,
+        `<h3>2. Scope 1, 2, and 3 support</h3>`,
+        `<p>Many tools handle Scope 1 and 2 well but treat Scope 3 as an afterthought. For SMBs in the supply chains of large companies, Scope 3 is where the scrutiny is. Look for spend-based Category 1 calculation and clear labeling of which factors are estimates.</p>`,
+        `<h3>3. Audit-ready documentation</h3>`,
+        `<p>Every calculation should be traceable to its source data and emission factor. Look for audit trails that record who entered data, when it was modified, and which factors were applied.</p>`,
+        `<h3>4. Customer-ready reporting</h3>`,
+        `<p>Can the tool export what your customers ask for? Some ask for a simple PDF or spreadsheet, others for CDP responses or custom supplier questionnaires. Check which formats the tool actually supports before you buy.</p>`,
+        `<h3>5. Supply chain survey tools</h3>`,
+        `<p>The best way to improve Scope 3 data quality is to collect primary data from your suppliers. Some tools let you send suppliers a survey link and calculate their contributions. Check whether the feature is available today or only planned.</p>`,
+        `<h2>Pricing Models: What Makes Sense for SMBs</h2>`,
+        `<ul>`,
+        `<li><strong>Per-facility pricing:</strong> Charged based on the number of facilities. Gets expensive for distributed operations.</li>`,
+        `<li><strong>Per-user pricing:</strong> Charged per seat. Best for teams where only a few people need access.</li>`,
+        `<li><strong>Tiered plans:</strong> Fixed monthly or annual price with feature gates. Best for SMBs: predictable cost, no surprises.</li>`,
+        `</ul>`,
+        `<p>Eco-Auditor uses tiered plans, billed monthly: Starter at $149/month (Scope 1 and 2 only, 1 facility, 10 CSV imports a month), Growth at $399/month (adds Scope 3, up to 5 facilities, unlimited CSV imports), and Pro at $999/month (unlimited facilities). Annual billing is also available. Compare plans on their limits as well as their price.</p>`,
+        `<h2>Red Flags to Watch For</h2>`,
+        `<ul>`,
+        `<li><strong>"AI-generated" emission estimates with no methodology:</strong> If a tool gives you a carbon number without showing the underlying factors, it is not defensible.</li>`,
+        `<li><strong>No Scope 3 support:</strong> Tools that only cover Scope 1 and 2 leave you unprepared for supply chain reporting requests.</li>`,
+        `<li><strong>Unversioned or undated factors:</strong> If a tool does not show which factor set and year it used, you cannot reproduce or defend the number.</li>`,
+        `<li><strong>No data export:</strong> If you cannot export your raw data, you are locked in.</li>`,
+        `</ul>`,
+        `<h2>The Spreadsheet Question</h2>`,
+        `<p>Many SMBs start with Excel. That is fine for a first-pass estimate, but spreadsheets break down fast: no version control on emission factors, no audit trail, no validation, no factor updates. If you are spending more than two hours a month maintaining a carbon spreadsheet, it is worth evaluating dedicated software.</p>`,
+        `<h2>How Eco-Auditor Compares</h2>`,
+        `<p>Use the checklist above on us too. Here is where Eco-Auditor stands today:</p>`,
+        `<ul>`,
+        `<li><strong>Emission factors:</strong> U.S. EPA factors (including eGRID) with IPCC AR5 global-warming potentials. Some factors, mostly for Scope 3, are internal estimates or provisional values, and the Methodology page explains which.</li>`,
+        `<li><strong>Scopes:</strong> Scope 1 and 2 on every plan, Scope 3 on Growth and Pro.</li>`,
+        `<li><strong>Outputs:</strong> A PDF emissions summary and a JSON data export.</li>`,
+        `<li><strong>Pricing:</strong> Starter at $149/month, Growth at $399/month, Pro at $999/month, with plans capped at 1 facility, 5 facilities, and unlimited facilities.</li>`,
+        `<li><strong>Not available yet (on the roadmap):</strong> an audit trail, supplier surveys, framework-specific exports such as CDP or GRI, and accounting-software integrations.</li>`,
+        `</ul>`,
+        `<h2>Key Takeaways</h2>`,
+        `<ul>`,
+        `<li>Carbon accounting software is worth evaluating for SMBs in supply chains where customers ask for emissions data.</li>`,
+        `<li>Look for published emission factors, Scope 3 support, an audit trail, and the reporting formats your customers actually ask for.</li>`,
+        `<li>Avoid tools with opaque estimates, no Scope 3, or no data export.</li>`,
+        `<li>Compare plans on their limits (facilities, scopes, imports) as well as their monthly price.</li>`,
+        `</ul>`,
+      ].join(''),
       faq: JSON.stringify([
-        { question: 'How much does carbon accounting software cost for an SMB?', answer: 'Carbon accounting software for SMBs typically ranges from $149 to $999 per month. Eco-Auditor offers tiered plans starting at $149/month with no per-facility or per-user penalties.' },
-        { question: 'Can I use Excel for carbon accounting?', answer: 'Excel works for a first-pass estimate but breaks down due to lack of version control, audit trails, emission factor updates, and validation. Dedicated software saves time and reduces errors.' },
-        { question: 'What emission factors should carbon accounting software include?', answer: 'Look for EPA, eGRID, DEFRA, and GHG Protocol factors. They should be versioned, sourced, and updated at least quarterly.' },
-        { question: 'Do SMBs need Scope 3 reporting software?', answer: 'Yes. Enterprise customers in regulated supply chains require Scope 3 data from their suppliers. Look for software with spend-based Category 1 calculation and screening templates.' },
+        { question: 'How much does carbon accounting software cost for an SMB?', answer: `Prices vary widely between vendors and depend on how many facilities and scopes you need, so compare limits as well as price. Eco-Auditor plans are Starter at $149/month, Growth at $399/month, and Pro at $999/month, billed monthly, with plans capped at 1 facility, 5 facilities, and unlimited facilities.` },
+        { question: 'Can I use Excel for carbon accounting?', answer: `Excel works for a first-pass estimate but breaks down due to lack of version control, audit trails, emission factor updates, and validation. Dedicated software saves time and reduces errors.` },
+        { question: 'What emission factors should carbon accounting software include?', answer: `Look for factors from recognized sources such as the U.S. EPA and eGRID. They should be versioned and sourced, with the year shown for every number.` },
+        { question: 'Do SMBs need Scope 3 reporting software?', answer: `Often, yes. Customers in regulated supply chains increasingly ask their suppliers for Scope 3 data. Look for software with spend-based Category 1 calculation and clear labeling of which factors are estimates.` },
       ]),
       internal_links: JSON.stringify([
         { href: 'https://ecoauditor.io/pricing', anchor: 'Eco-Auditor pricing' },
@@ -265,12 +473,67 @@ async function seedBlogPosts(pool) {
       meta_title: 'CBAM Supply Chain Emissions Guide for SMBs | Eco-Auditor',
       meta_description: 'How the EU Carbon Border Adjustment Mechanism affects SMBs in US supply chains. Learn CBAM reporting requirements, embedded emissions, and how to prepare.',
       primary_keyword: 'CBAM supply chain emissions SMB',
-      body_html: '<h2>What Is CBAM and Why Should SMBs Care?</h2><p>The EU Carbon Border Adjustment Mechanism (CBAM) is a carbon tariff on imported goods entering the European Union. It targets carbon-intensive sectors — iron and steel, aluminum, cement, fertilizers, electricity, and hydrogen — and requires importers to report the embedded emissions of their products.</p><p>If your SMB manufactures, processes, or supplies goods in any CBAM sector, you are in scope — even if you never directly import into the EU. Your EU-based customers need your emissions data to comply with CBAM reporting obligations.</p><h2>CBAM Timeline: What Is Happening and When</h2><ul><li><strong>2023-2025 (Transitional period):</strong> Importers must report embedded emissions quarterly. No financial obligation yet.</li><li><strong>2026 (Definitive period begins):</strong> CBAM certificates must be purchased for embedded emissions. Financial liability starts.</li><li><strong>2026-2034:</strong> Phase-out of free EU ETS allowances, increasing the effective CBAM cost per tonne of CO2e.</li></ul><p>For SMBs, the transitional period is the window to get your emissions data in order. By 2026, your EU customers will need verified embedded emissions numbers — not estimates.</p><h2>Understanding Embedded Emissions</h2><p>CBAM focuses on "embedded emissions" — the direct emissions from producing a good, plus the emissions from electricity consumed in production. For SMBs, this means:</p><ul><li><strong>Scope 1 (direct):</strong> Combustion from your furnaces, boilers, and vehicles used in production.</li><li><strong>Scope 2 (electricity):</strong> Grid electricity consumed in manufacturing processes.</li><li><strong>Not included (for CBAM purposes):</strong> Upstream Scope 3 emissions from purchased goods, transportation, or waste. CBAM\'s boundary is narrower than a full GHG inventory.</li></ul><h2>How to Calculate Embedded Emissions for CBAM</h2><ol><li><strong>Identify CBAM goods.</strong> Determine which of your products fall under the six CBAM sectors. HS codes and product descriptions determine coverage.</li><li><strong>Allocate emissions to products.</strong> If you produce multiple products, use a rational allocation method — mass-based, economic, or physical-unit-based.</li><li><strong>Calculate specific embedded emissions (SEE).</strong> Total direct + electricity emissions divided by production volume. Express as tCO2e per tonne of product.</li><li><strong>Document your installation boundary.</strong> Map which processes, equipment, and facilities contribute to the CBAM good\'s production.</li></ol><h2>What Your EU Customers Will Ask For</h2><p>EU importers need to submit CBAM reports quarterly. To do so, they need from you:</p><ul><li>The total quantity of goods imported (in tonnes)</li><li>The specific embedded emissions per tonne</li><li>The production installation\'s name, address, and country</li><li>The emission factor for electricity used in production</li><li>A description of the production process and system boundary</li></ul><p>If you cannot provide this data, your EU customer must use default values (which are deliberately set high to encourage actual reporting). This makes your product less competitive.</p><h2>How to Prepare as an SMB</h2><ol><li><strong>Audit your product portfolio.</strong> Identify any products in CBAM sectors. Check HS codes.</li><li><strong>Map your installation boundary.</strong> Document which processes and equipment produce CBAM goods.</li><li><strong>Start tracking production-specific energy use.</strong> Sub-meter electricity and fuel use for CBAM production lines.</li><li><strong>Calculate your SEE now.</strong> Even a rough estimate tells you whether CBAM will be a material cost.</li><li><strong>Prepare a CBAM data pack.</strong> Create a standard report you can send to any EU customer.</li></ol><h2>How Eco-Auditor Helps with CBAM</h2><ul><li><strong>Product-level emission allocation:</strong> Allocate facility emissions to specific products using mass-based or economic methods.</li><li><strong>Sub-metering support:</strong> Track electricity and fuel use by production line.</li><li><strong>CBAM data pack export:</strong> Generate a standard CBAM report with installation details, SEE, electricity factors, and methodology.</li><li><strong>EU grid emission factors:</strong> Pre-loaded with EU Member State grid factors.</li></ul><h2>Key Takeaways</h2><ul><li>CBAM affects SMBs that produce or supply goods in six carbon-intensive sectors — even if they never directly import into the EU.</li><li>CBAM\'s boundary is narrower than full GHG accounting: direct production emissions plus electricity, allocated to specific products.</li><li>Your EU customers need verified embedded emissions data. Without it, they must use punitive default values.</li><li>Start calculating your specific embedded emissions now — preparation takes months, not weeks.</li></ul>',
+      body_html: [
+        `<h2>What Is CBAM and Why Should SMBs Care?</h2>`,
+        `<p>The EU Carbon Border Adjustment Mechanism (CBAM) puts a carbon price on certain goods imported into the European Union. It covers six sectors: cement, iron and steel, aluminium, fertilisers, hydrogen, and electricity. EU importers of those goods must report the emissions embedded in them and, from 2027, buy CBAM certificates to cover those emissions.</p>`,
+        `<p>CBAM obligations fall on the importer. Importers must be authorised CBAM declarants, although importers bringing in less than 50 tonnes of CBAM goods a year (other than hydrogen and electricity) are exempt. If your SMB is a non-EU producer, you are not directly subject to CBAM. If you supply CBAM goods to EU customers, though, they may ask you for emissions data so that they can declare actual values instead of default values.</p>`,
+        `<h2>CBAM Timeline: What Is Happening and When</h2>`,
+        `<ul>`,
+        `<li><strong>October 2023 to December 2025 (transitional period):</strong> Importers filed periodic reports of embedded emissions, with no financial obligation.</li>`,
+        `<li><strong>From 1 January 2026 (definitive period):</strong> Importers must be authorised CBAM declarants, and the financial obligation applies to goods imported from this date.</li>`,
+        `<li><strong>From 1 February 2027:</strong> CBAM certificate sales begin. The first annual CBAM declaration, together with the surrender of certificates for 2026 imports, is due by 30 September 2027.</li>`,
+        `<li><strong>2026 to 2034:</strong> Free EU ETS allowances are phased out, so the CBAM adjustment applies to a growing share of embedded emissions.</li>`,
+        `</ul>`,
+        `<p>For SMB suppliers, the practical impact is that EU customers will want data they can rely on. The Commission's default values include a mark-up, so using verified actual data is usually more advantageous for them than falling back on defaults.</p>`,
+        `<h2>Understanding Embedded Emissions</h2>`,
+        `<p>CBAM focuses on embedded emissions, the greenhouse gases released while producing a good. What counts depends on the sector:</p>`,
+        `<ul>`,
+        `<li><strong>Direct emissions</strong> from the production process, including the production of heating and cooling, count for every CBAM good.</li>`,
+        `<li><strong>Indirect emissions</strong> from the electricity consumed in production count only for cement and fertilisers (and agglomerated iron ore). For iron and steel, aluminium, and hydrogen, only direct emissions count.</li>`,
+        `<li><strong>Precursors:</strong> For complex goods, the embedded emissions of relevant precursor materials, for example cement clinker in cement, are included.</li>`,
+        `</ul>`,
+        `<p>CBAM's boundary is specific to an installation and a product, so it is narrower than a full GHG inventory. It does not cover company-wide items such as employee commuting or business travel. CBAM also has its own calculation rules: for example, emission factors from life-cycle-assessment databases are not accepted for calculating embedded emissions.</p>`,
+        `<h2>How to Calculate Embedded Emissions for CBAM</h2>`,
+        `<ol>`,
+        `<li><strong>Identify CBAM goods.</strong> Determine which of your products fall under the CBAM sectors. Customs (CN) codes and product descriptions determine coverage.</li>`,
+        `<li><strong>Map your installation.</strong> Document which processes, equipment, and emission sources belong to the production of each CBAM good.</li>`,
+        `<li><strong>Attribute emissions to production processes.</strong> If an installation runs several production processes, the EU sets rules for attributing shared inputs and emissions to each one (Annex III to Implementing Regulation (EU) 2025/2547). Follow those rules rather than choosing your own allocation method.</li>`,
+        `<li><strong>Calculate the specific embedded emissions.</strong> Express the emissions per tonne of product using the methodology in the EU implementing rules, and keep the data ready for review by an accredited verifier.</li>`,
+        `</ol>`,
+        `<h2>What Your EU Customers Will Ask For</h2>`,
+        `<p>EU importers submit an annual CBAM declaration. To complete it with actual values, they typically need from you:</p>`,
+        `<ul>`,
+        `<li>The total quantity of goods supplied (in tonnes)</li>`,
+        `<li>The specific embedded emissions per tonne</li>`,
+        `<li>The production installation's name, address, and country</li>`,
+        `<li>The electricity emission factor used in production, where it is relevant to the goods (cement and fertilisers)</li>`,
+        `<li>A description of the production process and system boundary</li>`,
+        `</ul>`,
+        `<p>If you cannot provide this data, your EU customer has to use the Commission's default values, which include a mark-up and are usually less favourable than verified actual data.</p>`,
+        `<h2>How to Prepare as an SMB</h2>`,
+        `<ol>`,
+        `<li><strong>Audit your product portfolio.</strong> Identify any products in CBAM sectors and check their customs codes.</li>`,
+        `<li><strong>Map your installation boundary.</strong> Document which processes and equipment produce CBAM goods.</li>`,
+        `<li><strong>Start tracking production-specific energy use.</strong> Record electricity and fuel use for the lines that make CBAM goods.</li>`,
+        `<li><strong>Ask your EU customers what they need.</strong> They must follow the EU rules when they declare, so ask which format and method they require.</li>`,
+        `<li><strong>Prepare a standard data sheet.</strong> Keep one document you can send to any EU customer.</li>`,
+        `</ol>`,
+        `<h2>What Eco-Auditor Does and Does Not Do for CBAM</h2>`,
+        `<p>Eco-Auditor is not a CBAM tool. It does not calculate CBAM embedded emissions, attribute emissions to products, or produce CBAM declarations or reports, and its emission factors are U.S. EPA based, with no EU grid factors. For CBAM data, use your customer's template or a CBAM-specific tool.</p>`,
+        `<p>What it can do is help you keep a company-level GHG inventory from fuel, electricity, and spend records: CSV import, Scope 1 and Scope 2 calculations on every plan, and Scope 3 on the Growth and Pro plans, plus a PDF emissions summary.</p>`,
+        `<h2>Key Takeaways</h2>`,
+        `<ul>`,
+        `<li>CBAM obligations sit with EU importers. Non-EU suppliers are not directly subject to CBAM, but their EU customers may ask them for installation-level emissions data.</li>`,
+        `<li>CBAM's boundary is set by its own rules: direct emissions for every good, electricity only for cement and fertilisers, and including relevant precursors.</li>`,
+        `<li>Without verified actual data, your customers must use default values that include a mark-up.</li>`,
+        `<li>Start early: mapping an installation and collecting production-specific data takes time.</li>`,
+        `</ul>`,
+      ].join(''),
       faq: JSON.stringify([
-        { question: 'Does CBAM apply to small businesses?', answer: 'CBAM applies to importers of covered goods into the EU. SMBs that supply goods in CBAM sectors to EU-based customers must provide embedded emissions data for those customers to comply.' },
-        { question: 'What is the difference between CBAM embedded emissions and Scope 3 emissions?', answer: 'CBAM embedded emissions include only direct production emissions (Scope 1) and electricity consumption (Scope 2) allocated to a specific product. Scope 3 includes all value chain emissions. CBAM\'s boundary is narrower.' },
-        { question: 'When does CBAM start charging for emissions?', answer: 'The transitional period (reporting only) runs from 2023 to 2025. The definitive period with financial obligations begins in 2026, when importers must purchase CBAM certificates.' },
-        { question: 'How are embedded emissions allocated to products?', answer: 'Use mass-based allocation (emissions divided by product weight), economic allocation (by revenue share), or physical-unit allocation. Document your chosen method and apply it consistently.' },
+        { question: 'Does CBAM apply to small businesses?', answer: `CBAM obligations fall on EU importers of covered goods, who must be authorised CBAM declarants. Importers bringing in less than 50 tonnes a year of covered goods (other than hydrogen and electricity) are exempt. A small non-EU supplier is not directly subject to CBAM, but its EU customers may ask it for emissions data for the goods it supplies.` },
+        { question: 'What is the difference between CBAM embedded emissions and Scope 3 emissions?', answer: `CBAM embedded emissions are the emissions from producing a specific good: direct emissions for every CBAM good, plus indirect emissions from electricity for cement and fertilisers, including the embedded emissions of relevant precursor materials. Scope 3 covers value chain emissions for a whole company. CBAM's boundary is specific to an installation and a product.` },
+        { question: 'When does CBAM start charging for emissions?', answer: `The transitional period (reporting only) ran from October 2023 to December 2025. The definitive period began on 1 January 2026, so importers' financial obligation applies to goods imported from that date. CBAM certificates go on sale from 1 February 2027, and the first annual declaration and certificate surrender is due by 30 September 2027.` },
+        { question: 'How are emissions attributed to products?', answer: `If an installation has several production processes, CBAM sets rules for attributing shared inputs and emissions to each process and product (Annex III to Implementing Regulation (EU) 2025/2547). Follow those rules and your customer's template rather than choosing your own allocation method, and document how you applied them.` },
       ]),
       internal_links: JSON.stringify([
         { href: 'https://ecoauditor.io/features', anchor: 'Eco-Auditor features' },
@@ -297,47 +560,19 @@ async function seedBlogPosts(pool) {
   log('info', 'seeded ' + posts.length + ' blog posts');
 }
 
-const sampleEmissionEntries = [
-  { id: 'seed-1', company_id: 'test-company-1', facility_id: 'facility-1', scope: '1', category: 'stationary_combustion', source: 'natural_gas', amount: 345943, unit: 'therms', method: 'calculation', confidence: 90, created_at: '2026-01-15T00:00:00.000Z' },
-  { id: 'seed-2', company_id: 'test-company-1', facility_id: 'facility-2', scope: '2', category: 'purchased_electricity', source: 'CAMX', amount: 6710, unit: 'MWh', method: 'calculation', confidence: 97, created_at: '2026-02-15T00:00:00.000Z' },
-  { id: 'seed-3', company_id: 'test-company-1', facility_id: 'facility-3', scope: '3', category: 'purchased_goods', source: 'purchased_goods', amount: 6340000, unit: 'USD', method: 'spend_based', confidence: 65, created_at: '2026-03-15T00:00:00.000Z' },
-];
-
-const sampleFacilities = [
-  { id: 'facility-1', company_id: 'test-company-1', name: 'Sacramento HQ', type: 'office', city: 'Sacramento' },
-  { id: 'facility-2', company_id: 'test-company-1', name: 'Fresno Packaging', type: 'factory', city: 'Fresno' },
-  { id: 'facility-3', company_id: 'test-company-1', name: 'Portland Distribution', type: 'warehouse', city: 'Portland' },
-];
-
-const sampleCompanies = {
-  'test-company-1': { id: 'test-company-1', name: 'Green Table Foods', revenue: 1200000000, employees: 420, region: 'CA' },
-  'empty-company-no-data': { id: 'empty-company-no-data', name: 'Empty Company', revenue: 0, employees: 1, region: 'CA' },
-};
-
-const ingestJobs = new Map();
-const generatedReports = new Map();
 const emissionsSummaryCache = new Map();
-
-// Ingest job results are per-instance memory (see countCsvImportsThisMonth);
-// an entry older than this TTL can no longer be meaningfully fetched, so the
-// insert path and the shared prune interval both drop it (PERF-003 — the map
-// used to grow without bound for the life of the process).
-const INGEST_JOB_TTL_MS = 24 * 60 * 60 * 1000;
-
-// Records an ingest result, pruning entries past the TTL on insert so the map
-// stays bounded even between prune sweeps.
-function recordIngestJob(job) {
-  const now = Date.now();
-  for (const [id, existing] of ingestJobs) {
-    if (existing.created_at && now - Date.parse(existing.created_at) > INGEST_JOB_TTL_MS) {
-      ingestJobs.delete(id);
-    }
-  }
-  ingestJobs.set(job.id, job);
-}
 
 // nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage app APIs use bearer Authorization headers, not ambient cookie auth.
 const app = express();
+// Before any handler is registered (F-G-06): from here on every handler added
+// through app.get/post/put/patch/delete/all/use or app.route() has a rejected
+// promise passed to next(err), and so to the terminal error handler at the end
+// of this file. A new async route needs no try/catch to keep the process alive.
+installAsyncErrorForwarding(app);
+// Express advertises itself in an X-Powered-By header on every response,
+// including errors and static files. It helps nobody but someone fingerprinting
+// the framework (F-D-02).
+app.disable('x-powered-by');
 const PORT = process.env.PORT;
 
 if (!PORT) {
@@ -381,79 +616,22 @@ app.use(function (req, res, next) {
   requestIdStore.run(req.requestId, function () { next(); });
 });
 
+// ─── Access log (F-G-08) ───
+// One JSON line per request when it finishes: method, route pattern, status,
+// duration, request id, opaque user/company id. Never the URL, query, body, IP,
+// user agent or email (the field allowlist is in server-observability.cjs).
+app.use(createAccessLog({ log: log }));
+
 // ─── Response compression ───
-// Nothing upstream compresses: Railway's proxy passes the origin body through,
-// and express.static has no compression of its own, so the entry bundle was
-// going out at its full 496KB instead of ~121KB. That is the single largest
-// contributor to LCP on a cold mobile load.
-//
-// zlib is stdlib, so this adds no dependency. It wraps write/end rather than
-// piping a stream so that Content-Length is replaced correctly and the
-// already-set security headers survive. Skips: clients that did not ask for
-// gzip, HEAD/304 (no body), Range requests (byte offsets refer to the
-// uncompressed entity — the video route serves those), and payloads that are
-// already compressed (images, fonts, video, .gz/.br).
-const COMPRESSIBLE = /^(?:text\/|application\/(?:javascript|json|xml|manifest\+json)|image\/svg\+xml)/i;
-const COMPRESSION_THRESHOLD = 1024; // below this, gzip framing costs more than it saves
-
-app.use(function (req, res, next) {
-  const accepts = String(req.headers['accept-encoding'] || '');
-  if (!/\bgzip\b/i.test(accepts) || req.method === 'HEAD' || req.headers.range) return next();
-
-  const originalWrite = res.write;
-  const originalEnd = res.end;
-  let gzip = null;
-
-  function start() {
-    if (gzip !== null) return gzip;
-    const type = String(res.getHeader('Content-Type') || '');
-    const length = Number(res.getHeader('Content-Length') || 0);
-    const encoded = res.getHeader('Content-Encoding');
-    if (
-      res.statusCode === 204 ||
-      res.statusCode === 304 ||
-      encoded ||
-      !COMPRESSIBLE.test(type) ||
-      (length && length < COMPRESSION_THRESHOLD)
-    ) {
-      gzip = false;
-      return gzip;
-    }
-    res.setHeader('Content-Encoding', 'gzip');
-    // Length changes, and caches must not serve one encoding for the other.
-    res.removeHeader('Content-Length');
-    res.setHeader('Vary', res.getHeader('Vary') ? res.getHeader('Vary') + ', Accept-Encoding' : 'Accept-Encoding');
-    gzip = zlib.createGzip({ level: 6 });
-    gzip.on('data', function (chunk) { originalWrite.call(res, chunk); });
-    gzip.on('end', function () { originalEnd.call(res); });
-    return gzip;
-  }
-
-  res.write = function (chunk, encoding, callback) {
-    const stream = start();
-    if (stream === false) return originalWrite.call(res, chunk, encoding, callback);
-    if (chunk) stream.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? encoding : 'utf8'));
-    if (typeof callback === 'function') callback();
-    return true;
-  };
-
-  res.end = function (chunk, encoding, callback) {
-    const stream = start();
-    if (stream === false) return originalEnd.call(res, chunk, encoding, callback);
-    if (chunk) stream.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? encoding : 'utf8'));
-    stream.end();
-    if (typeof callback === 'function') callback();
-    return res;
-  };
-
-  next();
-});
+// gzip for text payloads, stdlib zlib, no dependency. Accept-Encoding q-values,
+// backpressure and zlib errors are handled in server-compression.cjs (F-G-18).
+app.use(createCompression({ log: log }));
 
 // ─── Security headers ───
 // nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage app APIs use bearer Authorization headers, not ambient cookie auth.
 app.use(function (_req, res, next) {
   const headers = buildSecurityHeaders({
-    hsts: process.env.NODE_ENV === 'production' || process.env.FORCE_HSTS === 'true',
+    hsts: serverConfig.isProduction || serverConfig.get('FORCE_HSTS'),
   });
   Object.keys(headers).forEach(function (name) {
     res.setHeader(name, headers[name]);
@@ -625,6 +803,24 @@ app.use(function (req, res, next) {
   // own retries, so exempt it.
   if (req.path === '/api/webhook') return next();
 
+  // GET /api/video streams the marketing video in Range chunks: one home page
+  // view issues about three 206 requests, so it drained the same per-IP budget
+  // that static assets used to (PERF-001). Behind a shared IP, ~40 home views a
+  // minute would 429 chat, consent and leads for everyone on that IP (F-X1-05).
+  // It serves one public file and reads no visitor data.
+  if (req.path === '/api/video') return next();
+
+  // CSP violation reports come from the browser, not from a visitor's action: a
+  // policy that blocks something on every page would otherwise spend the same
+  // per-IP budget as chat, consent and leads and 429 them. The route has its own,
+  // tighter limit (F-F-07).
+  if (req.path === '/api/csp-report') return next();
+
+  // Same for browser error reports (F-G-08): a page that crashes must not spend
+  // the visitor's API budget and 429 the calls that could still work. The route
+  // has its own, tighter limit.
+  if (req.path === '/api/client-error') return next();
+
   // Key on resolveClientIp(req): the real client behind Cloudflare
   // (cf-connecting-ip over the internal proxy hop), the socket address on
   // direct connections, and never a client-supplied header on direct hits.
@@ -654,21 +850,14 @@ setInterval(function () {
       rateLimitStore.delete(key);
     }
   }
-  // Same prune pattern for ingest job results (PERF-003): drop anything past
-  // the TTL even if no new import triggers the insert-path sweep.
-  for (const [id, job] of ingestJobs) {
-    if (job.created_at && now - Date.parse(job.created_at) > INGEST_JOB_TTL_MS) {
-      ingestJobs.delete(id);
-    }
-  }
 }, 120_000);
 
 // Per-route rate limiter (tighter than the global one) for sensitive public
 // endpoints. Keyed on resolveClientIp(req), with its own store pruned on access.
-function perRouteRateLimit(max, windowMs) {
+function perRouteRateLimit(max, windowMs, keyOf) {
   const store = new Map();
   return function (req, res, next) {
-    const key = resolveClientIp(req);
+    const key = keyOf ? keyOf(req) : resolveClientIp(req);
     const now = Date.now();
     const entry = store.get(key);
     if (!entry || now - entry.windowStart > windowMs) {
@@ -693,75 +882,73 @@ function perRouteRateLimit(max, windowMs) {
 const consentRateLimit = perRouteRateLimit(10, 60_000);
 const leadsRateLimit = perRouteRateLimit(5, 10 * 60 * 1000);
 const chatRateLimit = perRouteRateLimit(10, 60_000);
+const reportLimits = require('./src/lib/reports/report-limits.cjs').createReportLimits(perRouteRateLimit);
 
-const APP_VERSION =
-  process.env.APP_VERSION ||
-  process.env.npm_package_version ||
-  process.env.NEXT_PUBLIC_APP_VERSION ||
-  require('./package.json').version;
+// package.json's version; APP_VERSION overrides it only when it is valid semver
+// and not older (F-O-01: a stale APP_VERSION=1.0.0 on Railway was reported for a
+// 2.0.0 build). See server-config.cjs.
+const APP_VERSION = serverConfig.appVersion;
 
-// ─── Version endpoint (for forced-update watchdog) ───
+// ─── Version endpoint ───
+// The version and nothing else (D-10): the build sha is on /api/health, and a
+// timestamp told a caller nothing but the server clock.
 app.get('/api/version', function (_req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.json({
-    version: APP_VERSION,
-    build: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || null,
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ version: APP_VERSION });
 });
 
-// ─── Health check with DB status + build SHA (AF-2) ───
+// ─── Health check: status + build SHA (AF-2) ───
 // Build SHA self-report + no-store caching. The SHA is injected by the
-// platform at build/deploy time (Railway: RAILWAY_GIT_COMMIT_SHA; Vercel:
-// VERCEL_GIT_COMMIT_SHA; generic CI: GIT_SHA). null is a signal that
+// platform at build/deploy time (Railway: RAILWAY_GIT_COMMIT_SHA; generic CI:
+// GIT_SHA; read once in server-config.cjs). null is a signal that
 // the deploy pipeline isn't wiring the SHA — fix that before trusting
-// gate-13 AC-P0-1 (F1) SHA-equality checks. Mirrors /api/version :143-152.
+// gate-13 AC-P0-1 (F1) SHA-equality checks.
 function buildSha() {
-  return process.env.RAILWAY_GIT_COMMIT_SHA
-    || process.env.VERCEL_GIT_COMMIT_SHA
-    || process.env.GIT_SHA
-    || null;
+  return serverConfig.buildSha;
 }
 
 async function probeDatabase() {
-  if (!pgPool) return { ok: false, configured: false };
+  if (!databaseConfigured) return { ok: false, configured: false };
   try {
     await pgPool.query('SELECT 1');
     return { ok: true, configured: true };
   } catch (err) {
-    log('error', 'Database health probe failed', { error: String(err) });
+    log('error', 'Database health probe failed', { error: err });
     return { ok: false, configured: true };
   }
 }
 
+// Anonymous callers get the status and the build SHA and nothing else (F-D-03).
+// The SHA stays: deploy verification compares it with the commit that was meant
+// to ship. Uptime (it reveals restart times), the app version and per-dependency
+// detail only help someone fingerprinting the service. The database state is
+// still visible where it belongs: in the 200/503 status code (the Dockerfile
+// HEALTHCHECK and external monitors key on that, not on the body), here and on /ready.
 async function healthPayload() {
   const database = await probeDatabase();
-  const dbStatus = database.ok ? 'ok' : database.configured ? 'unreachable' : 'not configured';
-
   return {
     status: database.configured && !database.ok ? 'degraded' : 'ok',
     sha: buildSha(),
-    build: buildSha(), // alias kept for /api/version parity (impl-spec AF-2)
-    uptime: process.uptime(),
-    version: APP_VERSION,
-    db: dbStatus,
-    timestamp: new Date().toISOString(),
   };
 }
 
-app.get('/health', async function (_req, res) {
-  // ponytail: no-store so cached health never defeats its purpose (godmythos HR #25).
+// no-store so a cached probe never defeats its purpose (godmythos HR #25).
+function setNoStore(res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
+}
+
+app.get('/health', async function (_req, res) {
+  setNoStore(res);
   // A health probe must never be the thing that kills the process.
   try {
     const payload = await healthPayload();
     res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
   } catch (err) {
-    log('error', 'Health payload failed', { error: String(err) });
+    log('error', 'Health payload failed', { error: err });
     res.status(503).json({ status: 'degraded', error: 'health check failed' });
   }
 });
@@ -771,17 +958,30 @@ app.get('/health', async function (_req, res) {
 // prefix aligns with the API surface so uptime monitors and the gate-13
 // F1 check can probe a stable, semantically-named URL.
 app.get('/api/health', async function (_req, res) {
-  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+  setNoStore(res);
   try {
     const payload = await healthPayload();
     res.status(payload.status === 'degraded' ? 503 : 200).json(payload);
   } catch (err) {
-    log('error', 'Health payload failed', { error: String(err) });
+    log('error', 'Health payload failed', { error: err });
     res.status(503).json({ status: 'degraded', error: 'health check failed' });
   }
 });
+
+// ─── Browser error reports (F-G-08, F-F-08) ───
+// ErrorBoundary and the window 'error'/'unhandledrejection' hooks
+// (src/lib/client-error-report.ts) post here, without cookies. Public by
+// necessity, so it is small: its own per-address limit (and no share of the /api
+// budget), an 8 KB body cap, a schema, a cap on logged reports per minute, and a
+// log line with the message, a truncated stack, the page path and the build sha,
+// scrubbed of emails, query strings and tokens. Needs a human security review
+// before launch (see the obs-a report).
+app.post(
+  '/api/client-error',
+  perRouteRateLimit(10, 60_000),
+  express.json({ limit: '8kb' }),
+  createClientErrorHandler({ log: log, buildSha: buildSha })
+);
 
 // ─── InsForge config endpoint (for auth) ───
 app.get('/api/insforge-config', function (_req, res) {
@@ -803,29 +1003,23 @@ app.get('/api/insforge-config', function (_req, res) {
 // ─── Blog posts (public, no auth) ───
 // PERF-006: the list view never renders full HTML bodies (the detail page has
 // its own /api/blog-posts/:slug route), so compute excerpt + read time here
-// and ship those instead of up to 50 full body_html payloads.
-function blogListReadMinutes(html) {
-  const bounded = String(html || '').slice(0, 100000);
-  const text = bounded.replace(/<[^\n>]*>/g, ' ');
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.round(words / 200));
-}
+// and ship those instead of up to 50 full body_html payloads. The two helpers
+// live in server-blog-render.cjs because the server-rendered /blog/ page uses them too.
 
-function blogListExcerpt(row) {
-  const meta = row.meta_description && String(row.meta_description).trim();
-  if (meta) return meta;
-  const text = String(row.body_html || '').slice(0, 100000).replace(/<[^\n>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  if (text.length <= 160) return text;
-  const sliced = text.slice(0, 160);
-  const lastSpace = sliced.lastIndexOf(' ');
-  return sliced.slice(0, lastSpace > 80 ? lastSpace : 160) + '\u2026';
-}
+// Server-rendered /blog/, /blog/<slug>/, sitemap.xml and the neutral app shell
+// (F-F-01, F-F-03). Routes are mounted before express.static, further down. The
+// canonical origin is the publisher's too (deployUrl below).
+const PUBLIC_ORIGIN = serverConfig.get('PUBLIC_ORIGIN');
+const pages = createPages({
+  pgPool,
+  staticDir: path.join(__dirname, 'static'),
+  origin: PUBLIC_ORIGIN,
+  routeMeta: blogRouteMeta,
+  log,
+});
 
 app.get('/api/blog-posts', async function (_req, res) {
   res.setHeader('Cache-Control', 'public, max-age=60');
-  if (!pgPool) {
-    return res.json({ posts: [] });
-  }
   try {
     const { rows } = await pgPool.query(
       'SELECT id, slug, title, meta_title, meta_description, body_html, primary_keyword, faq, internal_links, external_links, cta, content_score, geo_score, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 50'
@@ -841,9 +1035,9 @@ app.get('/api/blog-posts', async function (_req, res) {
         read_minutes: blogListReadMinutes(row.body_html),
         primary_keyword: row.primary_keyword,
         faq: row.faq,
-        internal_links: row.internal_links,
-        external_links: row.external_links,
-        cta: row.cta,
+        internal_links: publicLinks(row.internal_links),
+        external_links: publicLinks(row.external_links),
+        cta: publicCta(row.cta),
         content_score: row.content_score,
         geo_score: row.geo_score,
         published_at: row.published_at,
@@ -853,31 +1047,31 @@ app.get('/api/blog-posts', async function (_req, res) {
     if (err.code === '42P01') { // table does not exist
       return res.json({ posts: [] });
     }
-    log('error', 'GET /api/blog-posts:', { error: err.message });
-    res.status(500).json({ error: 'Failed to fetch blog posts' });
+    log('error', 'GET /api/blog-posts:', { error: err });
+    res.status(failureStatus(err)).json({ error: 'Failed to fetch blog posts' });
   }
 });
 
 app.get('/api/blog-posts/:slug', async function (req, res) {
   res.setHeader('Cache-Control', 'public, max-age=60');
-  if (!pgPool) {
+  // The page route refuses a malformed slug before it reads (server-pages.cjs); a NUL
+  // byte would otherwise reach Postgres, which rejects it (22021): a 503 and an error
+  // log line for any anonymous caller.
+  if (!isValidSlug(req.params.slug)) {
     return res.status(404).json({ error: 'Post not found' });
   }
   try {
-    const { rows } = await pgPool.query(
-      'SELECT id, slug, title, meta_title, meta_description, body_html, primary_keyword, faq, internal_links, external_links, cta, content_score, geo_score, published_at FROM blog_posts WHERE slug = $1 LIMIT 1',
-      [req.params.slug]
-    );
-    if (rows.length === 0) {
+    // The one read path for a post, shared with the server-rendered page: the
+    // body is sanitised at read, and `head` is the title/description/canonical
+    // the page was rendered with, so the client never re-derives them.
+    const post = await pages.loadPost(req.params.slug);
+    if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    res.json({ post: { ...rows[0], body_html: sanitizeBlogHtml(rows[0].body_html) } });
+    res.json({ post, head: pages.headOf(post) });
   } catch (err) {
-    if (err.code === '42P01') { // table does not exist
-      return res.status(404).json({ error: 'Post not found' });
-    }
-    log('error', 'GET /api/blog-posts/:slug:', { error: err.message });
-    res.status(500).json({ error: 'Failed to fetch post' });
+    log('error', 'GET /api/blog-posts/:slug:', { error: err });
+    res.status(failureStatus(err)).json({ error: 'Failed to fetch post' });
   }
 });
 
@@ -885,49 +1079,50 @@ app.get('/api/blog-posts/:slug', async function (req, res) {
 // here with a Bearer SITE_DEPLOY_TOKEN; rows land in the same blog_posts table
 // those handlers read, so a published post is live on /blog with no rebuild.
 // Body limit is generous because an article is full HTML, not a form payload.
-app.post(
-  '/api/publish',
-  express.json({ limit: '1mb' }),
-  createPublishHandler({
-    pgPool,
-    deployToken: process.env.SITE_DEPLOY_TOKEN,
-    canonicalOrigin: process.env.PUBLIC_ORIGIN || 'https://ecoauditor.io',
-    log,
-  }),
-);
+const publishHandler = createPublishHandler({
+  pgPool,
+  deployToken: process.env.SITE_DEPLOY_TOKEN,
+  canonicalOrigin: PUBLIC_ORIGIN,
+  log,
+});
+app.post('/api/publish', express.json({ limit: '1mb' }), async function (req, res, next) {
+  try {
+    await publishHandler(req, res);
+    // The pages cache reads for a minute: drop it so the post is live at once.
+    if (res.statusCode === 200) pages.invalidate();
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Readiness gates on the data store, not on a marketing video (INFRA-003/
-// INFRA-008): a deployment whose DB is unreachable must not be marked ready,
-// while a missing intro video is cosmetic and stays in the payload as
-// information only. 200/503 semantics mirror /health: not configured (no
-// DATABASE_URL) counts as ready, configured-but-unreachable is degraded 503.
+// INFRA-008): a deployment whose DB is unreachable must not be marked ready.
+// 200/503 semantics mirror /health: not configured (no DATABASE_URL) counts as
+// ready, configured-but-unreachable is degraded 503. The body is the status and
+// nothing else (D-10): Railway's healthcheck reads only the status code, nothing
+// in the repo read the db/video/timestamp detail, and the probe failure itself is
+// logged ("Database health probe failed"); the video path is logged at boot.
 app.get('/ready', async function (_req, res) {
-  const videoPath = findVideoPath();
+  // Railway probes this on every deploy; a cached 200 would mark a broken
+  // deployment ready (F-F-17).
+  setNoStore(res);
   // Hard 2s ceiling on the probe so a slow pool cannot stall the readiness
   // check itself; the pool's own query_timeout is 3s.
   const dbProbe = await Promise.race([
     probeDatabase(),
     new Promise(function (resolve) {
       const timer = setTimeout(function () {
-        resolve({ ok: false, configured: Boolean(pgPool) });
+        resolve({ ok: false, configured: databaseConfigured });
       }, 2000);
       timer.unref();
     }),
   ]);
   const ready = dbProbe.ok || !dbProbe.configured;
-  res.status(ready ? 200 : 503).json({
-    status: ready ? 'ok' : 'degraded',
-    video: videoPath ? 'available' : 'not-found',
-    db: dbProbe.ok ? 'ok' : dbProbe.configured ? 'unreachable' : 'not configured',
-    timestamp: new Date().toISOString(),
-  });
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'degraded' });
 });
 
 // ─── Trial status endpoint (used by frontend after OAuth) ───
 app.get('/api/trial-status', authGuard, async function (req, res) {
-  if (!pgPool) {
-    return res.json({ trial: true, trialEndsAt: null, source: 'no-db' });
-  }
   try {
     const { rows } = await pgPool.query(
       'SELECT trial_ends_at FROM public.companies WHERE user_id = $1 LIMIT 1',
@@ -941,7 +1136,7 @@ app.get('/api/trial-status', authGuard, async function (req, res) {
     const isActive = trialEndsAt ? new Date(trialEndsAt) > new Date() : false;
     return res.json({ trial: isActive, trialEndsAt, source: 'db' });
   } catch (err) {
-    log('error', 'Trial status check failed', { error: String(err), userId: req.user.id });
+    log('error', 'Trial status check failed', { error: err, userId: req.user.id });
     // Fail closed on the UI hint. Returning trial:true here told an expired
     // user their trial was still active; 503 lets the client retry instead of
     // caching a wrong answer. (Data access is gated separately by requirePlan.)
@@ -951,9 +1146,6 @@ app.get('/api/trial-status', authGuard, async function (req, res) {
 
 // ─── Billing state endpoint (trial + subscription, synced from Stripe webhooks) ───
 app.get('/api/billing', authGuard, async function (req, res) {
-  if (!pgPool) {
-    return res.json({ active: true, plan: 'starter', status: 'trialing', trialActive: true, source: 'no-db' });
-  }
   try {
     const state = await loadBillingState(req.user.id);
     if (!state) {
@@ -962,8 +1154,8 @@ app.get('/api/billing', authGuard, async function (req, res) {
     }
     return res.json({ ...state, source: 'db' });
   } catch (err) {
-    log('error', 'Billing state check failed', { error: String(err), userId: req.user.id });
-    return res.status(500).json({ error: 'Failed to load billing state' });
+    log('error', 'Billing state check failed', { error: err, userId: req.user.id });
+    return res.status(failureStatus(err)).json({ error: 'Failed to load billing state' });
   }
 });
 
@@ -983,16 +1175,57 @@ app.get('/api/billing', authGuard, async function (req, res) {
 const EXPORT_MAX_ENTRIES = 10_000;
 
 // The company row for the export payload. Selects only the columns the
-// account holder already knows — no user_id, no billing columns.
+// account holder already knows: what they enter in Settings (name, industry,
+// reporting basis, base year; COMPANY_FIELDS in server-company.cjs) and the dates.
+// No user_id, no billing columns, no onboarding or provisioning state.
 async function loadCompanyExportRow(companyId) {
-  if (pgPool) {
+  const { rows } = await pgPool.query(
+    'SELECT id, name, industry, consolidation_approach, base_year, created_at, updated_at, trial_ends_at FROM public.companies WHERE id = $1',
+    [companyId]
+  );
+  return rows[0] || null;
+}
+
+// The export's own entry query (F-B-08). It used to reuse loadEmissionEntries,
+// which selects what the dashboard needs, so a calculator entry's activity
+// ("1200 therms"), its CO2e, factor, activity date and notes never reached the
+// customer's copy. Every column is exported except idempotency_key, a request
+// detail. Newest EXPORT_MAX_ENTRIES + 1 rows, so the caller can tell it capped.
+// tests/export-claim-coupling.test.ts ties the claims register to this list.
+async function loadEmissionEntriesForExport(companyId) {
+  try {
     const { rows } = await pgPool.query(
-      'SELECT id, name, industry, created_at, updated_at, trial_ends_at FROM public.companies WHERE id = $1',
+      'SELECT id, company_id, facility_id, scope, category, source, amount, unit, factor, method, confidence, co2e_kg, activity_date, activity_amount, activity_unit, factor_value, factor_source, catalog_version, notes, import_id, imported_at, created_at, updated_at FROM emission_entries WHERE company_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2',
+      [companyId, EXPORT_MAX_ENTRIES + 1]
+    );
+    return rows.reverse().map(function (row) {
+      return { ...row, activity_date: toDateOnly(row.activity_date) };
+    });
+  } catch (err) {
+    log('error', 'Emission data store unavailable', { error: err, companyId });
+    throw new Error('Emission data store unavailable');
+  }
+}
+
+// Report records and the CSV import log belong to the customer's workspace too.
+// A report's metadata (period dates, sign-off, the SHA-256 of its stored PDF) is
+// exported with it; the PDF bytes and snapshot stay downloadable from the Reports page.
+async function loadExportHistory(companyId) {
+  try {
+    const reports = await pgPool.query(
+      'SELECT id, title, type, status, period, period_start, period_end, last_updated, completeness, signoff, signed_off_by, signed_off_at, pdf_sha256, created_at FROM public.reports WHERE company_id = $1 ORDER BY created_at ASC LIMIT 1000',
       [companyId]
     );
-    return rows[0] || null;
+    // Each entry's import_id points into this list (K4).
+    const imports = await pgPool.query(
+      'SELECT id, row_count, warning_count, original_filename, file_sha256, status, undone_at, created_at FROM public.csv_import_events WHERE company_id = $1 ORDER BY created_at ASC LIMIT 10000',
+      [companyId]
+    );
+    return { reports: reports.rows, csvImports: imports.rows };
+  } catch (err) {
+    log('error', 'Export history data store unavailable', { error: err, companyId });
+    throw new Error('Export data store unavailable');
   }
-  return sampleCompanies[companyId] || null;
 }
 
 app.get('/api/account/export', apiAuthGuard, async function (req, res) {
@@ -1001,10 +1234,11 @@ app.get('/api/account/export', apiAuthGuard, async function (req, res) {
     if (!companyId) return;
     const company = await loadCompanyExportRow(companyId);
     const facilities = await loadFacilities(companyId);
-    let entries = await loadEmissionEntries(companyId);
+    let entries = await loadEmissionEntriesForExport(companyId);
+    const history = await loadExportHistory(companyId);
     const notes = [];
     if (entries.length > EXPORT_MAX_ENTRIES) {
-      // loadEmissionEntries returns rows created_at ASC; keep the newest.
+      // Rows are created_at ASC; keep the newest.
       entries = entries.slice(entries.length - EXPORT_MAX_ENTRIES);
       notes.push('Export capped at the ' + EXPORT_MAX_ENTRIES + ' most recent emission entries.');
     }
@@ -1013,18 +1247,20 @@ app.get('/api/account/export', apiAuthGuard, async function (req, res) {
       company: company,
       facilities: facilities,
       emissionEntries: entries,
+      reports: history.reports,
+      csvImports: history.csvImports,
     };
     if (notes.length) payload.notes = notes;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="ecoauditor-export-' + companyId + '.json"');
     return res.send(JSON.stringify(payload, null, 2));
   } catch (err) {
-    // loadEmissionEntries/loadFacilities throw "… data store unavailable" in
-    // production when the DB is down; classifyApiFailure keeps that a generic
-    // 503 instead of echoing driver text.
+    // loadEmissionEntries/loadFacilities throw "… data store unavailable" when
+    // the DB is down; classifyApiFailure keeps that a generic 503 instead of
+    // echoing driver text.
     const failure = classifyApiFailure(err);
     if (failure.status >= 500) {
-      log('error', 'Account data export failed', { error: String(err.message || err), userId: req.user && req.user.id });
+      log('error', 'Account data export failed', { error: err, userId: req.user && req.user.id });
     }
     return res.status(failure.status).json({ success: false, error: failure.message });
   }
@@ -1041,29 +1277,6 @@ app.post('/api/account/delete-data', express.json(), apiAuthGuard, async functio
   // self-serve "erase my emissions data" control shown in Settings; full
   // account deletion remains a support-mediated request (30-day window — see
   // the Security/Privacy pages).
-  if (!pgPool) {
-    if (allowSampleData()) {
-      // Dev / no-DB mode: drop the sample rows for the resolved company so the
-      // in-memory fixtures reflect the deletion.
-      let deletedEntries = 0;
-      let deletedFacilities = 0;
-      for (let i = sampleEmissionEntries.length - 1; i >= 0; i--) {
-        if (String(sampleEmissionEntries[i].company_id) === String(companyId)) {
-          sampleEmissionEntries.splice(i, 1);
-          deletedEntries++;
-        }
-      }
-      for (let i = sampleFacilities.length - 1; i >= 0; i--) {
-        if (String(sampleFacilities[i].company_id) === String(companyId)) {
-          sampleFacilities.splice(i, 1);
-          deletedFacilities++;
-        }
-      }
-      emissionsSummaryCache.clear();
-      return res.json({ deleted: true, deletedEntries: deletedEntries, deletedFacilities: deletedFacilities });
-    }
-    return res.status(503).json({ success: false, error: 'Data store unavailable' });
-  }
 
   // One transaction, parameterized SQL, row_security = off — same shape as the
   // other server-owned writes (reserveCsvImportQuota / ensureCompanyForUser).
@@ -1084,7 +1297,7 @@ app.post('/api/account/delete-data', express.json(), apiAuthGuard, async functio
     const facilitiesResult = await client.query('DELETE FROM public.facilities WHERE company_id = $1', [companyId]);
     await client.query('COMMIT');
     // Cached dashboard summaries for this tenant are now stale.
-    emissionsSummaryCache.clear();
+    invalidateCompanyCache(companyId);
     log('info', 'Account audit data deleted', {
       companyId: companyId,
       deletedEntries: entriesResult.rowCount,
@@ -1098,18 +1311,18 @@ app.post('/api/account/delete-data', express.json(), apiAuthGuard, async functio
   } catch (err) {
     if (!client) {
       // Connect failed before any client existed: nothing to roll back or
-      // release. Map it to the same 503 the no-DB branch above uses so the
-      // endpoint degrades instead of killing the process.
-      log('error', 'Delete-data: failed to acquire a database client', { error: String(err), companyId: companyId });
+      // release. Answer 503 (data store unavailable) so the endpoint degrades
+      // instead of killing the process.
+      log('error', 'Delete-data: failed to acquire a database client', { error: err, companyId: companyId });
       return res.status(503).json({ success: false, error: 'Data store unavailable' });
     }
     try {
       await client.query('ROLLBACK');
     } catch (rollbackErr) {
-      log('error', 'Delete-data rollback failed', { error: String(rollbackErr), companyId: companyId });
+      log('error', 'Delete-data rollback failed', { error: rollbackErr, companyId: companyId });
     }
-    log('error', 'Account data deletion failed', { error: String(err), companyId: companyId });
-    return res.status(500).json({ success: false, error: 'Failed to delete audit data' });
+    log('error', 'Account data deletion failed', { error: err, companyId: companyId });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to delete audit data' });
   } finally {
     // Release only what was actually acquired (SVR-01).
     if (client) client.release();
@@ -1158,7 +1371,7 @@ async function authGuard(req, res, next) {
     req.user = user;
     next();
   } catch (err) {
-    log('error', 'authGuard error', { error: String(err) });
+    log('error', 'authGuard error', { error: err });
     return res.status(500).json({ error: 'Authentication check failed' });
   }
 }
@@ -1196,7 +1409,7 @@ async function requireCompanyAccess(req, res, requestedCompanyId) {
   try {
     companyId = await ensureCompanyForUser(user);
   } catch (err) {
-    log('error', 'Company provisioning unavailable', { error: String(err), userId: user.id });
+    log('error', 'Company provisioning unavailable', { error: err, userId: user.id });
     res.status(503).json({ success: false, error: 'Data store unavailable' });
     return null;
   }
@@ -1212,18 +1425,14 @@ async function requireCompanyAccess(req, res, requestedCompanyId) {
   return result.companyId;
 }
 
-function allowSampleData() {
-  return process.env.NODE_ENV !== 'production' || process.env.ALLOW_SAMPLE_DATA === 'true';
-}
-
 // Ensures every authenticated user has a company row. Idempotent.
 // Uses pgPool with RLS bypass (row_security = off) inside a transaction so
 // the initial insert succeeds even before the user owns any company.
 async function ensureCompanyForUser(user) {
-  if (!pgPool) return null;
   const userId = user.id;
-  const email = user.email || '';
-  const defaultName = email ? email.split('@')[0] + ' Organization' : 'My Organization';
+  // The placeholder the customer is asked to replace (server-company.cjs): the
+  // row is flagged auto_provisioned so the SPA sends it through onboarding first.
+  const defaultName = defaultCompanyName(user.email);
   const client = await pgPool.connect();
   try {
     await client.query('BEGIN');
@@ -1242,8 +1451,8 @@ async function ensureCompanyForUser(user) {
     // unavailable' on the very first page. ON CONFLICT waits on the winner, so
     // when it returns no row the committed company is visible to a re-SELECT.
     const insert = await client.query(
-      `INSERT INTO public.companies (user_id, name, industry, updated_at, trial_ends_at)
-       VALUES ($1, $2, 'other', now(), now() + INTERVAL '14 days')
+      `INSERT INTO public.companies (user_id, name, industry, updated_at, trial_ends_at, auto_provisioned)
+       VALUES ($1, $2, 'other', now(), now() + INTERVAL '14 days', true)
        ON CONFLICT (user_id) DO NOTHING
        RETURNING id, trial_ends_at`,
       [userId, defaultName]
@@ -1263,9 +1472,9 @@ async function ensureCompanyForUser(user) {
     try {
       await client.query('ROLLBACK');
     } catch (rollbackErr) {
-      log('error', 'Company provisioning rollback failed', { error: String(rollbackErr), userId });
+      log('error', 'Company provisioning rollback failed', { error: rollbackErr, userId });
     }
-    log('error', 'ensureCompanyForUser failed', { error: String(err), userId });
+    log('error', 'ensureCompanyForUser failed', { error: err, userId });
     throw err;
   } finally {
     client.release();
@@ -1285,7 +1494,6 @@ async function fetchWithTimeout(url, options, timeoutMs = 10_000) {
 // Looks up the Stripe customer ID for an InsForge user, creating one if needed.
 // Idempotent: subsequent calls return the same customer ID.
 async function ensureStripeCustomer(insforgeUserId, email) {
-  if (!pgPool) throw new Error('Database not configured');
   if (!stripe) throw new Error('Stripe not configured');
 
   const { rows } = await pgPool.query(
@@ -1345,7 +1553,7 @@ async function queryWithRlsBypass(text, params) {
     try {
       await client.query('ROLLBACK');
     } catch (rollbackErr) {
-      log('warn', 'ROLLBACK failed after query error', { error: String(rollbackErr) });
+      log('warn', 'ROLLBACK failed after query error', { error: rollbackErr });
     }
     throw err;
   } finally {
@@ -1367,10 +1575,6 @@ async function queryWithRlsBypass(text, params) {
 // guarantee ordering, and a stale "active" arriving after "deleted" would
 // otherwise restore access.
 async function syncSubscriptionRecord(record, eventCreatedAt) {
-  if (!pgPool) {
-    log('warn', 'Subscription sync deferred: DATABASE_URL not configured');
-    return { ok: false, reason: 'no_database', retryable: true };
-  }
   // A record with no customer id is malformed; redelivery cannot fix it.
   if (!record.stripeCustomerId) {
     log('error', 'Subscription sync failed: record has no Stripe customer id');
@@ -1405,7 +1609,7 @@ async function syncSubscriptionRecord(record, eventCreatedAt) {
   try {
     companyId = await ensureCompanyForUser({ id: userId });
   } catch (err) {
-    log('warn', 'Subscription sync deferred: company provisioning failed', { userId, error: String(err) });
+    log('warn', 'Subscription sync deferred: company provisioning failed', { userId, error: err });
     return { ok: false, reason: 'no_company', retryable: true };
   }
   if (!companyId) {
@@ -1460,9 +1664,8 @@ async function syncSubscriptionRecord(record, eventCreatedAt) {
 }
 
 // Loads the billing state for a user from their company row. Returns null
-// when no DB is configured or the company has not been provisioned yet.
+// when the company has not been provisioned yet.
 async function loadBillingState(userId) {
-  if (!pgPool) return null;
   const { rows } = await pgPool.query(
     `SELECT trial_ends_at, subscription_status, subscription_plan, subscription_billing_cycle,
             subscription_current_period_end, subscription_cancel_at_period_end,
@@ -1474,7 +1677,9 @@ async function loadBillingState(userId) {
 }
 
 // Plan-tier enforcement: requires an active trial or subscription at or above
-// minPlanId. Skips enforcement when no DB is configured (dev mode).
+// minPlanId. It fails closed: without a database, or when the lookup fails, the
+// answer is 503 in every environment (it used to wave every request through
+// when no database was configured, F-G-07).
 //
 // Provisions the company row (and with it the 14-day trial) when the user does
 // not have one yet. This MUST happen here rather than in the route handlers:
@@ -1485,7 +1690,6 @@ async function loadBillingState(userId) {
 // seconds of signing up. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-1).
 function requirePlan(minPlanId) {
   return async function (req, res, next) {
-    if (!pgPool) return next();
     try {
       let state = await loadBillingState(req.user.id);
       if (!state) {
@@ -1497,7 +1701,7 @@ function requirePlan(minPlanId) {
       req.billing = state;
       return next();
     } catch (err) {
-      log('error', 'requirePlan check failed', { error: String(err) });
+      log('error', 'requirePlan check failed', { error: err });
       return res.status(503).json({
         success: false,
         error: 'Billing status unavailable, please retry',
@@ -1571,8 +1775,8 @@ app.patch('/api/subscription', express.json(), stripeGuard, authGuard, async fun
     log('info', 'Subscription changed', { subId: updated.id, planId, billing, userId: req.user.id });
     return res.json({ success: true, plan: planId, billing, synced: Boolean(syncResult && syncResult.ok) });
   } catch (err) {
-    log('error', 'Subscription change failed', { error: String(err) });
-    return res.status(500).json({ error: 'Subscription change failed' });
+    log('error', 'Subscription change failed', { error: err });
+    return res.status(billingFailureStatus(err)).json({ error: 'Subscription change failed' });
   }
 });
 
@@ -1594,8 +1798,8 @@ app.delete('/api/subscription', express.json(), stripeGuard, authGuard, async fu
     log('info', 'Subscription set to cancel at period end', { subId: updated.id, userId: req.user.id });
     return res.json({ success: true, cancelAtPeriodEnd: true, synced: Boolean(syncResult && syncResult.ok) });
   } catch (err) {
-    log('error', 'Subscription cancel failed', { error: String(err) });
-    return res.status(500).json({ error: 'Cancellation failed' });
+    log('error', 'Subscription cancel failed', { error: err });
+    return res.status(billingFailureStatus(err)).json({ error: 'Cancellation failed' });
   }
 });
 
@@ -1691,13 +1895,20 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
       cancel_url: APP_BASE_URL + '/pricing',
     };
 
-    // Only allow a trial on eligible plans, and only once per customer — a
-    // returning customer who already had a subscription (trial or paid) does not
-    // get another free trial.
+    // Only allow a trial on eligible plans, and only once per company. The client's
+    // `trial` flag asks for one; checkoutTrialDecision decides, from the company's
+    // billing record (a card-free trial that has run out counts as used, F-B-18)
+    // and from Stripe's history for the customer. A failed lookup throws into the
+    // catch below: no session, never a trial by default.
     if (trial && TRIAL_ELIGIBLE_PLANS.has(priceId)) {
-      const hadPrior = await customerHasPriorSubscription(customerId);
-      if (!hadPrior) {
-        sessionParams.subscription_data = { trial_period_days: 14 };
+      const decision = checkoutTrialDecision(
+        await loadBillingState(req.user.id),
+        await customerHasPriorSubscription(customerId)
+      );
+      if (decision.eligible) {
+        sessionParams.subscription_data = { trial_period_days: CHECKOUT_TRIAL_DAYS };
+      } else {
+        log('info', 'Checkout created without a trial', { userId: req.user.id, reason: decision.reason });
       }
     }
 
@@ -1705,8 +1916,8 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
     log('info', 'Checkout session created', { sessionId: session.id, userId: req.user.id });
     return res.json({ url: session.url });
   } catch (err) {
-    log('error', 'Checkout session failed', { error: String(err) });
-    return res.status(500).json({ error: 'Checkout session creation failed' });
+    log('error', 'Checkout session failed', { error: err });
+    return res.status(billingFailureStatus(err)).json({ error: 'Checkout session creation failed' });
   }
 });
 
@@ -1755,8 +1966,8 @@ app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async f
     log('info', 'Checkout verified and subscription reconciled', { userId: req.user.id, subId: subscription.id });
     return res.json({ verified: true, billing: state });
   } catch (err) {
-    log('error', 'Checkout verify failed', { error: String(err) });
-    return res.status(500).json({ error: 'Checkout verification failed' });
+    log('error', 'Checkout verify failed', { error: err });
+    return res.status(billingFailureStatus(err)).json({ error: 'Checkout verification failed' });
   }
 });
 
@@ -1770,8 +1981,8 @@ app.post('/api/portal', express.json(), stripeGuard, authGuard, async function (
     });
     return res.json({ url: session.url });
   } catch (err) {
-    log('error', 'Billing portal failed', { error: String(err) });
-    return res.status(500).json({ error: 'Billing portal session creation failed' });
+    log('error', 'Billing portal failed', { error: err });
+    return res.status(billingFailureStatus(err)).json({ error: 'Billing portal session creation failed' });
   }
 });
 
@@ -1788,7 +1999,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
     const sig = req.headers['stripe-signature'];
     event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    log('error', 'Webhook signature verification failed', { error: String(err) });
+    log('error', 'Webhook signature verification failed', { error: err });
     return res.status(400).json({ error: 'Webhook signature verification failed' });
   }
 
@@ -1835,7 +2046,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async functi
     }
   } catch (err) {
     // Return 500 so Stripe retries the delivery — DB sync failures must not be dropped.
-    log('error', 'Webhook processing failed', { type: event.type, id: event.id, error: String(err) });
+    log('error', 'Webhook processing failed', { type: event.type, id: event.id, error: err });
     return res.status(500).json({ error: 'Webhook processing failed' });
   }
 
@@ -1886,63 +2097,50 @@ function findVideoPath() {
   return null;
 }
 
-// ─── LEADS STORAGE ───
-const LEADS_FILE = path.join(__dirname, '.data', 'leads.json');
-function ensureLeadsDir() {
-  const dir = path.dirname(LEADS_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-function readLeads() {
-  ensureLeadsDir();
-  if (!fs.existsSync(LEADS_FILE)) return [];
+// ─── LEAD NOTIFICATIONS (F-A-07 / F-B-12) ───
+// Every lead surface promises a human follow-up, but a lead used to be a row in
+// public.leads that nobody was alerted about. Once a lead is stored it is
+// posted to LEAD_NOTIFY_WEBHOOK_URL (server-notify.cjs); with no usable URL the
+// notifier logs one startup warning and stays off.
+const leadNotifier = createLeadNotifierFromEnv(process.env, { log: log });
+
+// Fire-and-forget: the lead is already stored when this runs, so nothing the
+// notifier does may delay or fail the request. notify() never rejects; the
+// catch is a second guard because an unhandled rejection exits the process.
+function announceLead(lead) {
   try {
-    return JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
+    leadNotifier.notify(lead).catch(function () {});
   } catch {
-    return [];
+    // Deliberately ignored: the lead is stored, the request must still succeed.
   }
 }
+
+// A lead is a row in public.leads, or it was not captured: a failed INSERT is
+// rethrown so /api/leads answers 503 and the form offers a retry (UXE-001). There
+// is no file fallback in any environment (F-G-12): nobody read the JSON file it
+// wrote, and a corrupt file was silently replaced by the next write.
 async function writeLead(lead) {
-  const record = { ...lead, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-
-  if (pgPool) {
-    try {
-      await pgPool.query(
-        `INSERT INTO public.leads (type, name, email, company, message, preferred_date, preferred_time, source, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          lead.type || 'general',
-          lead.name,
-          lead.email,
-          lead.company || null,
-          lead.message || null,
-          lead.preferredDate || null,
-          lead.preferredTime || null,
-          lead.source || 'api',
-          record.createdAt,
-        ]
-      );
-      return;
-    } catch (err) {
-      log('error', 'Failed to write lead to Postgres', { error: String(err) });
-      // In production the JSON fallback is a lie (UXE-001): .data/ is an
-      // ephemeral, unvolume'd filesystem nobody ever reads, so a 200 "captured"
-      // would be false trust. Rethrow so /api/leads answers 500 and the UI can
-      // offer a retry. The file fallback stays only for dev / no-DB runs.
-      if (process.env.NODE_ENV === 'production') {
-        throw err;
-      }
-    }
-  }
-
   try {
-    ensureLeadsDir();
-    const leads = readLeads();
-    leads.push(record);
-    fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+    await pgPool.query(
+      `INSERT INTO public.leads (type, name, email, company, message, preferred_date, preferred_time, source, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        lead.type || 'general',
+        lead.name,
+        lead.email,
+        lead.company || null,
+        lead.message || null,
+        lead.preferredDate || null,
+        lead.preferredTime || null,
+        lead.source || 'api',
+        new Date().toISOString(),
+      ]
+    );
   } catch (err) {
-    log('error', 'Failed to write lead to file', { error: String(err) });
+    log('error', 'Failed to write lead to Postgres', { error: err });
     throw err;
   }
+  announceLead(lead);
 }
 
 // The chatbot carries lead fields in client-controlled conversation state, so a
@@ -1958,7 +2156,7 @@ async function writeChatLead(raw) {
     await writeLead({ ...sanitized.value, source: 'chatbot' });
     return true;
   } catch (err) {
-    log('error', 'Failed to write chatbot lead', { error: String(err) });
+    log('error', 'Failed to write chatbot lead', { error: err });
     return false;
   }
 }
@@ -1966,28 +2164,17 @@ async function writeChatLead(raw) {
 // ─── CONSENT AUDIT TRAIL ───
 // Server-side record of consent decisions (GDPR/CCPA record-keeping).
 // Public endpoint: consent happens before authentication. No raw IP is stored.
-const CONSENT_FILE = path.join(__dirname, '.data', 'consent-audit.json');
 const CONSENT_METHODS = new Set(['accept_all', 'reject_all', 'custom', 'privacy_signal', 'reset']);
 
 // A plain SHA-256 of an IP is reversible (the IPv4 space is trivially
 // brute-forceable), so pseudonymize with a keyed HMAC. Set CONSENT_IP_PEPPER in
-// prod for stable hashes; otherwise a random per-process pepper is used.
+// prod for stable hashes; otherwise a random per-process pepper is used. The
+// missing-variable warning is logged once at boot, by startServer (F-G-11): it
+// stays a warning and not a boot failure, because refusing to start would take
+// the site down over a hardening variable.
 const CONSENT_IP_PEPPER = process.env.CONSENT_IP_PEPPER || crypto.randomBytes(32).toString('hex');
-if (!process.env.CONSENT_IP_PEPPER) {
-  log('warn', 'CONSENT_IP_PEPPER not set — using a random per-process pepper; consent IP hashes will not be stable across restarts');
-}
 function hashConsentIp(ip) {
   return crypto.createHmac('sha256', CONSENT_IP_PEPPER).update(String(ip || '')).digest('hex').slice(0, 32);
-}
-
-function appendConsentRecordToFile(record) {
-  ensureLeadsDir();
-  let records = [];
-  if (fs.existsSync(CONSENT_FILE)) {
-    try { records = JSON.parse(fs.readFileSync(CONSENT_FILE, 'utf8')); } catch { records = []; }
-  }
-  records.push(record);
-  fs.writeFileSync(CONSENT_FILE, JSON.stringify(records, null, 2));
 }
 
 app.post('/api/consent-audit', consentRateLimit, express.json({ limit: '4kb' }), async function (req, res) {
@@ -1997,6 +2184,7 @@ app.post('/api/consent-audit', consentRateLimit, express.json({ limit: '4kb' }),
       ['analytics', 'preferences', 'marketing'].some(function (key) { return typeof consent[key] !== 'boolean'; })) {
     return res.status(400).json({ error: 'Invalid consent payload' });
   }
+  const receivedAt = new Date();
   const record = {
     visitorId: typeof body.visitorId === 'string' ? body.visitorId.slice(0, 64) : null,
     consent: {
@@ -2011,83 +2199,180 @@ app.post('/api/consent-audit', consentRateLimit, express.json({ limit: '4kb' }),
     dnt: Boolean(body.dnt),
     userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
     ipHash: hashConsentIp(resolveClientIp(req)),
-    createdAt: new Date().toISOString(),
+    createdAt: receivedAt.toISOString(),
+    // When the visitor chose, from their browser, if believable (see
+    // sanitizeConsentDecidedAt); null = the receipt time above is all there is.
+    decidedAt: sanitizeConsentDecidedAt(body.decidedAt, receivedAt.getTime()),
   };
 
   try {
-    if (pgPool) {
-      const persist = async function () {
-        await queryWithRlsBypass(
-          `INSERT INTO public.consent_records (visitor_id, consent, policy_version, method, gpc, dnt, user_agent, ip_hash)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [record.visitorId, JSON.stringify(record.consent), record.policyVersion, record.method,
-           record.gpc, record.dnt, record.userAgent, record.ipHash]
-        );
-      };
-      try {
-        await persist();
-      } catch (firstErr) {
-        // UXE-006: one bounded retry — a transient pool hiccup should not
-        // silently drop GDPR/CCPA consent evidence. If the retry also fails,
-        // the failure surfaces below (no unbounded PII fallback files here).
-        await new Promise(function (resolve) { setTimeout(resolve, 150); });
-        await persist();
-      }
-    } else {
-      appendConsentRecordToFile(record);
+    const persist = async function () {
+      await queryWithRlsBypass(
+        `INSERT INTO public.consent_records (visitor_id, consent, policy_version, method, gpc, dnt, user_agent, ip_hash, decided_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [record.visitorId, JSON.stringify(record.consent), record.policyVersion, record.method,
+         record.gpc, record.dnt, record.userAgent, record.ipHash, record.decidedAt]
+      );
+    };
+    try {
+      await persist();
+    } catch (firstErr) {
+      // UXE-006: one bounded retry — a transient pool hiccup should not
+      // silently drop GDPR/CCPA consent evidence. If the retry also fails,
+      // the failure surfaces below (no unbounded PII fallback files here).
+      await new Promise(function (resolve) { setTimeout(resolve, 150); });
+      await persist();
     }
     return res.status(202).json({ received: true });
   } catch (err) {
-    log('error', 'Consent audit persistence failed', { error: String(err) });
+    log('error', 'Consent audit persistence failed', { error: err });
     // UXE-006: surface the failure as retryable (503) so the client can offer
     // a retry instead of silently pretending the consent record was kept.
     return res.status(503).json({ error: 'Failed to record consent', retryable: true });
   }
 });
 
+// ─── CSP VIOLATION REPORTS (F-F-07) ───
+// The Content-Security-Policy in server-security.cjs names this path in report-uri
+// and report-to. Before it existed, a host the policy blocked (a Google endpoint
+// GA4 needs, say) failed silently in the visitor's console and nobody found out.
+// Public by necessity (the browser sends it, unauthenticated), so it is small:
+// its own limiter, an 8 KB body cap, a cap on logged reports per minute across all
+// callers, and a log line per report that holds no URL path, query, script sample
+// or user agent (see summarizeCspReports). It answers 204 whatever it was sent.
+const cspReportRateLimit = perRouteRateLimit(30, 60_000);
+const CSP_REPORTS_LOGGED_PER_MINUTE = 300;
+let cspReportWindowStart = 0;
+let cspReportsLogged = 0;
+
+function takeCspReportSlot() {
+  const now = Date.now();
+  if (now - cspReportWindowStart >= 60_000) {
+    cspReportWindowStart = now;
+    cspReportsLogged = 0;
+  }
+  cspReportsLogged += 1;
+  return cspReportsLogged <= CSP_REPORTS_LOGGED_PER_MINUTE;
+}
+
+app.post(
+  '/api/csp-report',
+  cspReportRateLimit,
+  express.json({ type: ['application/json', 'application/csp-report', 'application/reports+json'], limit: '8kb' }),
+  function (req, res) {
+    summarizeCspReports(req.body).forEach(function (report) {
+      if (takeCspReportSlot()) log('warn', 'CSP violation report', report);
+    });
+    res.status(204).end();
+  }
+);
+
 // ─── SALESBOT CHAT ENGINE ───
+// A keyword table, not a model: the first entry whose pattern matches wins, so
+// the order below IS the routing. Specific topics come first and the generic
+// overview comes last. Before this, a catch-all sat ahead of the regulatory
+// entries and answered "Tell me about CBAM" and "What about the SEC climate
+// rule?" with its most over-claiming text, so the careful entries were
+// unreachable (F-A-11).
+//
+// Every reply states only what the product does today, and anything unbuilt is
+// labelled roadmap. Limits are read from plan-limits.json (the file the server
+// enforces); prices are not in that file, so they are literals here, and
+// tests/chat-kb.test.ts checks them and every limit against src/content/pricing.ts
+// and plan-limits.json.
+function planSummary(planId) {
+  const limits = planLimits(planId);
+  const scopes = limits.scope3 ? 'Scope 1, 2 and 3' : 'Scope 1 and 2 only (no Scope 3)';
+  const facilities = limits.facilities === null
+    ? 'unlimited facilities'
+    : limits.facilities === 1 ? '1 facility' : 'up to ' + limits.facilities + ' facilities';
+  const imports = limits.csvImportsPerMonth === null
+    ? 'unlimited CSV imports'
+    : limits.csvImportsPerMonth + ' CSV imports a month';
+  return scopes + ', ' + facilities + ', ' + imports;
+}
+
+// The bot cannot book anything: a demo request is one row plus a notification
+// to the team (see announceLead), and a person follows up by email.
+const DEMO_INTRO = "I'd be happy to set up a demo. I'll take a few details and our team will follow up by email. I can't book a time myself. What's your name?";
+
 const ECOAUDITOR_KB = [
   {
-    pattern: /pricing|cost|how much|plan/i,
-    response: "We offer three plans:\n\n• **Starter** — $149/mo for basic carbon tracking\n• **Growth** — $399/mo for full Scope 1/2/3 reporting\n• **Pro** — $999/mo for multi-facility teams\n\nStarter and Growth include a 14-day free trial on monthly billing. Would you like me to help you choose the right plan?"
+    id: 'trial',
+    pattern: /free trial|\btrial\b|for free|free (plan|tier|version|account|to use|of charge)|try (it|eco|this)|no card|credit card/i,
+    response: "There is a 14-day free trial (there is no permanent free plan):\n\n• Sign up without a card and you get Starter-level access for 14 days (" + planSummary('starter') + ").\n• You can also start a monthly Starter or Growth plan with a 14-day trial at checkout, which asks for a payment method. Pro has no trial.\n\nWould you like me to walk you through the plans?"
   },
   {
-    pattern: /demo|book a demo|schedule a call|talk to sales/i,
-    response: "I'd be happy to schedule a demo! To get started, could you tell me your name?"
+    id: 'pricing',
+    pattern: /pricing|prices?\b|\bcost|how much|\bplans?\b|subscription|per month|\bannual\b|discount|billing|\btiers?\b|\bstarter\b|\bgrowth\b|\bpro\b/i,
+    response: "We offer three plans, billed monthly (annual billing is also available):\n\n• **Starter** — $149/mo: " + planSummary('starter') + "\n• **Growth** — $399/mo: " + planSummary('growth') + "\n• **Pro** — $999/mo: " + planSummary('pro') + "\n\nEvery plan includes a PDF emissions summary. Starter and Growth can be tried free for 14 days on monthly billing. Would you like help choosing a plan?"
   },
   {
-    pattern: /contact|reach out|email|phone/i,
-    response: "You can reach us at:\n\n• Email: hello@developer312.com\n• Phone: (510) 591-0163\n\nOr I can connect you with our sales team right here in the chat!"
+    id: 'demo',
+    pattern: /\bdemos?\b|demonstrat|schedule a call|talk to sales|book a call|see it in action|walk ?through/i,
+    response: DEMO_INTRO,
+    // Asks for a name, so it has to start the flow that collects it; otherwise
+    // the visitor's name is answered as a fresh question.
+    flow: 'demo'
   },
   {
-    pattern: /how (it|does) work|features|what is|about/i,
-    response: "EcoAuditor helps businesses track and report carbon emissions:\n\n• **CSV import** of activity data\n• **Scope 1/2/3 reporting** aligned with GHG Protocol\n• **Compliance readiness** for California SB 253/SB 261 and EU CBAM\n• **Scope 1/2/3 emission calculations** using EPA & eGRID factors\n\nWant to see it in action? I can book you a demo!"
+    id: 'contact',
+    pattern: /contact|reach out|\bemail\b|phone|call you|(speak|talk) (to|with) (someone|a human|a person)/i,
+    response: "You can reach us at:\n\n• Email: hello@developer312.com\n• Phone: (510) 591-0163\n\nOr choose **Contact Sales** and I'll take your details here; our team will follow up by email."
   },
   {
-    pattern: /scope 1|scope 2|scope 3|ghg|protocol/i,
-    response: "We follow the GHG Protocol for comprehensive emissions accounting:\n\n• **Scope 1**: Direct emissions from owned/controlled sources\n• **Scope 2**: Indirect emissions from purchased energy\n• **Scope 3**: All other indirect emissions in your value chain\n\nImport your activity data by CSV and we calculate emissions across all three scopes using EPA, eGRID, and IPCC factors."
+    id: 'audit',
+    pattern: /audit[- ]?(ready|readiness|trail|log|able)|\bassurance\b|\bassured\b|third[- ]party|\bverif(y|ied|ication)\b/i,
+    response: "Eco-Auditor calculates your emissions and gives you a PDF emissions summary and a JSON data export. It does not yet keep an audit trail (a history of who changed what), and it does not provide third-party assurance or verification. An audit trail is on our roadmap.\n\nIf a customer or regulator needs assured numbers, an independent assurance provider has to review your inventory."
   },
   {
-    pattern: /cbam|carbon border|eu|europe/i,
-    response: "EcoAuditor helps you prepare for the EU Carbon Border Adjustment Mechanism (CBAM):\n\n• Build a Scope 1/2/3 emissions inventory from your activity data\n• Stay informed on compliance deadlines\n\nNeed help preparing for CBAM? Book a demo with our team!"
+    id: 'cbam',
+    pattern: /\bcbam\b|carbon border|\beu\b|europe/i,
+    response: "CBAM is the EU's Carbon Border Adjustment Mechanism. Its obligations fall on EU importers of covered goods (such as iron and steel, aluminium, cement and fertilisers), who report the emissions embedded in those goods. Non-EU suppliers are not directly subject to it, but their EU customers may ask them for emissions data.\n\nEco-Auditor is not a CBAM tool: it does not calculate CBAM embedded emissions or produce CBAM reports. It calculates a company-level emissions inventory from your activity data. Check what your EU customer's template requires before you choose a tool."
   },
   {
-    pattern: /\bsec\b|disclosure|climate rule/i,
-    response: "EcoAuditor helps you build audit-ready GHG disclosures:\n\n• CSV activity data import and validation\n• Scope 1/2/3 inventory with confidence scoring\n• PDF summaries for voluntary and regulatory reporting\n\nNote: the U.S. SEC climate-disclosure rule was withdrawn in 2025 — we focus on California SB 253/SB 261, EU CBAM, and voluntary GHG reporting."
+    id: 'california',
+    pattern: /california|\bsb[- ]?(253|261)\b|\bab[- ]?1305\b|climate corporate|\bcarb\b/i,
+    response: "California's SB 253 applies to companies with more than $1 billion in annual revenue that do business in California. Eco-Auditor is aimed at smaller companies, which usually meet SB 253 only indirectly, when a covered customer asks them for emissions data.\n\nEco-Auditor calculates emissions from your activity data. It is not an SB 253 filing tool and it does not provide assurance. The dates have shifted while CARB finalizes its rules, so please check CARB's program page for the current deadlines: https://ww2.arb.ca.gov/our-work/programs/california-corporate-greenhouse-gas-reporting-and-climate-related-financial-risk\n\nRelated laws: SB 261 (climate-risk reports) was paused by a court injunction as of CARB's December 2025 advisory, and AB 1305 is a separate law about voluntary carbon offsets and net-zero claims. Eco-Auditor does not produce reports for either."
   },
   {
-    pattern: /california|ab 1305|climate corporate/i,
-    response: "EcoAuditor is built for California's Climate Corporate Data Accountability Act (SB 253):\n\n• Scope 1/2/3 emissions inventory from your imported activity data\n• PDF emissions summary reports\n• SB 253 deadline information\n\nStay ahead of California's climate reporting requirements with EcoAuditor."
+    id: 'sec',
+    pattern: /\bsec\b|securities and exchange|climate[- ]disclosure rule|climate rule/i,
+    response: "The SEC's climate-disclosure rules have not taken effect: they were stayed in 2024, and the SEC has since proposed rescinding them. Please check sec.gov for their current status.\n\nEco-Auditor does not produce SEC filings. It calculates greenhouse-gas emissions from your activity data, which you can use for voluntary reporting or to answer customer requests for emissions data."
   },
   {
-    pattern: /smb|small business|startup|affordable/i,
-    response: "EcoAuditor is designed for businesses of all sizes:\n\n• **Starter plan** at $149/mo for small teams\n• Easy setup — no technical expertise needed\n• Templates and guides for first-time reporters\n• Scale up as your reporting needs grow\n\nStart your 14-day free trial on a monthly Starter or Growth plan today!"
+    id: 'scope',
+    pattern: /scope ?[123]|\bghg\b|greenhouse|protocol|emission factors?|\bfactors?\b|methodolog/i,
+    response: "Eco-Auditor sorts emissions into the GHG Protocol's three scopes:\n\n• **Scope 1**: direct emissions from sources you own or control\n• **Scope 2**: indirect emissions from purchased energy\n• **Scope 3**: other indirect emissions in your value chain\n\nYou import activity data by CSV and we calculate emissions with EPA and eGRID factors and IPCC AR5 global-warming potentials. Scope 1 and 2 are on every plan; Scope 3 needs Growth or Pro. Some factors, mostly for Scope 3, are our own internal estimates or provisional values; the Methodology page explains which."
   },
   {
-    pattern: /integration|api|connect|erp|salesforce/i,
-    response: "EcoAuditor works with your existing tools:\n\n• **CSV import** of activity data from spreadsheets\n\nMore integrations are on our roadmap. Need a specific integration? Let us know!"
+    id: 'integrations',
+    pattern: /integrat|\bapi\b|connect|\berp\b|salesforce|quickbooks|xero|zapier|\bcsv\b|upload|spreadsheet/i,
+    response: "CSV import is the only way to bring data in today: export from your spreadsheets or systems and upload the file.\n\nOn our roadmap, not available yet: QuickBooks and Xero integrations, API access and supplier data requests. If one of these matters to you, tell our team using Contact Sales."
+  },
+  {
+    id: 'smb',
+    pattern: /\bsmb\b|small business|startup|start-up|affordable|small compan|mid[- ]?size/i,
+    response: "Eco-Auditor is aimed at small and mid-sized businesses. The Starter plan is $149/mo (" + planSummary('starter') + ") and you can move up to Growth or Pro as your needs grow. You can try it free for 14 days.\n\nWould you like to see the plans side by side?"
+  },
+  // Generic overview LAST: it is the catch-all for "what is this", and anything
+  // placed after it would never be reached.
+  {
+    id: 'overview',
+    pattern: /\bhow\b[^?.!]{0,40}\bwork|features?|what (is|does|can) (eco|this|it|you)|what do you do|about (you|eco|this)|overview|tell me (more|about (eco|your))|carbon accounting|carbon footprint|calculat/i,
+    response: "Eco-Auditor helps small and mid-sized businesses calculate their greenhouse-gas emissions:\n\n• **CSV import** of activity data\n• **Scope 1 and 2 calculations** on every plan and **Scope 3** on Growth and Pro, using EPA and eGRID factors\n• **Dashboard totals** and a **PDF emissions summary**\n\nOn our roadmap, not available yet: supplier requests, accounting-software integrations, an audit trail and API access.\n\nWant to see it in action? I can take your details and our team will follow up by email to arrange a demo."
   }
 ];
+
+function matchKbEntry(message) {
+  return ECOAUDITOR_KB.find(function (entry) { return entry.pattern.test(message); }) || null;
+}
+
+// A prompt example in the past makes the bot look stale (it used to suggest
+// 2026-05-15 in September), so the example date is always two weeks ahead.
+function exampleDemoDate() {
+  return new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
 async function getBotResponse(message, state = {}) {
   const lowerMsg = message.toLowerCase().trim();
@@ -2115,7 +2400,7 @@ async function getBotResponse(message, state = {}) {
     }
     if (state.step === 'company') {
       return {
-        response: `Perfect! What day works best for your demo? (Please provide a date, e.g., "2026-05-15")`,
+        response: `Perfect! What day would you prefer for the demo? (Please provide a date, e.g., "${exampleDemoDate()}")`,
         state: { ...state, company: message, step: 'date' }
       };
     }
@@ -2135,25 +2420,24 @@ async function getBotResponse(message, state = {}) {
         preferredDate: state.date,
         preferredTime: message,
       });
-      // writeChatLead returns false when the payload is rejected or both the
-      // DB and file fallbacks fail. Confirming a booking we never recorded
-      // loses the lead silently.
+      // writeChatLead returns false when the payload is rejected or the lead
+      // could not be stored. Confirming a request we never recorded loses the
+      // lead silently.
       if (!demoSaved) {
         return {
-          response: `I couldn't save your demo request just now. Please email hello@developer312.com with your preferred time and we'll get you booked.`,
+          response: `I couldn't save your demo request just now. Please email hello@developer312.com with your preferred time and the team will follow up.`,
           state,
         };
       }
 
-      // Generate PrismDeck presentation link. Only the non-identifying
-      // product marker is sent: embedding the lead's company/email in the
-      // query string handed personal data to a third-party host that is not a
-      // disclosed subprocessor in the Privacy Policy or DPA (DATA-006). The
-      // deck itself is generic; the lead stays in EcoAuditor's own leads store.
-      const prismDeckUrl = 'https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor';
-      
+      // The lead is stored and the team has been notified (writeLead ->
+      // announceLead), but nothing is booked and nobody has confirmed a slot:
+      // the reply must say exactly that. It used to announce "Demo booked!" and
+      // a "personalized presentation" that was a generic third-party link
+      // (F-A-07 / F-B-12). The third-party deck link is gone with it: the
+      // deck's content is not reviewed against what the product does.
       return {
-        response: `🎉 Demo booked!\n\nOur team will reach out to ${state.email} within 24 hours to confirm your demo for ${state.date} (${message}).\n\n📊 Meanwhile, I've prepared a personalized presentation for ${state.company}:\n🔗 [View Your EcoAuditor Deck](${prismDeckUrl})\n\nIn the meantime, check out our [Pricing](/pricing) or ask me anything else!`,
+        response: `✅ Thanks, ${state.name}! Your details are saved and our team will follow up by email at ${state.email}.\n\nI can't book a time myself, so ${state.date} (${message}) is your preference, not a confirmed slot.\n\nIn the meantime, take a look at [Pricing](/pricing) or ask me anything else.`,
         state: {}
       };
     }
@@ -2196,7 +2480,7 @@ async function getBotResponse(message, state = {}) {
         };
       }
       return {
-        response: `✅ Message sent!\n\nOur sales team will contact you at ${state.email} within 24 hours.\n\nIs there anything else I can help you with?`,
+        response: `✅ Thanks! Your message is saved and our team will follow up by email at ${state.email}.\n\nIs there anything else I can help you with?`,
         state: {}
       };
     }
@@ -2204,36 +2488,35 @@ async function getBotResponse(message, state = {}) {
 
   // Quick reply triggers
   if (lowerMsg === '💰 pricing' || lowerMsg === 'pricing') {
-    const match = ECOAUDITOR_KB.find(k => k.pattern.test('pricing'));
+    const match = matchKbEntry('pricing');
     return { response: match ? match.response : "Our plans start at $149/mo. Would you like more details?", state };
   }
   if (lowerMsg === '📅 book a demo' || lowerMsg === 'book a demo') {
     return {
-      response: "I'd be happy to schedule a demo! What's your name?",
+      response: DEMO_INTRO,
       state: { flow: 'demo', step: 'name' }
     };
   }
   if (lowerMsg === '🚀 how it works' || lowerMsg === 'how it works') {
-    const match = ECOAUDITOR_KB.find(k => k.pattern.test('how it works'));
-    return { response: match ? match.response : "EcoAuditor automates carbon tracking and reporting. Want a demo?", state };
+    const match = matchKbEntry('how it works');
+    return { response: match ? match.response : "Eco-Auditor helps you calculate emissions from your activity data. Want a demo?", state };
   }
   if (lowerMsg === '📞 contact sales' || lowerMsg === 'contact sales') {
     return {
-      response: "I'd be happy to connect you with our sales team! What's your name?",
+      response: "I'd be happy to take your details for our sales team; they will follow up by email. What's your name?",
       state: { flow: 'contact', step: 'name' }
     };
   }
 
-  // Regex KB matching
-  for (const entry of ECOAUDITOR_KB) {
-    if (entry.pattern.test(message)) {
-      return { response: entry.response, state };
-    }
+  // Regex KB matching: first match wins, see the order note on ECOAUDITOR_KB.
+  const entry = matchKbEntry(message);
+  if (entry) {
+    return { response: entry.response, state: entry.flow ? { flow: entry.flow, step: 'name' } : state };
   }
 
   // Default response
   return {
-    response: "I'm not sure I understand. I can help you with:\n\n• 💰 Pricing and plans\n• 📅 Booking a demo\n• 🚀 How EcoAuditor works\n• 📞 Contacting sales\n\nOr ask me about carbon accounting, emissions reporting, or compliance!",
+    response: "I'm not sure I understand. I can help you with:\n\n• 💰 Pricing and plans\n• 📅 Requesting a demo\n• 🚀 How Eco-Auditor works\n• 📞 Contacting sales\n\nOr ask me about carbon accounting, emissions reporting, or compliance!",
     state
   };
 }
@@ -2261,7 +2544,7 @@ app.post('/api/chat', express.json({ limit: '16kb' }), chatRateLimit, async func
   try {
     botResult = await getBotResponse(message.trim(), state);
   } catch (err) {
-    log('error', 'Chat bot response failed', { error: String(err) });
+    log('error', 'Chat bot response failed', { error: err });
     return res.status(500).json({ success: false, error: 'Chat is temporarily unavailable' });
   }
 
@@ -2291,42 +2574,53 @@ app.post('/api/leads', express.json({ limit: '8kb' }), leadsRateLimit, async fun
     await writeLead(lead.value);
     return res.json({ success: true, message: 'Lead captured successfully' });
   } catch (err) {
-    log('error', 'Lead capture failed', { error: String(err) });
-    return res.status(500).json({ success: false, error: 'Failed to capture lead. Please try again.' });
+    log('error', 'Lead capture failed', { error: err });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to capture lead. Please try again.' });
   }
 });
 
+// A failed read is logged with the driver's error and rethrown without its text,
+// in every environment (there is no fixture fallback, F-G-07): the routes answer
+// 503 through failureStatus/classifyApiFailure.
 async function loadEmissionEntries(companyId, period) {
-  if (pgPool) {
-    try {
-      const params = [companyId];
-      let sql = 'SELECT id, company_id, facility_id, scope, category, source, amount, unit, method, confidence, created_at FROM emission_entries WHERE company_id = $1';
-      if (period) {
-        params.push(String(period));
-        sql += ' AND EXTRACT(YEAR FROM created_at)::text = $2';
-      }
-      // PERF-004: hard ceiling on rows pulled per request. An SMB inventory
-      // is orders of magnitude below this; the LIMIT only stops a pathological
-      // dataset from turning every dashboard call into an unbounded read.
-      sql += ' ORDER BY created_at ASC LIMIT 50000';
-      const { rows } = await pgPool.query(sql, params);
-      return rows.map(function (row) {
-        return { ...row, amount: Number(row.amount), confidence: row.confidence == null ? undefined : Number(row.confidence) };
-      });
-    } catch (err) {
-      if (!allowSampleData()) {
-        log('error', 'Emission data store unavailable', { error: String(err), companyId });
-        throw new Error('Emission data store unavailable');
-      }
-      log('warn', 'Falling back to in-memory emissions data', { error: String(err), companyId });
+  try {
+    const params = [companyId];
+    // factor_value and catalog_version: the engine prices and classifies a row
+    // by its own pin (a row without one by the frozen 2026-07-24 catalog), so
+    // a catalog correction never restates stored history. Every read that
+    // feeds the engine must select both (tests/entry-dashboard-parity.test.ts).
+    // factor_source rides along for report snapshots; activity_date is for the
+    // period rule and the trend.
+    let sql = 'SELECT id, company_id, facility_id, scope, category, source, amount, unit, method, confidence, factor_value, factor_source, catalog_version, activity_date, created_at FROM emission_entries WHERE company_id = $1';
+    if (period) {
+      // One period rule for the dashboard summary and for reports (K3, audit
+      // review R2), so the two agree: an entry belongs to the period its
+      // activity date falls in, else the day it was recorded. `period` is a
+      // year ('2026') or an inclusive range ('2025-04-01/2026-03-31');
+      // anything else matches nothing, as the old year comparison did.
+      const bounds = reportingPeriodBounds(period);
+      if (!bounds) return [];
+      params.push(bounds.start, bounds.end);
+      sql += ' AND COALESCE(activity_date, created_at::date) BETWEEN $2::date AND $3::date';
     }
-  }
-  if (!allowSampleData()) {
+    // PERF-004: hard ceiling on rows pulled per request. An SMB inventory
+    // is orders of magnitude below this; the LIMIT only stops a pathological
+    // dataset from turning every dashboard call into an unbounded read.
+    sql += ' ORDER BY created_at ASC LIMIT 50000';
+    const { rows } = await pgPool.query(sql, params);
+    return rows.map(function (row) {
+      return {
+        ...row,
+        amount: Number(row.amount),
+        confidence: row.confidence == null ? undefined : Number(row.confidence),
+        factor_value: row.factor_value == null ? null : Number(row.factor_value),
+        activity_date: toDateOnly(row.activity_date),
+      };
+    });
+  } catch (err) {
+    log('error', 'Emission data store unavailable', { error: err, companyId });
     throw new Error('Emission data store unavailable');
   }
-  return sampleEmissionEntries.filter(function (entry) {
-    return String(entry.company_id) === String(companyId);
-  });
 }
 
 // Scope label normalizer that tolerates junk instead of throwing — used by the
@@ -2342,150 +2636,36 @@ function normalizeScopeLabel(value) {
   }
 }
 
-// Imports accepted this calendar month, for the per-plan quota. Counts from the
-// durable log — the in-memory ingestJobs map resets on deploy and is per
-// instance, so it can't back a billing limit.
-async function countCsvImportsThisMonth(companyId) {
-  if (!pgPool) return 0;
-  let rows;
-  try {
-    ({ rows } = await pgPool.query(
-      `SELECT COUNT(*)::int AS used FROM public.csv_import_events
-        WHERE company_id = $1 AND created_at >= date_trunc('month', now())`,
-      [companyId]
-    ));
-  } catch (err) {
-    // A driver timeout ('Query read timeout') carries no pg error code, so
-    // classifyApiFailure answered 400 with the raw driver text as if the
-    // customer's file were at fault. Name it as the outage it is.
-    log('error', 'CSV import quota lookup failed', { error: String(err), companyId });
-    throw new Error('Import quota data store unavailable');
-  }
-  return rows.length ? rows[0].used : 0;
-}
-
-// Atomically persists rows and spends one CSV-import unit. The company
-// row is locked FOR UPDATE for the whole transaction, so concurrent imports
-// serialize on the check-then-insert instead of all reading the same count and
-// passing it. Returns true when a unit was spent, false when the plan is
-// already at its limit. row_security = off matches the other server-owned
-// writes (ensureCompanyForUser / syncSubscriptionRecord).
-async function reserveCsvImportQuota(planId, companyId, rowCount, persist) {
-  const limit = planLimits(planId).csvImportsPerMonth;
-  const client = await pgPool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL row_security = off');
-    const locked = await client.query(
-      'SELECT id FROM public.companies WHERE id = $1 FOR UPDATE',
-      [companyId]
-    );
-    if (locked.rowCount === 0) {
-      throw new Error('Import company no longer exists');
-    }
-    const { rows } = await client.query(
-      `SELECT COUNT(*)::int AS used FROM public.csv_import_events
-        WHERE company_id = $1 AND created_at >= date_trunc('month', now())`,
-      [companyId]
-    );
-    const used = rows.length ? rows[0].used : 0;
-    if (limit !== null && used >= limit) {
-      await client.query('ROLLBACK');
-      return false;
-    }
-    await client.query(
-      'INSERT INTO public.csv_import_events (company_id, row_count) VALUES ($1, $2)',
-      [companyId, rowCount]
-    );
-    await persist(client);
-    await client.query('COMMIT');
-    return true;
-  } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch (rollbackErr) {
-      log('error', 'Quota reservation rollback failed', { error: String(rollbackErr), companyId });
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-async function persistCsvEntries(client, entries) {
-  const cols = ['company_id', 'facility_id', 'scope', 'category', 'source', 'amount', 'unit', 'factor', 'method', 'confidence', 'co2e_kg', 'activity_date', 'notes', 'created_at'];
-  // Keep each statement below PostgreSQL's 65,535 bind-parameter ceiling.
-  // All batches use the quota transaction, so a failed batch rolls back all rows.
-  for (let offset = 0; offset < entries.length; offset += 1000) {
-    const insertParams = [];
-    const valueGroups = entries.slice(offset, offset + 1000).map((entry) => {
-      const placeholders = cols.map((column) => {
-        insertParams.push(entry[column]);
-        return '$' + insertParams.length;
-      });
-      return '(' + placeholders.join(', ') + ')';
-    });
-    await client.query(
-      'INSERT INTO public.emission_entries (' + cols.join(', ') + ') VALUES ' + valueGroups.join(', '),
-      insertParams
-    );
-  }
-}
-
 async function loadFacilities(companyId) {
-  if (pgPool) {
-    try {
-      const { rows } = await pgPool.query(
-        'SELECT id, company_id, name, type, city FROM facilities WHERE company_id = $1 ORDER BY name ASC',
-        [companyId]
-      );
-      return rows;
-    } catch (err) {
-      if (!allowSampleData()) {
-        log('error', 'Facilities data store unavailable', { error: String(err), companyId });
-        throw new Error('Facilities data store unavailable');
-      }
-      log('warn', 'Falling back to in-memory facilities data', { error: String(err), companyId });
-    }
-  }
-  if (!allowSampleData()) {
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT id, company_id, name, type, city FROM facilities WHERE company_id = $1 ORDER BY name ASC',
+      [companyId]
+    );
+    return rows;
+  } catch (err) {
+    log('error', 'Facilities data store unavailable', { error: err, companyId });
     throw new Error('Facilities data store unavailable');
   }
-  return sampleFacilities.filter(function (facility) {
-    return String(facility.company_id) === String(companyId);
-  });
 }
 
-// Loads a single facility by id (Postgres when configured, sample otherwise).
-// Returns null when not found. DB ids are numeric; a non-numeric id in a
-// DB-backed deployment simply cannot match, so it returns null (404).
-async function loadFacilityById(facilityId) {
-  if (pgPool) {
-    if (!/^\d+$/.test(String(facilityId))) return null;
-    try {
-      const { rows } = await pgPool.query(
-        'SELECT id, company_id, name, type, city FROM facilities WHERE id = $1',
-        [facilityId]
-      );
-      return rows[0] || null;
-    } catch (err) {
-      if (!allowSampleData()) {
-        log('error', 'Facilities data store unavailable', { error: String(err), facilityId });
-        throw new Error('Facilities data store unavailable');
-      }
-      log('warn', 'Falling back to in-memory facility', { error: String(err), facilityId });
-    }
-  }
-  if (!allowSampleData()) {
+// Loads one of the company's own facilities by id. Returns null when there is
+// none: an id that is not 1 to 18 digits (the rule of every other id route, DB_ID;
+// a longer number is beyond bigint, which Postgres refuses with 22003) cannot match
+// and never reaches the database, and another company's facility is not found
+// either, because the company is part of the query.
+async function loadFacilityById(companyId, facilityId) {
+  if (!DB_ID.test(String(facilityId))) return null;
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT id, company_id, name, type, city FROM facilities WHERE id = $1 AND company_id = $2',
+      [facilityId, companyId]
+    );
+    return rows[0] || null;
+  } catch (err) {
+    log('error', 'Facilities data store unavailable', { error: err, facilityId });
     throw new Error('Facilities data store unavailable');
   }
-  return sampleFacilities.find(function (facility) {
-    return String(facility.id) === String(facilityId);
-  }) || null;
-}
-
-function getCompany(companyId) {
-  return sampleCompanies[companyId] || { id: companyId, name: 'Company', revenue: 0, employees: 0, region: 'CA' };
 }
 
 // Size cap for the summary cache (PERF-010): entries are small dashboard
@@ -2512,6 +2692,20 @@ function cacheSet(key, value, ttlMs) {
   }
 }
 
+// Drops one company's cached figures after a write to its entries. Keys are
+// `<kind>:<companyId>:...`. Every writer used to call a whole-map clear(), so
+// one tenant's import evicted every other tenant's dashboards, and the writes
+// that never reached Express (the calculator's) cleared nothing at all: the
+// dashboard stayed stale for up to 5 minutes (F-E-12, F-G-10). Per process
+// only: with more than one replica the other replicas keep their copy until
+// the TTL.
+function invalidateCompanyCache(companyId) {
+  const id = String(companyId);
+  for (const key of emissionsSummaryCache.keys()) {
+    if (key.split(':')[1] === id) emissionsSummaryCache.delete(key);
+  }
+}
+
 app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
     const body = req.body || {};
@@ -2520,7 +2714,9 @@ app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'),
     const period = body.period || String(new Date().getFullYear());
 
     if (Array.isArray(body.entries) || body.scope) {
-      const entries = Array.isArray(body.entries) ? body.entries : [body];
+      // Same unit conversion and strict amount parsing as a CSV row (units.cjs),
+      // so the calculator and the importer give one number for one activity.
+      const entries = (Array.isArray(body.entries) ? body.entries : [body]).map(prepareCalculatorEntry);
 
       // Scope 3 is a paid tier feature; calculating it here would hand a
       // starter account the number the upgrade is meant to buy.
@@ -2535,7 +2731,25 @@ app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'),
         });
       }
 
-      const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+      // A preview prices the activity the way a new entry would be priced: by
+      // the current catalog, from the activity alone. Without a version the engine
+      // would read these as legacy rows and quote the frozen 2026-07-24 factors; and
+      // a factor_value the client sends would pin the price (the engine honours a
+      // stored row's pin), so the preview would disagree with the entry saved from
+      // the same input.
+      const preview = entries.map((entry) => {
+        const given = entry && typeof entry === 'object' ? entry : {};
+        return {
+          scope: given.scope,
+          category: given.category,
+          source: given.source,
+          amount: given.amount,
+          unit: given.unit,
+          activity_date: given.activity_date,
+          catalog_version: CATALOG_VERSION,
+        };
+      });
+      const summary = summarizeEntries(preview, { companyId: companyId, period: period });
       log('info', 'Calculator API completed', { companyId: companyId, period: period, entries: entries.length });
       return res.json(summary);
     }
@@ -2550,15 +2764,15 @@ app.post('/api/calculate', express.json(), apiAuthGuard, requirePlan('starter'),
     // driver message). classifyApiFailure splits the two.
     const failure = classifyApiFailure(err);
     if (failure.status >= 500) {
-      log('error', 'Calculate failed on infrastructure', { error: String(err.message || err), userId: req.user && req.user.id });
+      log('error', 'Calculate failed on infrastructure', { error: err, userId: req.user && req.user.id });
     }
     return res.status(failure.status).json({ error: failure.message });
   }
 });
 
-// /api/emissions/summary takes only a 4-digit year for `period` — that is
-// what loadEmissionEntries compares against EXTRACT(YEAR ...) and what the
-// dashboard sends (it omits the param entirely). Validating BEFORE the value
+// /api/emissions/summary takes only a 4-digit year for `period` — the
+// calendar year the dashboard's year selector sends (and compares with the
+// year before). Validating BEFORE the value
 // becomes a cache key stops arbitrary strings from minting unbounded cache
 // entries (PERF-003/PERF-010); a non-year period would have returned empty
 // data anyway.
@@ -2567,7 +2781,8 @@ const SUMMARY_PERIOD_PATTERN = /^\d{4}$/;
 app.get('/api/emissions/summary', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.query.company_id);
   if (!companyId) return;
-  const period = req.query.period ? String(req.query.period) : String(new Date().getFullYear());
+  // defaultReportingYear is also what a report generated without a period covers.
+  const period = req.query.period ? String(req.query.period) : defaultReportingYear();
   if (!SUMMARY_PERIOD_PATTERN.test(period)) {
     return res.status(400).json({ success: false, error: 'period must be a 4-digit year, e.g. 2026' });
   }
@@ -2579,6 +2794,16 @@ app.get('/api/emissions/summary', apiAuthGuard, requirePlan('starter'), async fu
 
     const entries = await loadEmissionEntries(companyId, period);
     const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+    // F-E-10: a row the engine cannot price is left out of every total; the
+    // response says so (excluded_rows) and so does the log.
+    if (summary.excluded_rows.count > 0) {
+      log('warn', 'Emission entries excluded from totals', {
+        companyId: companyId,
+        period: period,
+        count: summary.excluded_rows.count,
+        reasons: summary.excluded_rows.reasons.map((group) => group.reason.slice(0, 200)),
+      });
+    }
 
     const priorYear = Number(period) - 1;
     const priorEntries = await loadEmissionEntries(companyId, String(priorYear));
@@ -2588,8 +2813,8 @@ app.get('/api/emissions/summary', apiAuthGuard, requirePlan('starter'), async fu
     cacheSet(cacheKey, response, 5 * 60 * 1000);
     return res.json(response);
   } catch (err) {
-    log('error', 'Emissions summary failed', { error: String(err), companyId: companyId });
-    return res.status(500).json({ success: false, error: 'Failed to load emissions summary' });
+    log('error', 'Emissions summary failed', { error: err, companyId: companyId });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to load emissions summary' });
   }
 });
 
@@ -2602,8 +2827,9 @@ app.get('/api/emissions/trend', apiAuthGuard, requirePlan('starter'), async func
   try {
     // PERF-004: buildTrend recomputed every row on every request. Cache per
     // (company, period, year) in the same store the summary cache uses —
-    // every entry-changing path already clears it (ingest, facility
-    // emissions, account deletion), and the size cap bounds key cardinality.
+    // every entry-changing path drops the company's keys through
+    // invalidateCompanyCache (CSV ingest, /api/entries, account deletion),
+    // and the size cap bounds key cardinality.
     const cacheKey = `trend:${companyId}:${period}:${year}`;
     const cached = cacheGet(cacheKey);
     if (cached) return res.json({ success: true, data: cached });
@@ -2615,234 +2841,31 @@ app.get('/api/emissions/trend', apiAuthGuard, requirePlan('starter'), async func
     cacheSet(cacheKey, data, 5 * 60 * 1000);
     return res.json({ success: true, data: data });
   } catch (err) {
-    log('error', 'Emissions trend failed', { error: String(err), companyId: companyId });
-    return res.status(500).json({ success: false, error: 'Failed to load emissions trend' });
+    log('error', 'Emissions trend failed', { error: err, companyId: companyId });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to load emissions trend' });
   }
 });
 
-app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], limit: '100kb' }), apiAuthGuard, requirePlan('starter'), async function (req, res) {
-  // Declared outside the try: the catch below logs it, and a const inside the
-  // block was a ReferenceError there — turning any 5xx-classified failure
-  // (facilities store down, quota lookup timeout) into an unhandled rejection
-  // that exited the whole process.
-  let companyId = null;
-  try {
-    companyId = await requireCompanyAccess(req, res, req.query.company_id);
-    if (!companyId) return;
-    const csvText = req.body || '';
-    const rawRows = parseEmissionCsv(csvText);
-    if (rawRows.length === 0) {
-      return res.status(400).json({ success: false, error: 'CSV file is empty or has no data rows after the header.' });
-    }
-
-    const plan = (req.billing && req.billing.plan) || 'starter';
-
-    // Monthly import quota. Checked before any parsing work so a blocked import
-    // costs nothing, and counted from the durable log rather than the in-memory
-    // job map, which resets on deploy.
-    const usedThisMonth = await countCsvImportsThisMonth(companyId);
-    const quotaCheck = canImportCsv(plan, usedThisMonth);
-    if (!quotaCheck.allowed) {
-      return res.status(402).json({
-        success: false,
-        code: 'upgrade_required',
-        requiredPlan: quotaCheck.requiredPlan,
-        error: `Your ${plan} plan includes ${quotaCheck.limit} CSV imports per month and you have used all of them. Upgrade to ${quotaCheck.requiredPlan} for unlimited imports.`,
-      });
-    }
-
-    // Scope 3 is a paid tier feature. Reject the whole file rather than silently
-    // dropping the Scope 3 rows — a partial import would understate the
-    // inventory without the customer realising it.
-    const scope3Check = canUseScope3(plan);
-    if (!scope3Check.allowed && rawRows.some((row) => normalizeScopeLabel(row.scope) === 'scope3')) {
-      return res.status(402).json({
-        success: false,
-        code: 'upgrade_required',
-        requiredPlan: scope3Check.requiredPlan,
-        error: `This file contains Scope 3 rows. Scope 3 workflows are included from the ${scope3Check.requiredPlan} plan up.`,
-      });
-    }
-
-    const jobId = crypto.randomUUID();
-    // Resolve facilities from the real store (Postgres when configured, sample
-    // array otherwise) so CSV rows link to persisted facilities, not in-memory ones.
-    const companyFacilities = await loadFacilities(companyId);
-    const SCOPE_LABELS = { scope1: 'Scope 1', scope2: 'Scope 2', scope3: 'Scope 3' };
-    const entries = [];
-    var importErrors = [];   // fatal per-row errors
-    var importWarnings = []; // non-fatal per-row notes
-
-    for (var i = 0; i < rawRows.length; i++) {
-      var row = rawRows[i];
-      var rowNum = i + 2; // 1-indexed + header row
-      var rowErrors = [];
-      var rowWarnings = [];
-      var facilityId = null;
-
-      // Resolve optional facility_name → facility_id
-      if (row.facility_name) {
-        var nameQuery = String(row.facility_name).trim().toLowerCase();
-        var facility = companyFacilities.find(function (f) { return String(f.name).trim().toLowerCase() === nameQuery; });
-        if (facility) {
-          facilityId = facility.id;
-        } else {
-          rowWarnings.push('Row ' + rowNum + ': Facility "' + row.facility_name + '" not found — row stored without facility association');
-        }
-      }
-
-      // Try to calculate CO2e via emissions engine
-      var calculated;
-      try {
-        calculated = calculateEntry(row);
-      } catch (calcErr) {
-        rowErrors.push('Row ' + rowNum + ': ' + calcErr.message);
-      }
-
-      // Map the engine's normalized scope back to the DB's CHECK format.
-      var scopeLabel = SCOPE_LABELS[calculated && calculated.scope];
-      if (rowErrors.length === 0 && calculated && !scopeLabel) {
-        rowErrors.push('Row ' + rowNum + ': Unrecognized scope "' + row.scope + '" (expected Scope 1, 2, or 3)');
-      }
-      // The DB CHECKs confidence to 0..100. Catch it per row here; otherwise one
-      // bad value fails the whole multi-row INSERT as a generic 500 with no row
-      // number, and the customer cannot tell which line to fix.
-      if (rowErrors.length === 0 && calculated &&
-          !(Number.isFinite(calculated.confidence) && calculated.confidence >= 0 && calculated.confidence <= 100)) {
-        rowErrors.push('Row ' + rowNum + ': confidence must be between 0 and 100');
-      }
-
-      // Carry the row's own date into created_at when valid, so imported
-      // historical data is attributed to the right period (not the import time).
-      // The activity date is ALSO stored in its own column now: overwriting
-      // created_at alone destroyed the real import timestamp, so there was no
-      // audit trail of when data entered the system.
-      var importedAt = new Date().toISOString();
-      var createdAt = importedAt;
-      var activityDate = null;
-      if (row.date) {
-        var parsedDate = Date.parse(row.date);
-        if (Number.isFinite(parsedDate)) {
-          createdAt = new Date(parsedDate).toISOString();
-          activityDate = new Date(parsedDate).toISOString().slice(0, 10);
-        } else {
-          rowWarnings.push('Row ' + rowNum + ': Unparseable date "' + row.date + '" — using import time');
-        }
-      }
-
-      if (rowErrors.length === 0 && calculated && scopeLabel) {
-        var entry = {
-          id: crypto.randomUUID(),
-          company_id: companyId,
-          facility_id: facilityId,
-          scope: scopeLabel,
-          category: String(row.category || ''),
-          source: String(row.source || ''),
-          amount: Number(row.amount),
-          unit: String(row.unit || ''),
-          method: String(row.method || 'calculation'),
-          co2e_tonnes: calculated.co2e_tonnes,
-          // Persist the computed result so consumers never have to re-derive
-          // it from the polymorphic `amount` column.
-          co2e_kg: Number(calculated.co2e_tonnes) * 1000,
-          factor: String(calculated.factor),
-          confidence: Number(calculated.confidence),
-          date: row.date || null,
-          activity_date: activityDate,
-          notes: row.notes || null,
-          created_at: createdAt,
-        };
-        entries.push(entry);
-      }
-
-      // Collect errors and warnings for this row. UAD-02: warnings are only
-      // meaningful for rows that actually persist — a rejected row's
-      // "stored without facility association" / "using import time" note
-      // describes storage that never happened.
-      rowErrors.forEach(function (e) { importErrors.push(e); });
-      if (rowErrors.length === 0) {
-        rowWarnings.forEach(function (w) { importWarnings.push(w); });
-      }
-    }
-
-    // Persist valid entries. Postgres (via RLS-bypass transaction) when a DB is
-    // configured; otherwise the in-memory sample store (dev/preview only).
-    if (entries.length > 0) {
-      if (pgPool) {
-        try {
-          const reserved = await reserveCsvImportQuota(plan, companyId, entries.length,
-            (client) => persistCsvEntries(client, entries));
-          if (!reserved) {
-            const quota = canImportCsv(plan, planLimits(plan).csvImportsPerMonth);
-            return res.status(402).json({
-              success: false,
-              code: 'upgrade_required',
-              requiredPlan: quota.requiredPlan,
-              error: `Your ${plan} plan includes ${quota.limit} CSV imports per month and you have used all of them. Upgrade to ${quota.requiredPlan} for unlimited imports.`,
-            });
-          }
-        } catch (dbErr) {
-          log('error', 'CSV ingest DB insert failed', { error: String(dbErr), companyId, rows: entries.length });
-          return res.status(500).json({ success: false, error: 'Failed to save imported rows. No data was imported.' });
-        }
-      } else if (allowSampleData()) {
-        sampleEmissionEntries.push.apply(sampleEmissionEntries, entries);
-      }
-      emissionsSummaryCache.clear();
-    }
-
-    var ingestResult = {
-      id: jobId,
-      status: entries.length > 0 ? 'completed' : 'failed',
-      imported: entries.length,
-      total_rows: rawRows.length,
-      errors: importErrors,
-      warnings: importWarnings,
-      company_id: companyId,
-      // Timestamps the entry for TTL pruning (PERF-003); also useful in the
-      // /api/ingest/status payload. Additive field.
-      created_at: new Date().toISOString(),
-    };
-    recordIngestJob(ingestResult);
-
-    return res.json({
-      success: true,
-      job_id: jobId,
-      imported: entries.length,
-      total_rows: rawRows.length,
-      errors: importErrors,
-      warnings: importWarnings,
-    });
-  } catch (err) {
-    // Same split as /api/calculate: CSV header/parse validation is a 400 with
-    // a user-facing message; a quota-count or store failure behind this point
-    // is infrastructure and must not be echoed back as bad input.
-    const failure = classifyApiFailure(err);
-    if (failure.status >= 500) {
-      log('error', 'CSV ingest failed on infrastructure', { error: String(err.message || err), companyId });
-    }
-    return res.status(failure.status).json({ success: false, error: failure.message });
-  }
+// ─── CSV import (K4) ───
+// Two phases: ?dry_run=1 validates the whole file and stores nothing; the commit
+// stores every row or none, as one import the customer can list and undo. An
+// identical file is refused (409) unless the caller replaces the earlier import
+// or imports it anyway; a retried commit with the same Idempotency-Key returns
+// the stored import. Rows are priced and pinned like manual entries and keep
+// created_at as the time they were stored; the activity date decides the period.
+// server-csv-import-routes.cjs has the handlers and their transactions.
+const csvImportHandlers = createCsvImportHandlers({
+  pool: pgPool,
+  requireCompanyAccess: requireCompanyAccess,
+  loadFacilities: loadFacilities,
+  invalidateCompanyCache: invalidateCompanyCache,
+  log: log,
 });
-
-app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
-  try {
-    // Resolve the caller's own company FIRST (API-012): looking the job up
-    // before the tenant check returned 404 for unknown ids but 403 for
-    // foreign-but-real ones — an existence oracle over ingest jobs. Both now
-    // return an identical 404, matching the facility/report siblings.
-    const companyId = await requireCompanyAccess(req, res, null);
-    if (!companyId) return;
-    const job = ingestJobs.get(req.params.job_id);
-    if (!job || String(job.company_id) !== String(companyId)) {
-      return res.status(404).json({ success: false, error: 'Ingest job not found' });
-    }
-    return res.json({ success: true, data: job });
-  } catch (err) {
-    log('error', 'Ingest status lookup failed', { error: String(err) });
-    return res.status(500).json({ success: false, error: 'Failed to load ingest status' });
-  }
-});
+app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], limit: '100kb' }), apiAuthGuard, requirePlan('starter'), csvImportHandlers.ingest);
+app.get('/api/ingest/imports', apiAuthGuard, requirePlan('starter'), csvImportHandlers.list);
+// No requirePlan: like deleting an entry, undoing your own import stays possible
+// after the trial ends (the K2 owner decision for DELETE /api/entries/:id).
+app.post('/api/ingest/imports/:id/undo', express.json({ limit: '1kb' }), apiAuthGuard, csvImportHandlers.undo);
 
 // requirePlan added: these reads return the customer's own paid data, so an
 // expired trial or canceled subscription must lose access to them too. The
@@ -2852,7 +2875,7 @@ app.get('/api/ingest/status/:job_id', apiAuthGuard, async function (req, res) {
 app.get('/api/companies/:id/facilities', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
   if (!companyId) return;
-  // loadFacilities throws in production when the data store is unavailable.
+  // loadFacilities throws when the data store is unavailable.
   // Express 4 does not catch async handler rejections, and the process-level
   // unhandledRejection handler calls process.exit(1) — so an unguarded await
   // here turns one transient DB error into a full outage for every tenant.
@@ -2860,20 +2883,17 @@ app.get('/api/companies/:id/facilities', apiAuthGuard, requirePlan('starter'), a
     const facilities = await loadFacilities(companyId);
     return res.json({ success: true, data: facilities });
   } catch (err) {
-    log('error', 'Facilities list failed', { error: String(err), companyId });
-    return res.status(500).json({ success: false, error: 'Failed to load facilities' });
+    log('error', 'Facilities list failed', { error: err, companyId });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to load facilities' });
   }
 });
 
-// Canonical facility types — the set the sample fixtures and the app's
-// facility concepts use. A short enum keeps junk (and unbounded strings) out
+// Canonical facility types — the set the app's facility concepts use. A short enum keeps junk (and unbounded strings) out
 // of the column, which had no CHECK constraint and no server-side validation
-// (API-003).
-const FACILITY_TYPES = new Set(['office', 'factory', 'warehouse']);
-
-// Shared bounds for persisted facility strings, mirroring the
-// facilities.name cap in initial-schema.sql (char_length BETWEEN 1 AND 200).
-const FACILITY_FIELD_MAX = 200;
+// (API-003). The list and the string bound (FACILITY_FIELD_MAX, mirroring the
+// facilities.name cap in initial-schema.sql) live in server-company.cjs, which
+// validates facility renames with the same limits.
+const FACILITY_TYPES = new Set(FACILITY_TYPE_LIST);
 
 app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
   const companyId = await requireCompanyAccess(req, res, req.params.id);
@@ -2895,46 +2915,50 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
     return res.status(400).json({ success: false, error: 'name and city must be 200 characters or fewer' });
   }
   if (!FACILITY_TYPES.has(facilityType)) {
-    return res.status(400).json({ success: false, error: 'type must be one of: office, factory, warehouse' });
+    return res.status(400).json({ success: false, error: 'type must be one of: ' + FACILITY_TYPE_LIST.join(', ') });
   }
 
   try {
     // Facility cap. requirePlan has already attached req.billing. This has to
-    // sit inside the try — loadFacilities throws when the data store is
-    // unavailable, and Express 4 does not catch async rejections, so an
-    // uncaught one would hang the request instead of erroring cleanly.
+    // sit inside the try — the data store can be unavailable, and Express 4
+    // does not catch async rejections, so an uncaught one would hang the
+    // request instead of erroring cleanly.
     const plan = (req.billing && req.billing.plan) || 'starter';
-    const existing = await loadFacilities(companyId);
-    const facilityCheck = canAddFacility(plan, existing.length);
-    if (!facilityCheck.allowed) {
+    const capReached = function (facilityCheck) {
       return res.status(402).json({
         success: false,
         code: 'upgrade_required',
         requiredPlan: facilityCheck.requiredPlan,
         error: `Your ${plan} plan includes ${facilityCheck.limit} ${facilityCheck.limit === 1 ? 'facility' : 'facilities'}. Upgrade to ${facilityCheck.requiredPlan} to add more.`,
       });
-    }
+    };
 
-    if (pgPool) {
-      const result = await queryWithRlsBypass(
-        `INSERT INTO public.facilities (company_id, name, type, city)
-         VALUES ($1, $2, $3, $4) RETURNING id, company_id, name, type, city`,
-        [companyId, facilityName, facilityType, facilityCity]
-      );
-      emissionsSummaryCache.clear();
-      return res.status(201).json({ success: true, data: result.rows[0] });
-    }
-    if (allowSampleData()) {
-      const facility = { id: crypto.randomUUID(), company_id: companyId, name: facilityName, type: facilityType, city: facilityCity };
-      sampleFacilities.push(facility);
-      return res.status(201).json({ success: true, data: facility });
-    }
-    return res.status(503).json({ success: false, error: 'Data store unavailable' });
+    // Count and insert in one transaction that locks the company row: a
+    // count read before a separate INSERT let six parallel requests at a cap
+    // of 1 create six facilities (F-X1-01).
+    const outcome = await insertFacilityWithinCap(pgPool, {
+      companyId: companyId, plan: plan, name: facilityName, type: facilityType, city: facilityCity,
+    });
+    if (outcome.refused) return capReached(outcome.refused);
+    return res.status(201).json({ success: true, data: outcome.facility });
   } catch (err) {
-    log('error', 'Facility create failed', { error: String(err), companyId });
-    return res.status(500).json({ success: false, error: 'Failed to create facility' });
+    log('error', 'Facility create failed', { error: err, companyId });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to create facility' });
   }
 });
+
+// ─── Company profile, onboarding and facility edits (K5: F-B-03 = F-C-03) ───
+// The company used to be invented on the first call and never renamed, and a
+// facility could be created but not changed. server-company-routes.cjs owns the
+// ownership rules (company id from the session, every statement scoped by it), the
+// field allow-lists and the onboarding state. They need the database (no in-memory
+// stand-in). Rate limiting is the global /api limiter, like the facility routes above.
+const companyHandlers = createCompanyHandlers({ pool: pgPool, requireCompanyAccess: requireCompanyAccess, log: log });
+app.get('/api/company', apiAuthGuard, requirePlan('starter'), companyHandlers.get);
+app.patch('/api/companies/:id', express.json({ limit: '8kb' }), apiAuthGuard, requirePlan('starter'), companyHandlers.update);
+app.post('/api/companies/:id/onboarding/skip', apiAuthGuard, requirePlan('starter'), companyHandlers.skipOnboarding);
+app.patch('/api/companies/:id/facilities/:facilityId', express.json({ limit: '8kb' }), apiAuthGuard, requirePlan('starter'), companyHandlers.updateFacility);
+app.delete('/api/companies/:id/facilities/:facilityId', apiAuthGuard, requirePlan('starter'), companyHandlers.removeFacility);
 
 app.get('/api/facilities/:id/emissions', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
@@ -2942,93 +2966,137 @@ app.get('/api/facilities/:id/emissions', apiAuthGuard, requirePlan('starter'), a
     // tenant check made the response an existence oracle: a foreign-but-real
     // facility id returned 403 while a nonexistent one returned 404, letting
     // any authenticated user enumerate which sequential ids exist across all
-    // tenants. Both cases now return an identical 404.
+    // tenants. Both cases now return an identical 404, and the lookup is scoped
+    // by that company, so another tenant's row is never loaded.
     const companyId = await requireCompanyAccess(req, res, null);
     if (!companyId) return;
-    const facility = await loadFacilityById(req.params.id);
-    if (!facility || String(facility.company_id) !== String(companyId)) {
+    const facility = await loadFacilityById(companyId, req.params.id);
+    if (!facility) {
       return res.status(404).json({ success: false, error: 'Facility not found' });
     }
     const entries = await loadEmissionEntries(companyId);
     const result = buildFacilityEmissions([facility], entries);
     return res.json({ success: true, data: result[0] });
   } catch (err) {
-    log('error', 'Facility emissions failed', { error: String(err), facilityId: req.params.id });
-    return res.status(500).json({ success: false, error: 'Failed to load facility emissions' });
+    log('error', 'Facility emissions failed', { error: err, facilityId: req.params.id });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to load facility emissions' });
   }
 });
 
-app.get('/api/companies/:id/compliance', apiAuthGuard, requirePlan('starter'), async function (req, res) {
-  try {
-    const companyId = await requireCompanyAccess(req, res, req.params.id);
-    if (!companyId) return;
-    // getCompany() only resolves the in-memory sample fixtures. Real company
-    // rows carry no revenue/employees/region (see initial-schema.sql), so it
-    // used to fall through to a {revenue:0, employees:0, region:'CA'} stub and
-    // return "not_applicable" for every real tenant — a confidently wrong
-    // compliance verdict. Answer honestly until those fields are modelled.
-    const company = sampleCompanies[companyId];
-    if (!company) {
-      return res.status(501).json({
-        success: false,
-        error: 'Compliance profiling needs your company revenue, headcount, and operating regions. Add them in Settings to enable this report.',
-      });
-    }
-    return res.json({ success: true, data: getComplianceStatus(company) });
-  } catch (err) {
-    log('error', 'Compliance status failed', { error: String(err) });
-    return res.status(500).json({ success: false, error: 'Failed to load compliance status' });
-  }
+// ─── Emission entries (K2) ───
+// The calculator's only way to write entries. It used to insert and delete them
+// through the records API as the browser role, where RLS checks ownership only:
+// no plan, no trial end, no Scope 3 gate, and client-computed numbers stored as
+// sent (F-D-01, F-E-05). server-entry-routes.cjs computes every value from the
+// factor catalog and keeps the tenant's dashboard cache fresh.
+const entryHandlers = createEntryHandlers({
+  pool: pgPool,
+  requireCompanyAccess: requireCompanyAccess,
+  invalidateCompanyCache: invalidateCompanyCache,
+  log: log,
 });
+app.get('/api/entries', apiAuthGuard, requirePlan('starter'), entryHandlers.list);
+app.post('/api/entries', express.json({ limit: '8kb' }), apiAuthGuard, requirePlan('starter'), entryHandlers.create);
+app.patch('/api/entries/:id', express.json({ limit: '8kb' }), apiAuthGuard, requirePlan('starter'), entryHandlers.update);
+// No requirePlan: like export and delete-data, deleting your own entries stays
+// possible after the trial ends (owner decision, docs/runbooks/k2-rollout.md).
+app.delete('/api/entries/:id', apiAuthGuard, entryHandlers.remove);
 
-app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
-  // Derive status from the current date so past deadlines aren't reported as
-  // "upcoming" (e.g. EU CSRD 2025-01-01 was returned as upcoming in mid-2026).
-  const now = Date.now();
-  const SOON_MS = 90 * 24 * 60 * 60 * 1000; // within 90 days = "due_soon"
-  const deadlines = [
-    { framework: 'SB 253', due_date: '2026-01-01', scope: 'Scope 1 and Scope 2' },
-    { framework: 'SB 253', due_date: '2027-01-01', scope: 'Scope 3' },
-    { framework: 'EU CSRD', due_date: '2025-01-01', scope: 'Sustainability report' },
-  ].map(function (d) {
-    const due = Date.parse(d.due_date + 'T00:00:00Z');
-    let status = 'upcoming';
-    if (due < now) status = 'overdue';
-    else if (due - now <= SOON_MS) status = 'due_soon';
-    return Object.assign({}, d, { status: status });
+// ─── Retired: Slice 6 compliance tracking (F-A-18 / F-E-07) ───
+// Compliance status, deadlines and sign-off were dropped from the product, but
+// the routes stayed and kept serving regulatory data that was wrong: SB 253
+// "overdue" from 2026-01-01 (that date was never a filing deadline), a Scope 3
+// row fixed at 2027-01-01 that flips to "due_soon" on 2026-10-03 for a schedule
+// CARB has not set, CSRD "overdue" for every tenant, and an applicability check
+// that used the pre-Omnibus thresholds. Nothing in src/ calls any of them.
+//
+// 410 Gone, not 404, so an integration that did call them learns the route is
+// retired on purpose. No date, status or applicability verdict is served at all:
+// regulatory dates belong on the reviewed public pages, not in an API table.
+// The sign-off route carried no wrong data; it goes with the rest of the slice
+// because nothing calls it and a sign-off nobody can review is not an audit
+// trail.
+function complianceRetired(_req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(410).json({
+    success: false,
+    error: 'Compliance tracking has been retired and this endpoint no longer returns data.',
   });
-  return res.json({ success: true, data: deadlines });
-});
+}
 
-app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
+app.get('/api/companies/:id/compliance', complianceRetired);
+app.get('/api/compliance/deadlines', complianceRetired);
+app.post('/api/compliance/:id/signoff', complianceRetired);
+
+// ─── Reports (K3: audit AUDIT-RUN-20260929 F-E-03, F-B-04, F-B-05, F-G-20) ───
+// A report is computed ONCE, when it is generated, from the entries in its
+// period, and stored with the exact PDF it was rendered to (reports.snapshot and
+// reports.pdf, migrations/20260930110000_report-snapshots.sql). Downloads serve
+// the stored bytes and never recompute. A report created before snapshots
+// existed has nothing frozen to serve, and says so. Sign-off moves a draft to
+// final; after that nothing about the report can change (409 here, and a DB
+// trigger for any other writer). Reports need the database: the in-memory dev
+// store is gone, because a second store was a second set of rules.
+
+// At most 18 digits, like DB_ID in server-entry-routes.cjs: a longer id cannot exist
+// (bigint) and would only reach Postgres as an out-of-range error, a 500 instead of a 404.
+const REPORT_ID_PATTERN = /^\d{1,18}$/;
+const REPORT_LIST_LIMIT = 200;
+const REPORT_COLUMNS = `id, title, status, period, pdf_sha256, signed_off_by, signed_off_at, created_at,
+  to_char(period_start, 'YYYY-MM-DD') AS period_start, to_char(period_end, 'YYYY-MM-DD') AS period_end,
+  snapshot->'period'->>'label' AS period_label, snapshot->>'total_emissions_tCO2e' AS total_tco2e,
+  snapshot->'by_scope' AS by_scope, snapshot->>'entry_count' AS entry_count`;
+const LEGACY_REPORT_ERROR = 'This report was created before reports were stored as snapshots, so its figures were never frozen. It cannot be downloaded or signed off; generate a new report for the same period.';
+const FINAL_REPORT_ERROR = 'This report is signed off and final. It cannot be changed or signed off again; generate a new report to include later data.';
+
+function reportNotFound(res) {
+  return res.status(404).json({ success: false, error: 'Report not found' });
+}
+
+// The API shape of a reports row. A row without a stored PDF predates
+// snapshots: it is listed as legacy and never presented as frozen.
+function toReportListItem(row) {
+  const frozen = Boolean(row.pdf_sha256);
+  return {
+    id: String(row.id),
+    title: row.title,
+    status: frozen ? row.status : 'legacy',
+    period: row.period,
+    period_label: row.period_label || row.period || 'All time',
+    period_start: row.period_start,
+    period_end: row.period_end,
+    generated_at: row.created_at,
+    total_tco2e: frozen && row.total_tco2e != null ? Number(row.total_tco2e) : null,
+    by_scope: frozen ? row.by_scope : null,
+    entry_count: frozen && row.entry_count != null ? Number(row.entry_count) : null,
+    pdf_sha256: row.pdf_sha256 || null,
+    signed_off_by: row.signed_off_by || null,
+    signed_off_at: row.signed_off_at || null,
+    download_url: frozen ? `/api/reports/${row.id}/download` : null,
+  };
+}
+
+app.get('/api/reports', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
-    const companyId = await requireCompanyAccess(req, res, req.body && req.body.company_id);
+    const companyId = await requireCompanyAccess(req, res, req.query.company_id);
     if (!companyId) return;
-    // Previously this echoed {status:'completed'} for ANY :id without writing
-    // anything — including report ids belonging to other tenants. Sign-off is
-    // an audit-trail action; it must actually persist and must be scoped to
-    // the caller's own company.
-    if (!/^\d+$/.test(String(req.params.id))) {
-      return res.status(404).json({ success: false, error: 'Report not found' });
-    }
-    if (!pgPool) {
-      return res.status(503).json({ success: false, error: 'Sign-off is unavailable while the data store is offline' });
-    }
-    const signedAt = new Date().toISOString();
-    const result = await queryWithRlsBypass(
-      `UPDATE public.reports
-          SET signoff = 'completed', last_updated = $3
-        WHERE id = $1 AND company_id = $2
-        RETURNING id`,
-      [req.params.id, companyId, signedAt]
-    );
-    if (!result || result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'Report not found' });
-    }
-    return res.json({ success: true, data: { id: req.params.id, status: 'completed', signed_off_at: signedAt } });
+    const [company, reports] = await Promise.all([
+      pgPool.query('SELECT id, name FROM public.companies WHERE id = $1', [companyId]),
+      pgPool.query(
+        `SELECT ${REPORT_COLUMNS} FROM public.reports WHERE company_id = $1 ORDER BY created_at DESC, id DESC LIMIT ${REPORT_LIST_LIMIT}`,
+        [companyId]
+      ),
+    ]);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.json({
+      success: true,
+      company: { id: String(companyId), name: company.rows.length ? company.rows[0].name : null },
+      default_period: defaultReportingYear(),
+      reports: reports.rows.map(toReportListItem),
+    });
   } catch (err) {
-    log('error', 'Compliance signoff failed', { error: String(err) });
-    return res.status(500).json({ success: false, error: 'Failed to record sign-off' });
+    log('error', 'Report list failed', { error: err, userId: req.user && req.user.id });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to load reports' });
   }
 });
 
@@ -3036,88 +3104,158 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, re
   try {
     const companyId = await requireCompanyAccess(req, res, req.params.id);
     if (!companyId) return;
-    const period = req.body && req.body.period ? String(req.body.period) : null;
-    const entries = await loadEmissionEntries(companyId, period);
-    const summary = summarizeEntries(entries, { companyId: companyId, period: period });
+    // No period asked for: the reporting year the dashboard opens on (F-B-05).
+    // Anything but a calendar year or a date range is refused (F-E-03: "FY2025"
+    // used to be saved as a final report that printed 0).
+    const requested = req.body ? req.body.period : undefined;
+    const parsed = parseReportPeriod(requested === undefined || requested === null || requested === '' ? defaultReportingYear() : requested);
+    if (!parsed.ok) return res.status(400).json({ success: false, code: 'invalid_period', error: parsed.error });
+    const period = parsed.period;
 
-    if (pgPool) {
-      // Persist report metadata; the PDF is regenerated deterministically on
-      // download from the stored company + period (no in-memory PDF store).
-      const title = 'Carbon Report ' + new Date().toISOString().split('T')[0];
-      const result = await queryWithRlsBypass(
-        `INSERT INTO public.reports (company_id, title, type, status, last_updated, completeness, signoff, period)
-         VALUES ($1, $2, 'carbon', 'final', now(), 100, 'pending', $3) RETURNING id`,
-        [companyId, title, period]
-      );
-      const reportId = result.rows[0].id;
-      return res.json({ success: true, report_id: reportId, download_url: `/api/reports/${reportId}/download` });
+    // The same rows and the same summarizeEntries call as the dashboard.
+    // The company row carries the reporting basis (Settings > Company): the
+    // consolidation approach and base year print on this report, and a report
+    // generated before they were set keeps saying "not specified" / "not set".
+    const [entries, facilities, company] = await Promise.all([
+      loadEmissionEntries(companyId, period.value),
+      loadFacilities(companyId),
+      pgPool.query('SELECT id, name, consolidation_approach, base_year FROM public.companies WHERE id = $1', [companyId]),
+    ]);
+    const generatedAt = new Date().toISOString();
+    const snapshot = buildReportSnapshot({
+      company: company.rows[0] || { id: companyId, name: null },
+      period: period,
+      entries: entries,
+      facilities: facilities,
+      generatedAt: generatedAt,
+      generatedBy: req.user.id,
+    });
+    if (snapshot.entry_count === 0) {
+      // Nothing to report is said, not saved as a zero report.
+      return res.status(422).json({
+        success: false,
+        code: 'empty_period',
+        error: snapshot.excluded_count
+          ? `None of the ${snapshot.excluded_count} entries in ${period.label} could be calculated, so no report was created.`
+          : `There are no emission entries in ${period.label}, so no report was created.`,
+      });
     }
 
-    // Dev / no-DB fallback: keep the PDF in memory for the immediate download.
-    const reportId = crypto.randomUUID();
-    const pdf = createSimplePdf(buildReportText(summary, period));
-    generatedReports.set(reportId, { id: reportId, company_id: companyId, period: period, pdf: pdf });
-        // PERF-003 residual: cap the in-memory report store so repeated
-        // generates cannot grow it for the life of the process.
-        while (generatedReports.size > 50) {
-          const oldestReportId = generatedReports.keys().next().value;
-          generatedReports.delete(oldestReportId);
-        }
-    return res.json({ success: true, report_id: reportId, download_url: `/api/reports/${reportId}/download` });
+    // Counted here, once a report will be made, and not at the top: a refused period
+    // (400) or an empty one (422) stores nothing, so it must not spend the company's
+    // reports for the hour (VERIFY-FINAL-DATA D-4).
+    if (!reportLimits.allowGenerate(res, companyId)) return;
+
+    // The id is taken first so the PDF can print it; the row is then written
+    // once, complete, and never updated except for its sign-off.
+    const next = await queryWithRlsBypass("SELECT nextval(pg_get_serial_sequence('public.reports', 'id')) AS id", []);
+    const reportId = String(next.rows[0].id);
+    const pdf = renderReportPdf(snapshot, { reportId: reportId });
+    const pdfSha256 = crypto.createHash('sha256').update(pdf).digest('hex');
+    const inserted = await queryWithRlsBypass(
+      `INSERT INTO public.reports
+         (id, company_id, title, type, status, last_updated, signoff, period, period_start, period_end, snapshot, pdf, pdf_sha256, created_at)
+       OVERRIDING SYSTEM VALUE
+       VALUES ($1, $2, $3, 'carbon', 'draft', $4, 'pending', $5, $6, $7, $8, $9, $10, $4)
+       RETURNING ${REPORT_COLUMNS}`,
+      [reportId, companyId, 'Emissions report - ' + period.label, generatedAt, period.value, period.start, period.end,
+        JSON.stringify(snapshot), pdf, pdfSha256]
+    );
+    log('info', 'Report generated', { reportId: reportId, companyId: companyId, period: period.value, entries: snapshot.entry_count });
+    return res.json({
+      success: true,
+      report_id: reportId,
+      download_url: `/api/reports/${reportId}/download`,
+      report: toReportListItem(inserted.rows[0]),
+    });
   } catch (err) {
-    // Every throw on this route is infrastructure (store read, report insert)
-    // or an internal engine fault — there is no user-input validation path —
-    // so respond generically instead of echoing the internal error string.
-    log('error', 'Report generation failed', { error: String(err), companyId: req.params.id });
-    return res.status(500).json({ success: false, error: 'Failed to generate report' });
+    // Every throw past validation is infrastructure (store read, report insert)
+    // or an internal engine fault, so respond generically instead of echoing
+    // the internal error string.
+    log('error', 'Report generation failed', { error: err, companyId: req.params.id });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to generate report' });
   }
 });
 
 app.get('/api/reports/:id/download', apiAuthGuard, requirePlan('starter'), async function (req, res) {
   try {
-    let companyId;
-    let period = null;
-
-    if (pgPool && /^\d+$/.test(req.params.id)) {
-      // Resolve the caller's own company FIRST, then look the report up
-      // scoped to it. Fetching the row before the tenant check returned 404
-      // for a nonexistent id but 403 for a foreign-but-real one, letting any
-      // authenticated user enumerate which sequential report ids exist across
-      // all tenants (same oracle the facilities route closed). Both cases now
-      // return an identical 404.
-      companyId = await requireCompanyAccess(req, res, null);
-      if (!companyId) return;
-      const { rows } = await pgPool.query(
-        'SELECT company_id, period FROM reports WHERE id = $1 AND company_id = $2',
-        [req.params.id, companyId]
-      );
-      if (rows.length === 0) return res.status(404).json({ success: false, error: 'Report not found' });
-      period = rows[0].period;
-    } else {
-      // Dev / no-DB fallback: serve the in-memory PDF captured at generate time.
-      // Tenant check BEFORE the map lookup (API-012): unknown and foreign ids
-      // are indistinguishable 404s here too.
-      companyId = await requireCompanyAccess(req, res, null);
-      if (!companyId) return;
-      const report = generatedReports.get(req.params.id);
-      if (!report || String(report.company_id) !== String(companyId)) {
-        return res.status(404).json({ success: false, error: 'Report not found' });
-      }
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-report-${req.params.id}.pdf"`);
-      return res.send(report.pdf);
+    // Resolve the caller's own company FIRST, then look the report up scoped
+    // to it: an unknown id and another tenant's id are identical 404s, so the
+    // sequential ids cannot be enumerated across tenants.
+    const companyId = await requireCompanyAccess(req, res, null);
+    if (!companyId) return;
+    if (!REPORT_ID_PATTERN.test(req.params.id)) return reportNotFound(res);
+    const { rows } = await pgPool.query(
+      'SELECT pdf, pdf_sha256 FROM public.reports WHERE id = $1 AND company_id = $2',
+      [req.params.id, companyId]
+    );
+    if (rows.length === 0) return reportNotFound(res);
+    const stored = rows[0];
+    if (!stored.pdf || !stored.pdf_sha256) {
+      return res.status(409).json({ success: false, code: 'legacy_report', error: LEGACY_REPORT_ERROR });
     }
-
-    // Regenerate the PDF from persisted data for the report's period.
-    const entries = await loadEmissionEntries(companyId, period);
-    const summary = summarizeEntries(entries, { companyId: companyId, period: period });
-    const pdf = createSimplePdf(buildReportText(summary, period));
+    // Served exactly as stored. The digest check stops a damaged row from being
+    // handed out as the document someone generated or signed off.
+    const sha256 = crypto.createHash('sha256').update(stored.pdf).digest('hex');
+    if (sha256 !== stored.pdf_sha256) {
+      log('error', 'Stored report PDF failed its integrity check', { reportId: req.params.id, companyId: companyId });
+      return res.status(500).json({ success: false, error: 'Failed to load report PDF' });
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="ecoauditor-report-${req.params.id}.pdf"`);
-    return res.send(pdf);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Report-SHA256', sha256);
+    return res.send(stored.pdf);
   } catch (err) {
-    log('error', 'Report download failed', { error: String(err), reportId: req.params.id });
-    return res.status(500).json({ success: false, error: 'Failed to generate report PDF' });
+    log('error', 'Report download failed', { error: err, reportId: req.params.id });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to load report PDF' });
+  }
+});
+
+app.post('/api/reports/:id/signoff', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
+  try {
+    const companyId = await requireCompanyAccess(req, res, null);
+    if (!companyId) return;
+    if (!REPORT_ID_PATTERN.test(req.params.id)) return reportNotFound(res);
+    // Optional digest of the PDF the signer reviewed: a sign-off binds to those
+    // exact bytes (audit review R2), so a different document is refused.
+    const expected = req.body ? req.body.pdf_sha256 : undefined;
+    if (expected !== undefined && expected !== null && !(typeof expected === 'string' && /^[0-9a-f]{64}$/.test(expected))) {
+      return res.status(400).json({ success: false, error: 'pdf_sha256 must be the 64-character hex SHA-256 of the report PDF' });
+    }
+    const signed = await queryWithRlsBypass(
+      `UPDATE public.reports
+          SET status = 'final', signoff = 'completed', signed_off_by = $3, signed_off_at = now(), last_updated = now()
+        WHERE id = $1 AND company_id = $2 AND status = 'draft' AND pdf_sha256 IS NOT NULL
+          AND ($4::text IS NULL OR pdf_sha256 = $4::text)
+        RETURNING ${REPORT_COLUMNS}`,
+      [req.params.id, companyId, String(req.user.id), expected || null]
+    );
+    if (signed.rows.length) {
+      log('info', 'Report signed off', { reportId: req.params.id, companyId: companyId });
+      return res.json({ success: true, report: toReportListItem(signed.rows[0]) });
+    }
+    // Nothing was signed: say why (still scoped to the caller's company).
+    const { rows } = await pgPool.query(
+      'SELECT status, pdf_sha256 FROM public.reports WHERE id = $1 AND company_id = $2',
+      [req.params.id, companyId]
+    );
+    if (rows.length === 0) return reportNotFound(res);
+    if (!rows[0].pdf_sha256) return res.status(409).json({ success: false, code: 'legacy_report', error: LEGACY_REPORT_ERROR });
+    if (rows[0].status === 'final') return res.status(409).json({ success: false, code: 'report_final', error: FINAL_REPORT_ERROR });
+    return res.status(409).json({
+      success: false,
+      code: 'pdf_mismatch',
+      error: 'This report is not the document you reviewed (its SHA-256 differs). Reload the report list and try again.',
+    });
+  } catch (err) {
+    // restrict_violation comes from the frozen-report trigger: someone else
+    // signed or changed the report first.
+    if (err && err.code === '23001') {
+      return res.status(409).json({ success: false, code: 'report_final', error: FINAL_REPORT_ERROR });
+    }
+    log('error', 'Report sign-off failed', { error: err, reportId: req.params.id });
+    return res.status(failureStatus(err)).json({ success: false, error: 'Failed to sign off report' });
   }
 });
 
@@ -3131,7 +3269,7 @@ app.get('/api/video', function (req, res) {
   try {
     stat = fs.statSync(filePath);
   } catch (err) {
-    log('error', 'Failed to stat video file', { path: filePath, error: String(err) });
+    log('error', 'Failed to stat video file', { path: filePath, error: err });
     return res.status(500).json({ error: 'Internal server error' });
   }
 
@@ -3158,7 +3296,7 @@ app.get('/api/video', function (req, res) {
 
     const stream = fs.createReadStream(filePath, { start: start, end: end });
     stream.on('error', function (err) {
-      log('error', 'Video stream error', { error: String(err) });
+      log('error', 'Video stream error', { error: err });
       if (!res.headersSent) res.status(500).json({ error: 'Stream error' });
       else res.end();
     });
@@ -3173,7 +3311,7 @@ app.get('/api/video', function (req, res) {
 
     const stream = fs.createReadStream(filePath);
     stream.on('error', function (err) {
-      log('error', 'Video stream error', { error: String(err) });
+      log('error', 'Video stream error', { error: err });
       if (!res.headersSent) res.status(500).json({ error: 'Stream error' });
       else res.end();
     });
@@ -3181,7 +3319,21 @@ app.get('/api/video', function (req, res) {
   }
 });
 
+// ─── Server-rendered pages (F-F-01) ───
+// Before express.static, which would answer /sitemap.xml and /blog/ with the
+// files in static/: a sitemap without the posts and a blog index without a post.
+// /blog also matches /blog/ (non-strict routing) and /blog/:slug matches
+// /blog/<slug>/; the handlers redirect the bare form to the slash form, which is
+// the canonical one. A URL no handler here accepts (/blog/a/b) reaches the 404
+// below, it is not the homepage.
+app.get('/sitemap.xml', pages.sitemap);
+app.get('/blog', pages.blogIndex);
+app.get('/blog/:slug', pages.blogPost);
+
 // ─── Static files with cache headers ───
+// A directory requested without its trailing slash (/pricing) is redirected to
+// the slash form, which is what scripts/prerender.mjs writes and the canonical
+// URL of every page, so internal links are written in that form (F-F-12).
 app.use(express.static(path.join(__dirname, 'static'), {
   setHeaders: function (res, filePath) {
     // Extracted to server-http-utils.cjs (RT-05) so the policy is testable
@@ -3190,34 +3342,6 @@ app.use(express.static(path.join(__dirname, 'static'), {
     if (cacheControl) res.setHeader('Cache-Control', cacheControl);
   },
 }));
-
-// ─── Prerendered marketing routes ───
-// scripts/prerender.mjs writes static/<route>/index.html for each
-// marketing path. express.static serves these on requests with a trailing
-// slash, but crawlers and most inbound links hit the bare path
-// (/pricing, /methodology, …). Map those to the prerendered file BEFORE
-// the SPA fallback so non-JS clients receive real content. Routes NOT
-// in this set (/app/*, /auth/*) fall through to the client-side shell as
-// before. /login and /signup are prerendered (noindex) so non-JS clients
-// and crawlers see route-appropriate content instead of the homepage shell.
-var PRERENDERED_ROUTES = [
-  '/pricing', '/methodology', '/sample-report', '/security', '/demo',
-  '/contact', '/privacy', '/terms', '/dpa',
-  '/login', '/signup',
-];
-PRERENDERED_ROUTES.forEach(function (route) {
-  app.get(route, function (_req, res, next) {
-    var file = path.join(__dirname, 'static', route, 'index.html');
-    if (fs.existsSync(file)) {
-      res.setHeader('Cache-Control', 'no-cache, no-transform');
-      res.sendFile(file);
-    } else {
-      // Prerender artifact missing (build regression) — fall back to SPA shell
-      // so the page still loads for humans. Loud fix is to repair the build.
-      next();
-    }
-  });
-});
 
 app.get(['/features', '/features/'], function (_req, res) {
   res.redirect(308, '/#features');
@@ -3235,48 +3359,54 @@ app.use('/api', function (_req, res) {
 });
 
 // ─── SPA fallback ───
-// Only serve the SPA shell for known client-side routes. Everything else
-// should return a real 404 so crawlers don't index an infinite duplicate-
-// content space of soft-404 homepages.
+// Only serve the SPA shell with a 200 for known client-side routes. Everything
+// else is a real 404 so crawlers don't index an infinite duplicate-content
+// space of soft-404 homepages. Both answers use static/app-shell.html (noindex,
+// empty #root), not the prerendered homepage: that one painted the marketing
+// hero on every hard load of /app/* and /auth/* (F-F-03). They are sent
+// no-cache: a cached shell after a deploy would request hashed asset filenames
+// that no longer exist, a blank /app until reload. For an unknown URL the
+// client router has no route and renders the same NotFound screen as a link
+// clicked inside the app (F-C-25; this used to be a separate inline page).
+// /blog/<slug> never reaches here: pages.blogPost answers it, with its own 404
+// for an unknown slug.
 app.get('*', function (req, res) {
-  const spaRoots = ['/app', '/auth', '/blog'];
+  const spaRoots = ['/app', '/auth'];
   const isKnownSpa = spaRoots.some(function (root) {
     return req.path === root || req.path.startsWith(root + '/');
   });
   if (isKnownSpa) {
-    // no-cache like the sibling HTML responses: sendFile sets Last-Modified/ETag,
-    // so without it browsers heuristically reuse a stale shell after a deploy and
-    // request hashed asset filenames that no longer exist — blank /app until reload.
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    return res.sendFile(path.join(__dirname, 'static', 'index.html'));
+    return pages.appShell(req, res);
   }
-  // UXE-003: unknown marketing URLs previously got an unbranded plaintext
-  // "Not found". Serve a minimal branded page (still noindex, still a real
-  // 404 for crawlers) so the dead end stays on-brand.
-  res.status(404)
-    .setHeader('Cache-Control', 'no-cache, no-transform')
-    .setHeader('Content-Type', 'text/html; charset=utf-8')
-    .send('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
-      '<title>Not found — Eco-Auditor</title><meta name="robots" content="noindex">' +
-      '<style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f7faf9;color:#1b2a27}' +
-      'main{text-align:center;padding:2rem}a{color:#0e7a5f}</style></head>' +
-      '<body><main><h1>Not found</h1><p>The page you are looking for does not exist.</p>' +
-      '<p><a href="/">Go to Eco-Auditor</a></p></main></body></html>');
+  return pages.notFound(req, res);
 });
+
+// ─── Terminal error handler (F-D-04, F-G-06) ───
+// Every error ends here: body-parser failures (fixed 400/413/415 messages, as
+// F-D-04 made them) and every handler failure, thrown or rejected (the
+// forwarding installed next to express() above). A handler failure is logged
+// once, with stack and driver code, and answered with a fixed message and the
+// request id: never a stack, path or SQL text. See server-errors.cjs. This must
+// stay the LAST middleware.
+app.use(createErrorHandler({ log: log, classifyApiFailure: classifyApiFailure }));
 
 // ─── Structured logging ───
 function log(level, message, context) {
   const entry = {
     level: level,
     timestamp: new Date().toISOString(),
-    message: message,
+    message: toLogValue(message),
     // Explicit context wins; otherwise take the id of whichever request (if
     // any) this call is running inside (INFRA-007).
     requestId: context && context.requestId || requestIdStore.getStore() || undefined,
   };
   if (context) {
+    // An Error becomes { name, message, code, stack } instead of {} (F-G-08), and
+    // credentials in any string (a connection string in a driver message) are
+    // redacted (server-errors.cjs). level, timestamp, message and requestId are
+    // the line's own: a context key of the same name never overwrites them.
     Object.keys(context).forEach(function (k) {
-      if (k !== 'requestId') entry[k] = context[k];
+      if (!Object.prototype.hasOwnProperty.call(entry, k)) entry[k] = toLogValue(context[k]);
     });
   }
   const out = level === 'error' ? process.stderr : process.stdout;
@@ -3284,18 +3414,21 @@ function log(level, message, context) {
 }
 
 // ─── Global error handlers ───
-process.on('uncaughtException', function (err) {
-  log('error', 'Uncaught exception', { error: String(err), stack: err.stack });
-  process.exit(1);
-});
+// These used to exit on every unhandled rejection, so one missed await took every
+// tenant down (F-G-06). A rejection is now logged and the process continues; an
+// uncaught exception, or ten rejections within a minute, is logged and the
+// process exits after a short grace so Railway restarts it (restartPolicyType
+// ON_FAILURE). Needs a human security review (see the obs-a report).
+let server;
 
-process.on('unhandledRejection', function (reason) {
-  log('error', 'Unhandled rejection', { reason: String(reason) });
-  process.exit(1);
+const processGuards = createProcessGuards({
+  log: log,
+  stopServer: function () { if (server) server.close(); },
 });
+process.on('uncaughtException', processGuards.onUncaughtException);
+process.on('unhandledRejection', processGuards.onUnhandledRejection);
 
 // ─── Graceful shutdown ───
-let server;
 
 async function startServer() {
   if (process.env.NODE_ENV === 'production' && INSFORGE_BASE_URL && !process.env.DATABASE_URL) {
@@ -3336,6 +3469,14 @@ async function startServer() {
     if (!database.ok) throw new Error('DATABASE_URL is configured but unreachable');
   }
 
+  // Configuration a boot survives but an owner has to fix (F-G-11, F-G-13,
+  // F-F-18): one structured warning per variable, never its value. The list,
+  // including the missing CONSENT_IP_PEPPER warning and why it does not stop the
+  // boot, is in server-config.cjs.
+  serverConfig.warnings.forEach(function (warning) {
+    log('warn', warning.message, { variable: warning.variable, action: warning.action });
+  });
+
   server = app.listen(PORT, '0.0.0.0', function () {
     var videoPath = findVideoPath();
     log('info', 'Eco-Auditor listening', { port: PORT, video: videoPath || 'not-found' });
@@ -3343,7 +3484,7 @@ async function startServer() {
 }
 
 startServer().catch(function (err) {
-  log('error', 'Server startup failed', { error: String(err) });
+  log('error', 'Server startup failed', { error: err });
   process.exit(1);
 });
 

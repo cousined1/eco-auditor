@@ -76,7 +76,7 @@
 - [x] Error states displayed in UI (Pricing, Settings)
 - [x] **Backend Stripe API routes implemented** (`/api/checkout`, `/api/portal`, `/api/subscription`, `/api/webhook`)
 - [x] **Stripe webhook signature verification** (rejects unsigned webhooks when `STRIPE_WEBHOOK_SECRET` is set)
-- [ ] **Stripe webhook URL registered** in Stripe Dashboard
+- [ ] **Stripe webhook URL registered** in Stripe Dashboard: exactly `https://ecoauditor.io/api/webhook` (live and test mode), enabled, subscribed to `checkout.session.completed`, `customer.subscription.created|updated|deleted`, `invoice.paid`, `invoice.payment_failed`, with recent 2xx deliveries. Any other path answers 404.
 
 ## Code Quality
 

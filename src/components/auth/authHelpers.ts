@@ -7,9 +7,37 @@ import { insforge, isInsForgeConfigured } from '../../lib/insforge';
 import { buildOAuthRedirectTo, startSocialSignIn, type SocialAuthProvider } from '../../lib/socialAuth';
 import { saveAuthIntent, type AuthIntent } from '../../lib/authIntent';
 
-/** Shared input styling. One string, so the two forms cannot drift visually. */
+/**
+ * Shared input styling. One string, so the two forms cannot drift visually.
+ * The placeholder is surface-500 (4.78:1 on white), not surface-400 (2.46:1, F-C-13);
+ * tests/a11y-tokens.test.ts resolves both placeholder utilities against the field
+ * backgrounds, so lightening either fails there.
+ */
 export const authInputClass =
-  'w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent';
+  'w-full rounded-lg border border-surface-300 bg-white px-4 py-3 text-sm text-surface-900 placeholder-surface-500 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-60 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500 dark:focus:border-accent';
+
+/**
+ * Visible field label. The auth forms used placeholder text as the only
+ * visible label: it disappears as soon as the user types and was the lowest
+ * contrast text on the page.
+ */
+export const authLabelClass = 'mb-1 block text-xs font-medium text-surface-700 dark:text-surface-300';
+
+/** Static helper text under a field (e.g. the password rule), referenced by aria-describedby. */
+export const authHintClass = 'mt-1 text-xs text-surface-600 dark:text-surface-400';
+
+/** Inline error under a field, referenced by aria-describedby. */
+export const authFieldErrorClass = 'mt-1 text-xs text-risk-high';
+
+/** Why a visitor was sent to /login. Carried in router state, shown above the form. */
+export type AuthNotice = 'session-expired' | 'email-verified';
+export type AuthNoticeState = { readonly authNotice: AuthNotice };
+
+export function readAuthNotice(state: unknown): AuthNotice | null {
+  if (!state || typeof state !== 'object') return null;
+  const notice = (state as Record<string, unknown>).authNotice;
+  return notice === 'session-expired' || notice === 'email-verified' ? notice : null;
+}
 
 /**
  * noindex for SPA-navigated auth views. The prerendered static HTML covers

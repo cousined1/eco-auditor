@@ -7,6 +7,11 @@
  * the static/index.html template, writing the result to either
  * ./static/index.html (for "/") or ./static/<route>/index.html.
  *
+ * It also writes two files the server reads at runtime: static/app-shell.html
+ * (the untouched template, noindex, empty #root: the fallback for /app/*, /auth/*
+ * and the base of the per-request blog pages) and static/sitemap-routes.json (the
+ * indexable routes, for sitemap.xml).
+ *
  * No new runtime dependencies. The only node_modules used are already
  * present: vite, react, react-dom, react-router-dom.
  *
@@ -24,108 +29,23 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
+import { ROUTES, SITE_URL, loadRouteData, applyRouteHead, applyShellHead, sitemapPaths } from './prerender-head.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const STATIC_DIR = path.join(ROOT, 'static');
 const TEMPLATE_PATH = path.join(STATIC_DIR, 'index.html');
+// Runtime renderer of the blog pages (they are not known at build time). It is
+// exercised below against the shell this script writes.
+const blogRender = createRequire(import.meta.url)('../server-blog-render.cjs');
 
-// Routes mirrored from public/sitemap.xml — public marketing surface only.
-// App routes (/app/*) are auth-gated and excluded by robots.txt, so they
-// must NOT be prerendered (would snapshot a "loading…" shell). /login and
-// /signup are prerendered (noindex) so non-JS clients and crawlers see
-// route-appropriate content instead of the homepage SPA shell (P0-01).
-const ROUTES = [
-  '/',
-  '/pricing',
-  '/methodology',
-  '/sample-report',
-  '/security',
-  '/demo',
-  '/contact',
-  '/privacy',
-  '/terms',
-  '/dpa',
-  '/blog',
-  '/login',
-  '/signup',
-  '/forgot-password',
-];
-
-// P0-01: noindex these routes so search engines don't index auth pages.
-// The static HTML gets a noindex,nofollow robots meta replacing the
-// homepage's index,follow (verified single occurrence — I5 regex risk).
-const NOINDEX_ROUTES = new Set(['/login', '/signup', '/forgot-password']);
-
-// AF-4: per-route <title> and <meta name="description">. The template
-// (static/index.html) has exactly one <title> and one description meta
-// (I5 verified), so the regex replace hits the single homepage tag and
-// swaps in the route-specific value. Titles mirror the document.title
-// each page sets client-side so server HTML and client mount agree.
-const HEAD = {
-  '/methodology': {
-    title: 'Carbon Accounting Methodology — Eco-Auditor | GHG Protocol Alignment',
-    description: 'Eco-Auditor’s carbon accounting methodology — GHG Protocol aligned Scope 1, 2, 3 emission factors from EPA, eGRID, GLEC, and EXIOBASE.',
-  },
-  '/security': {
-    title: 'Security & Trust — Eco-Auditor | Data Protection and Compliance',
-    description: 'Eco-Auditor security and trust: AES-256 encryption, TLS 1.2+ in transit, SOC 2-aligned controls, GDPR-aligned DPA.',
-  },
-  '/pricing': {
-    title: 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs',
-    // "no card required" removed — starting a trial from /pricing goes through
-    // Stripe Checkout, which collects a card. Annual pricing added because the
-    // page defaults to the annual toggle and displayed $124/$333/$833 while this
-    // description advertised $149/$399/$999.
-    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, L-2).
-    description: 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo — or from $124/mo billed annually. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly Starter and Growth plans.',
-  },
-  '/sample-report': {
-    title: 'Sample Carbon Report — Eco-Auditor | See What You Get',
-    description: 'See a sample Eco-Auditor carbon report — Scope 1, 2, 3 emissions breakdown, quality scores, and reviewable ledger entries.',
-  },
-  '/login': {
-    title: 'Sign In — Eco-Auditor',
-    description: 'Sign in to Eco-Auditor to access your emissions ledger, reports, and compliance dashboard.',
-  },
-  '/signup': {
-    title: 'Start Your Free Trial — Eco-Auditor',
-    // "read-only" was wrong: at trial end without a paid plan the dashboard and
-    // calculation APIs return 402 — access is paused, not read-only (claims.ts).
-    // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-6).
-    description: 'Start your 14-day free Eco-Auditor trial. No card required when you sign up directly. Cancel anytime before the trial ends; access is paused until you select a paid plan.',
-  },
-  '/forgot-password': {
-    title: 'Reset Your Password — Eco-Auditor',
-    description: 'Reset your Eco-Auditor password and regain access to your emissions ledger, reports, and compliance dashboard.',
-  },
-  '/demo': {
-    title: 'Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough',
-    description: 'Book a 25–30 minute Eco-Auditor demo. Tell us your goal — Scope 1/2 baseline, Scope 3 supplier collection, SB 253 readiness, or customer carbon-data requests.',
-  },
-  '/contact': {
-    title: 'Contact Us — Eco-Auditor',
-    description: 'Contact Eco-Auditor for demos, enterprise pricing, and compliance questions.',
-  },
-  '/privacy': {
-    title: 'Privacy Policy — Eco-Auditor',
-    description: 'Eco-Auditor Privacy Policy — how we collect, use, and protect your data.',
-  },
-  '/terms': {
-    title: 'Terms of Service — Eco-Auditor',
-    description: 'Eco-Auditor Terms of Service — the agreement governing your use of the Eco-Auditor platform.',
-  },
-  '/blog': {
-    title: 'Blog — Eco-Auditor | Carbon Accounting for SMBs',
-    description: 'Eco-Auditor blog: practical carbon accounting guidance for small and mid-size businesses — Scope 1-3 baselines, supplier data collection, and disclosure readiness.',
-  },
-  '/dpa': {
-    title: 'Data Processing Addendum — Eco-Auditor',
-    description: 'Eco-Auditor Data Processing Addendum — GDPR-aligned terms for EU customers.',
-  },
-};
+// Per-route <head> (title, description, canonical, og/twitter, robots, JSON-LD)
+// comes from scripts/prerender-head.mjs, fed by src/content/route-meta.json and
+// src/content/faq.json — the same files the pages read at runtime, so server
+// HTML and client mount agree (AF-4, audit F-A-12).
 
 async function main() {
   if (!existsSync(TEMPLATE_PATH)) {
@@ -168,6 +88,38 @@ async function main() {
     process.exit(1);
   }
 
+  const routeData = loadRouteData(ROOT);
+
+  // The neutral, noindex shell with an empty #root (F-F-03). It is written BEFORE
+  // the loop below, which overwrites static/index.html with the homepage render:
+  // that render used to double as the fallback for /app/*, /auth/* and every blog
+  // URL, so each hard load first painted the marketing hero.
+  const shellHtml = applyShellHead(templateHtml);
+  await fs.writeFile(path.join(STATIC_DIR, 'app-shell.html'), shellHtml, 'utf8');
+  console.log('[prerender] ✓ app shell → static/app-shell.html');
+
+  // The server turns the shell into the blog pages per request. Render a sample
+  // now so a template change that breaks those rewrites fails the build, not the
+  // first visitor.
+  const sample = {
+    id: 'build-check',
+    slug: 'build-check',
+    title: 'Build check',
+    meta_title: 'Build check',
+    meta_description: 'Build check.',
+    body_html: '<p>Build check.</p>',
+    primary_keyword: 'build check',
+    faq: [{ question: 'Q?', answer: 'A.' }],
+    cta: {},
+    published_at: new Date(0),
+  };
+  blogRender.renderPostPage(shellHtml, sample, SITE_URL);
+  blogRender.renderIndexPage(shellHtml, [], routeData.routeMeta['/blog'], SITE_URL);
+
+  // The indexable routes, for the server's sitemap.xml (the blog posts are added per request).
+  await fs.writeFile(path.join(STATIC_DIR, 'sitemap-routes.json'), `${JSON.stringify(sitemapPaths())}\n`, 'utf8');
+  console.log('[prerender] ✓ sitemap routes → static/sitemap-routes.json');
+
   let ok = 0;
   let fail = 0;
   for (const route of ROUTES) {
@@ -179,75 +131,11 @@ async function main() {
       }
       let out = templateHtml.replace('<div id="root"></div>', `<div id="root">${html}</div>`);
 
-      // P0-01: noindex auth routes. The template has a single
-      // <meta name="robots" content="index, follow" /> (I5 verified), so
-      // replace it with noindex,nofollow for /login and /signup.
-      if (NOINDEX_ROUTES.has(route)) {
-        out = out.replace(
-          /<meta name="robots" content="index, follow" \/>/,
-          '<meta name="robots" content="noindex,nofollow" />',
-        );
-      }
-
-      // AF-4: per-route <title> and <meta name="description">. Template has
-      // exactly one of each (I5 verified), so the regex hits the single
-      // homepage tag. '/' keeps the homepage title/description from the
-      // template (no HEAD entry) — that's the canonical homepage meta.
-      const head = HEAD[route];
-      if (head) {
-        if (head.title) {
-          out = out.replace(/<title>[^<]*<\/title>/, () => `<title>${head.title}</title>`);
-        }
-        if (head.description) {
-          // Use a function replacement so `$` characters in head.description
-          // (e.g. "$149/mo") are not interpreted as capture-group refs.
-          out = out.replace(
-            /(<meta name="description" content=")[^"]*(")/,
-            (_, p1, p2) => `${p1}${head.description}${p2}`,
-          );
-        }
-
-        // M33: per-route canonical URL and og:url. The template ships the
-        // homepage canonical. Use trailing-slash canonicals to match the
-        // URLs actually served by the Express static mapping.
-        if (NOINDEX_ROUTES.has(route)) {
-          // Canonical on noindex pages is contradictory; remove them.
-          out = out.replace(/<link rel="canonical" href="[^"]*" \/?>\n? */, '');
-          out = out.replace(/<meta property="og:url" content="[^"]*" \/?>\n? */, '');
-        } else {
-          const canonical = head.canonical || ('https://ecoauditor.io' + (route === '/' ? '' : route) + '/');
-          out = out.replace(
-            /(<link rel="canonical" href=")[^"]*(" \/>)/,
-            (_, p1, p2) => `${p1}${canonical}${p2}`,
-          );
-          out = out.replace(
-            /(<meta property="og:url" content=")[^"]*(" \/>)/,
-            (_, p1, p2) => `${p1}${canonical}${p2}`,
-          );
-        }
-
-        // Sync Open Graph and Twitter title/description to the page meta.
-        if (head.title) {
-          out = out.replace(
-            /<meta property="og:title" content="[^"]*" \/>/,
-            `<meta property="og:title" content="${head.title}" />`,
-          );
-          out = out.replace(
-            /<meta name="twitter:title" content="[^"]*" \/>/,
-            `<meta name="twitter:title" content="${head.title}" />`,
-          );
-        }
-        if (head.description) {
-          out = out.replace(
-            /<meta property="og:description" content="[^"]*" \/>/,
-            `<meta property="og:description" content="${head.description}" />`,
-          );
-          out = out.replace(
-            /<meta name="twitter:description" content="[^"]*" \/>/,
-            `<meta name="twitter:description" content="${head.description}" />`,
-          );
-        }
-      }
+      // Robots, title, description, canonical, og/twitter and JSON-LD for this
+      // route. Throws if the template no longer has a tag it expects, so a
+      // reformatted index.html fails the build instead of shipping the
+      // homepage's head on every route.
+      out = applyRouteHead(out, route, routeData);
 
       if (route === '/') {
         await fs.writeFile(TEMPLATE_PATH, out, 'utf8');

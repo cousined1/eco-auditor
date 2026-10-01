@@ -3,13 +3,18 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
+  CONSENT_DECIDED_MAX_AGE_MS,
+  CONSENT_DECIDED_MAX_FUTURE_MS,
+  billingFailureStatus,
   buildSecurityHeaders,
   canUseDevAuth,
   classifyApiFailure,
   getAuthorizedCompanyIds,
   resolveAuthorizedCompanyId,
   sanitizeChatState,
+  sanitizeConsentDecidedAt,
   sanitizeLeadPayload,
+  summarizeCspReports,
 } = require('../server-security.cjs');
 
 describe('server security policy', () => {
@@ -84,6 +89,45 @@ describe('server security policy', () => {
     }
   });
 
+  // F-B-21: every website lead used to be stored as source 'api', so the
+  // contact page, the demo page and direct API callers were indistinguishable.
+  describe('lead source (F-B-21)', () => {
+    const base = { name: 'Ada', email: 'ada@example.com' };
+    const sourceOf = (source: unknown) => {
+      const lead = sanitizeLeadPayload({ ...base, source });
+      expect(lead.ok).toBe(true);
+      return lead.value.source;
+    };
+
+    it.each(['contact', 'demo', 'chat', 'api'])('keeps the allowlisted source %s', (source) => {
+      expect(sourceOf(source)).toBe(source);
+    });
+
+    it('normalizes case and surrounding whitespace before checking the allowlist', () => {
+      expect(sourceOf('  Contact ')).toBe('contact');
+      expect(sourceOf('DEMO')).toBe('demo');
+    });
+
+    it.each([
+      ['an unknown label', 'newsletter'],
+      ['the chatbot label, which only the server may set', 'chatbot'],
+      ['markup', '<script>alert(1)</script>'],
+      ['a value over the column limit', 'contact'.padEnd(60, 'x')],
+      ['an array that stringifies to an allowed label', ['contact']],
+      ['an object', { source: 'contact' }],
+      ['a number', 7],
+      ['null', null],
+    ])('stores %s as api', (_label, source) => {
+      expect(sourceOf(source)).toBe('api');
+    });
+
+    it('defaults to api when the client sends no source', () => {
+      const lead = sanitizeLeadPayload(base);
+      expect(lead.ok).toBe(true);
+      expect(lead.value.source).toBe('api');
+    });
+  });
+
   it('allowlists and bounds client-controlled chat state', () => {
     expect(sanitizeChatState({
       flow: 'demo',
@@ -99,6 +143,173 @@ describe('server security policy', () => {
     });
     expect(sanitizeChatState({ flow: 'admin', step: 'complete' })).toEqual({});
     expect(sanitizeChatState('not-an-object')).toEqual({});
+  });
+});
+
+// F-F-07: what a CSP violation report may leave in the log. The route itself is
+// covered against a real server in tests/server-csp-report.test.ts; these are the
+// summarizer's rules, case by case.
+describe('summarizeCspReports (F-F-07)', () => {
+  const legacy = (fields: Record<string, unknown>) => ({ 'csp-report': fields });
+
+  it('keeps the directive, the blocked host, the page path, the disposition and the status, and nothing else', () => {
+    const [summary] = summarizeCspReports(legacy({
+      'document-uri': 'https://ecoauditor.io/app/intake?token=abc#x',
+      'blocked-uri': 'https://region1.google-analytics.com/g/collect?v=2&tid=G-XXXX',
+      'effective-directive': 'connect-src',
+      'violated-directive': "connect-src 'self'",
+      'script-sample': 'secret',
+      referrer: 'https://example.org/?q=1',
+      disposition: 'enforce',
+      'status-code': 200,
+    }));
+
+    expect(summary).toEqual({
+      directive: 'connect-src',
+      blocked: 'https://region1.google-analytics.com',
+      page: '/app/intake',
+      disposition: 'enforce',
+      status: 200,
+    });
+  });
+
+  it.each([
+    ['inline', 'inline'],
+    ['eval', 'eval'],
+    ['data:image/png;base64,AAAA', 'data:'],
+    ['blob:https://ecoauditor.io/1234-5678', 'blob:'],
+    ['chrome-extension://abcdefghijklmnop/content.js', 'chrome-extension:'],
+    ['https://cdn.example.com:8443/a/b.js?x=1', 'https://cdn.example.com:8443'],
+    ['not a url at all!', 'unknown'],
+    ['', 'unknown'],
+  ])('reduces the blocked URL %j to %j', (blocked, expected) => {
+    expect(summarizeCspReports(legacy({ 'blocked-uri': blocked }))[0]?.blocked).toBe(expected);
+  });
+
+  it('uses the violated directive when there is no effective one, and only its name', () => {
+    expect(summarizeCspReports(legacy({ 'violated-directive': "img-src 'self' https://x.example" }))[0]?.directive).toBe('img-src');
+  });
+
+  it('refuses a directive, disposition or status that could carry anything else into a log line', () => {
+    const [summary] = summarizeCspReports(legacy({
+      'effective-directive': 'script-src' + String.fromCharCode(10) + '{"level":"error"}',
+      disposition: 'enforce' + String.fromCharCode(10) + 'extra',
+      'status-code': '200; drop table',
+      'document-uri': 'javascript:alert(1)',
+    }));
+
+    // Only the first word of a directive survives, and a non-web document URL has no page.
+    expect(summary).toEqual({ directive: 'script-src', blocked: 'unknown', page: 'unknown', disposition: 'unknown', status: null });
+  });
+
+  it('reads a report-to batch, ignores other report types, and logs at most 5', () => {
+    const violation = (index: number) => ({
+      type: 'csp-violation',
+      url: 'https://ecoauditor.io/pricing/',
+      body: { effectiveDirective: 'script-src-elem', blockedURL: `https://h${index}.example/x`, documentURL: 'https://ecoauditor.io/pricing/?a=b', disposition: 'report', statusCode: 200 },
+    });
+    const batch = [{ type: 'deprecation', body: { id: 'x' } }, null, 'text', ...Array.from({ length: 9 }, (_, index) => violation(index))];
+
+    const summaries = summarizeCspReports(batch);
+
+    expect(summaries).toHaveLength(5);
+    expect(summaries[0]).toEqual({ directive: 'script-src-elem', blocked: 'https://h0.example', page: '/pricing/', disposition: 'report', status: 200 });
+  });
+
+  it.each([[undefined], [null], ['a string'], [42], [{}], [[]], [{ 'csp-report': 'not an object' }]])('returns nothing for %j', (body) => {
+    expect(summarizeCspReports(body)).toEqual([]);
+  });
+
+  // D-W2A-6: the report body is attacker-supplied up to the route's 8 KB cap. What
+  // reaches the log is escaped (no line or header injection), and is also bounded:
+  // a page path or host longer than a real one is cut, never stretched to the cap.
+  it('logs at most about 200 characters of the page path, from its start', () => {
+    const tail = '/' + 'p'.repeat(7000);
+    const [legacyReport] = summarizeCspReports(legacy({ 'document-uri': 'https://ecoauditor.io/app/intake' + tail }));
+    const [batched] = summarizeCspReports([{ type: 'csp-violation', body: { documentURL: 'https://ecoauditor.io/app/intake' + tail } }]);
+
+    for (const summary of [legacyReport, batched]) {
+      expect(summary?.page.length).toBeLessThanOrEqual(200);
+      expect(summary?.page.startsWith('/app/intake/ppp')).toBe(true);
+    }
+  });
+
+  it('keeps an ordinary page path whole', () => {
+    expect(summarizeCspReports(legacy({ 'document-uri': 'https://ecoauditor.io/blog/scope-3-emissions-for-smbs/' }))[0]?.page).toBe('/blog/scope-3-emissions-for-smbs/');
+  });
+
+  it('logs at most the length of a real host for what was blocked', () => {
+    const [summary] = summarizeCspReports(legacy({ 'blocked-uri': 'https://' + 'h'.repeat(6000) + '.example/script.js?x=1' }));
+
+    expect(summary?.blocked.length).toBeLessThanOrEqual(270);
+    expect(summary?.blocked.startsWith('https://hhh')).toBe(true);
+  });
+
+  it('keeps a real host, with its port, whole', () => {
+    expect(summarizeCspReports(legacy({ 'blocked-uri': 'https://region1.google-analytics.com:443/g/collect' }))[0]?.blocked).toBe('https://region1.google-analytics.com');
+    expect(summarizeCspReports(legacy({ 'blocked-uri': 'https://cdn.example.com:8443/a.js' }))[0]?.blocked).toBe('https://cdn.example.com:8443');
+  });
+});
+
+// k10 follow-up: a consent record keeps the time the visitor chose, as their browser
+// reported it, next to the time the server received it. The browser's clock is not
+// trusted: the time is taken only when it is well formed and plausible, else the
+// record falls back to the receipt time (null here, read as "use created_at").
+describe('sanitizeConsentDecidedAt (k10 follow-up)', () => {
+  const RECEIVED = Date.parse('2026-09-30T12:00:00.000Z');
+  const at = (offsetMs: number) => new Date(RECEIVED + offsetMs).toISOString();
+
+  it('exports the bounds it applies: 5 minutes ahead, 30 days back', () => {
+    expect(CONSENT_DECIDED_MAX_FUTURE_MS).toBe(5 * 60 * 1000);
+    expect(CONSENT_DECIDED_MAX_AGE_MS).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+
+  it.each([
+    ['a choice a moment ago', -2_000],
+    ['a record that waited in the outbox for two days', -2 * 24 * 60 * 60 * 1000],
+    ['the receipt time itself', 0],
+    ['a browser clock a little fast', 3 * 60 * 1000],
+    ['exactly 5 minutes ahead', 5 * 60 * 1000],
+    ['exactly 30 days ago', -30 * 24 * 60 * 60 * 1000],
+  ])('takes %s', (_name, offset) => {
+    expect(sanitizeConsentDecidedAt(at(offset), RECEIVED)).toBe(at(offset));
+  });
+
+  it.each([
+    ['one millisecond past 5 minutes ahead', 5 * 60 * 1000 + 1],
+    ['an hour ahead', 60 * 60 * 1000],
+    ['a year ahead', 365 * 24 * 60 * 60 * 1000],
+    ['one millisecond older than 30 days', -(30 * 24 * 60 * 60 * 1000 + 1)],
+    ['a year old', -365 * 24 * 60 * 60 * 1000],
+  ])('ignores %s', (_name, offset) => {
+    expect(sanitizeConsentDecidedAt(at(offset), RECEIVED)).toBeNull();
+  });
+
+  it('accepts the UTC time with or without milliseconds and returns it in one form', () => {
+    expect(sanitizeConsentDecidedAt('2026-09-30T11:59:00Z', RECEIVED)).toBe('2026-09-30T11:59:00.000Z');
+    expect(sanitizeConsentDecidedAt('2026-09-30T11:59:00.5Z', RECEIVED)).toBe('2026-09-30T11:59:00.500Z');
+  });
+
+  it.each([
+    [undefined],
+    [null],
+    [''],
+    ['yesterday'],
+    [1790000000000],
+    [true],
+    [{}],
+    [['2026-09-30T11:59:00Z']],
+    ['2026-09-30'], // a date is not a moment
+    ['2026-09-30T11:59:00'], // no zone: read in the server's own
+    ['2026-09-30T13:59:00+02:00'], // an offset, where only UTC is sent
+    ['Sep 30 2026 11:59:00 GMT'],
+    ['2026-02-30T11:59:00.000Z'], // Date.parse rolls this over to 2 March
+    ['2026-09-30T24:00:00.000Z'], // and this to the next day
+    ['2026-13-01T11:59:00.000Z'],
+    ['2026-09-30T11:59:00.000Z; DROP TABLE public.consent_records'],
+    ['2026-09-30T11:59:00.000Z' + ' '.repeat(40)],
+  ])('ignores %j', (value) => {
+    expect(sanitizeConsentDecidedAt(value, RECEIVED)).toBeNull();
   });
 });
 
@@ -128,5 +339,42 @@ describe('classifyApiFailure (REL-018)', () => {
     const failure = classifyApiFailure(new Error('Row 3: Unknown category "foo"'));
     expect(failure.status).toBe(400);
     expect(failure.message).toContain('Row 3');
+  });
+});
+
+// D-S6 (VERIFY-FINAL-SEC): the Stripe-backed routes answered classifyApiFailure's rule, which reads every
+// error that has a `code` as a data-store fault, so a Stripe error such as resource_missing came back as a
+// 503 ("retry later"). The routes' behaviour with the database down is in tests/data-layer-outage.test.ts.
+describe('billingFailureStatus (D-S6)', () => {
+  const stripeError = (type: string, code?: string) => Object.assign(new Error('No such checkout.session: cs_test_x'), { type, code });
+  const pgError = (code: string) => Object.assign(new Error('connection failure'), { code });
+
+  it.each([
+    ['a Stripe error with a code (StripeInvalidRequestError, resource_missing)', 500, stripeError('StripeInvalidRequestError', 'resource_missing')],
+    ['a declined card (StripeCardError, card_declined)', 500, stripeError('StripeCardError', 'card_declined')],
+    ['a Stripe error whose code is undefined, as the SDK builds it (StripeConnectionError)', 500, stripeError('StripeConnectionError')],
+    ['a pg error with a connection SQLSTATE (08001)', 503, pgError('08001')],
+    ['a pg error with an unlisted SQLSTATE (42501)', 503, pgError('42501')],
+    ['a socket error (ECONNRESET)', 503, pgError('ECONNRESET')],
+    ['an Error whose message says Data store unavailable', 503, new Error('Data store unavailable: no database is configured')],
+    ['a plain Error', 500, new Error('boom')],
+    ['a thrown string', 500, 'boom'],
+    ['undefined', 500, undefined],
+  ])('%s answers %i', (_name, status, err) => {
+    expect(billingFailureStatus(err)).toBe(status);
+  });
+
+  it('holds for the errors the installed Stripe SDK builds, which is what the routes catch', () => {
+    const { errors } = require('stripe');
+    const raw = { message: 'No such checkout.session: cs_test_x', type: 'invalid_request_error', code: 'resource_missing' };
+    for (const make of [
+      () => new errors.StripeInvalidRequestError(raw),
+      () => new errors.StripeCardError({ ...raw, type: 'card_error', code: 'card_declined' }),
+      () => new errors.StripeRateLimitError({ ...raw, type: 'rate_limit_error', code: 'rate_limit' }),
+      () => new errors.StripeConnectionError({ message: 'An error occurred with our connection to Stripe.', type: 'api_connection_error' }),
+    ]) {
+      const err = make();
+      expect({ type: err.type, status: billingFailureStatus(err) }).toEqual({ type: err.type, status: 500 });
+    }
   });
 });

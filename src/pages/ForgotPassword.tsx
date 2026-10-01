@@ -8,7 +8,13 @@ import {
   ConfigWarning,
   SubmitLabel,
 } from '../components/auth/AuthShell';
-import { authInputClass, useNoIndex } from '../components/auth/authHelpers';
+import {
+  authFieldErrorClass,
+  authHintClass,
+  authInputClass,
+  authLabelClass,
+  useNoIndex,
+} from '../components/auth/authHelpers';
 import { PasswordInput } from '../components/auth/PasswordInput';
 
 // Matches the signup form. Note the backend's own minimum is lower
@@ -35,10 +41,13 @@ export default function ForgotPassword() {
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmTouched, setConfirmTouched] = useState(false);
 
   useNoIndex();
 
-  const mismatch = confirm.length > 0 && password !== confirm;
+  // Shown once the user leaves the confirm field, not on its first keystroke
+  // (every partly typed confirmation "mismatches").
+  const mismatch = confirmTouched && confirm.length > 0 && password !== confirm;
 
   async function handleRequest(e: React.FormEvent) {
     e.preventDefault();
@@ -125,13 +134,12 @@ export default function ForgotPassword() {
                 exchange was called with an empty email and always failed with
                 "That code is not valid or has expired" -- for a valid code. */}
             <div>
-              <label htmlFor="reset-step-email" className="sr-only">Email address</label>
+              <label htmlFor="reset-step-email" className={authLabelClass}>Email address</label>
               <input
                 id="reset-step-email"
                 type="email"
                 autoComplete="email"
                 required
-                placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={submitting}
@@ -139,14 +147,13 @@ export default function ForgotPassword() {
               />
             </div>
             <div>
-              <label htmlFor="reset-code" className="sr-only">Reset code</label>
+              <label htmlFor="reset-code" className={authLabelClass}>Reset code from your email</label>
               <input
                 id="reset-code"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 required
-                placeholder="Reset code from your email"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 disabled={submitting}
@@ -156,30 +163,35 @@ export default function ForgotPassword() {
             <PasswordInput
               id="new-password"
               label="New password"
-              placeholder="New password (8+ characters, with a letter and a number)"
               autoComplete="new-password"
               minLength={PASSWORD_MIN_LENGTH}
               value={password}
               onChange={setPassword}
               disabled={submitting}
-            />
+              hintId="new-password-hint"
+            >
+              <p id="new-password-hint" className={authHintClass}>
+                At least 8 characters, with at least one letter and one number.
+              </p>
+            </PasswordInput>
             <PasswordInput
               id="confirm-password"
               label="Confirm new password"
-              placeholder="Confirm new password"
               autoComplete="new-password"
               value={confirm}
               onChange={setConfirm}
+              onBlur={() => setConfirmTouched(true)}
               disabled={submitting}
               invalid={mismatch}
               {...(mismatch ? { errorId: 'confirm-password-error' } : {})}
             >
               {mismatch && (
-                <p id="confirm-password-error" className="text-xs text-risk-high mt-1" role="alert">
+                <p id="confirm-password-error" className={authFieldErrorClass} role="alert">
                   The two passwords do not match.
                 </p>
               )}
             </PasswordInput>
+            <AuthError message={error} />
             <button
               type="submit"
               disabled={submitting || !email.trim() || !code.trim() || !isPasswordValid(password) || password !== confirm}
@@ -188,8 +200,6 @@ export default function ForgotPassword() {
               <SubmitLabel submitting={submitting} idle="Set new password" busy="Saving…" />
             </button>
           </form>
-
-          <AuthError message={error} />
 
           <button
             type="button"
@@ -215,19 +225,19 @@ export default function ForgotPassword() {
 
         <form onSubmit={(e) => void handleRequest(e)} className="space-y-3">
           <div>
-            <label htmlFor="reset-email" className="sr-only">Email address</label>
+            <label htmlFor="reset-email" className={authLabelClass}>Email address</label>
             <input
               id="reset-email"
               type="email"
               autoComplete="email"
               required
-              placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={submitting}
               className={authInputClass}
             />
           </div>
+          <AuthError message={error} />
           <button
             type="submit"
             disabled={submitting || !email.trim() || !isInsForgeConfigured}
@@ -236,8 +246,6 @@ export default function ForgotPassword() {
             <SubmitLabel submitting={submitting} idle="Send reset code" busy="Sending…" />
           </button>
         </form>
-
-        <AuthError message={error} />
 
         <button
           type="button"
@@ -250,7 +258,7 @@ export default function ForgotPassword() {
 
       <p className="mt-6 text-center text-sm text-surface-500">
         Remembered it?{' '}
-        <Link to="/login" className="font-medium text-accent-text hover:underline">
+        <Link to="/login/" className="font-medium text-accent-text hover:underline">
           Back to sign in
         </Link>
       </p>
