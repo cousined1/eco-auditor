@@ -18,7 +18,7 @@ describe('emission-factor registry (P0-04)', () => {
     // 'ipcc-ar5-gwp100' (the catalog is AR5 throughout), so this set matched
     // nothing for IPCC and its verified flag went unasserted entirely --
     // flipping it to false would have passed.
-    const wired = new Set(['epa-efh-2025', 'epa-egrid-2023', 'ipcc-ar5-gwp100']);
+    const wired = new Set(['epa-efh-2025', 'epa-egrid-2023', 'ipcc-ar5-gwp100', 'epa-warm-2023', 'desnz-2026']);
     const roadmap = new Set(['glec-v3', 'exiobase-3.8']);
     for (const e of EMISSION_FACTOR_REGISTRY) {
       if (wired.has(e.id)) {
@@ -27,11 +27,14 @@ describe('emission-factor registry (P0-04)', () => {
         expect(e.verified, `${e.id} is roadmap-only → must be verified:false`).toBe(false);
       }
     }
+    // Wired as well, but not a published dataset: the catalog's own estimates
+    // stay verified:false so they are always flagged (F-E-06).
+    expect(EMISSION_FACTOR_REGISTRY.find((e) => e.id === 'internal-estimate')?.verified).toBe(false);
   });
 
   it('no unverified entry renders without "(verify before publication)"', () => {
-    // All are verified:true today, so factorLabel returns the bare label; this
-    // guard ensures any future unverified entry gets the sentinel suffix.
+    // internal-estimate and the roadmap entries are verified:false; this guard
+    // ensures every unverified entry gets the sentinel suffix.
     for (const e of EMISSION_FACTOR_REGISTRY) {
       const label = factorLabel(e.id);
       if (!e.verified) {

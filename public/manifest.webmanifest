@@ -1,7 +1,7 @@
 {
   "name": "Eco-Auditor",
   "short_name": "Eco-Auditor",
-  "description": "Carbon accounting and sustainability reporting platform",
+  "description": "Carbon accounting software for small and mid-size businesses",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f0fdf4",

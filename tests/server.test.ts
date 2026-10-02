@@ -214,8 +214,13 @@ describe('Trust proxy client IP resolution', () => {
 });
 
 describe('CSV ingest failure path', () => {
-  const route = serverSource.slice(serverSource.indexOf("app.post('/api/ingest/csv'"));
-  const handler = route.slice(0, route.indexOf("app.get('/api/ingest/status"));
+  // K4 moved the handler to server-csv-import-routes.cjs; server.cjs mounts it.
+  const routes = readFileSync(resolve('server-csv-import-routes.cjs'), 'utf8');
+  const handler = routes.slice(routes.indexOf('async function ingest('), routes.indexOf('async function list('));
+
+  it('mounts the ingest handler on the route, behind the auth guard and the plan gate', () => {
+    expect(serverSource).toMatch(/app\.post\('\/api\/ingest\/csv', express\.text\([^)]*\), apiAuthGuard, requirePlan\('starter'\), csvImportHandlers\.ingest\);/);
+  });
 
   it('declares companyId before the try so the catch block can log it', () => {
     // A const inside the try made the catch's log() a ReferenceError, which
@@ -229,19 +234,30 @@ describe('CSV ingest failure path', () => {
     expect(gate.slice(0, gate.indexOf('\n}'))).toContain('normalizeScope(value)');
   });
 
-  it('rejects out-of-range confidence per row instead of failing the whole import', () => {
-    expect(handler).toContain('confidence must be between 0 and 100');
+  it('rejects out-of-range confidence per row, naming the line, instead of failing the insert', async () => {
+    const { validateCsvImport } = await import('../server-csv-import.cjs');
+    const report = validateCsvImport(
+      'scope,category,source,amount,unit,confidence\nScope 1,stationary_combustion,natural_gas,10,therms,150\nScope 1,stationary_combustion,natural_gas,10,therms,95\n',
+      { now: new Date('2026-09-30T12:00:00Z') },
+    );
+    expect(report.errors).toEqual(['Line 2: confidence must be between 0 and 100.']);
+    expect(report.rows.map((row: { line: number; entry: { confidence: number } }) => [row.line, row.entry.confidence])).toEqual([[3, 95]]);
   });
 });
 
 describe('SPA shell caching', () => {
   it('sends no-cache so a deploy cannot leave a stale shell behind', () => {
-    // Scoped to the fallback's own branch: the 404 below it and the prerendered
-    // routes above already send no-cache, so an unscoped match would pass
-    // without the fix. A cached shell requests hashed assets that are gone.
-    const fallback = serverSource.slice(serverSource.indexOf("app.get('*'"));
-    const shellBranch = fallback.slice(0, fallback.indexOf('res.status(404)'));
-    expect(shellBranch).toContain("'no-cache, no-transform'");
+    // The fallback hands BOTH its answers (the shell for /app and /auth, the 404 for
+    // any other URL) to server-pages.cjs (F-F-03, F-C-25), which sends every HTML
+    // page it renders no-cache: a cached shell requests hashed assets that are
+    // gone. Nothing in the fallback may answer on its own and skip that.
+    // tests/blog-pages-server.test.ts asserts the headers over HTTP.
+    const start = serverSource.indexOf("app.get('*'");
+    const fallback = serverSource.slice(start, serverSource.indexOf('Terminal error handler', start));
+    expect(fallback).toContain('pages.appShell(req, res)');
+    expect(fallback).toContain('pages.notFound(req, res)');
+    expect(fallback).not.toMatch(/res\.(send|sendFile|status|setHeader)\(/);
+    expect(readFileSync(resolve('server-pages.cjs'), 'utf8')).toContain("const HTML_CACHE_CONTROL = 'no-cache, no-transform';");
   });
 });
 
@@ -345,17 +361,24 @@ describe('resolveClientIp (PERF-001)', () => {
   });
 });
 
-// ─── DATA-006: chatbot demo deck link must not carry lead PII ───
+// ─── DATA-006: a chatbot deck link must not carry lead PII ───
+// The demo reply no longer links to the third-party deck at all (F-A-07 /
+// F-B-12: it was advertised as "personalized" and was generic). If a link is
+// ever restored it must stay a generic product link: the lead's details stay in
+// EcoAuditor's own store, never in a URL handed to another host.
 describe('Chatbot demo deck link (DATA-006)', () => {
-  it('does not embed lead company/email in the third-party URL', () => {
-    expect(serverSource).not.toMatch(/radiant-alignment[^`]*\$\{encodeURIComponent\(state\.(company|email)\)/);
-    // Only the non-identifying product marker is sent.
-    expect(serverSource).toContain("'https://radiant-alignment-production-b430.up.railway.app/?product=ecoauditor'");
+  it('never embeds lead company/email in a third-party URL', () => {
+    expect(serverSource).not.toMatch(/radiant-alignment[^`]*\$\{encodeURIComponent\(state\.(company|email|name)\)/);
+    for (const link of serverSource.match(/https:\/\/radiant-alignment[^\s'"`)]*/g) ?? []) {
+      // Only the non-identifying product marker may ride along.
+      expect([...new URL(link).searchParams.keys()]).toEqual(['product']);
+    }
   });
 });
 
 // ─── DATA-005 / INFRA-003: account data controls + readiness, integration ───
 // Spawns the real server (no DB, dev auth) like tests/server-health.test.ts.
+// Without a database every data route answers 503 (F-G-07).
 describe('Account data controls and readiness (integration)', () => {
   const port = 10000 + Math.floor(Math.random() * 50000);
   const base = `http://127.0.0.1:${port}`;
@@ -391,34 +414,16 @@ describe('Account data controls and readiness (integration)', () => {
     child = null;
   });
 
-  it('exports the caller workspace as a JSON attachment (DATA-005)', async () => {
-    const r = await fetch(`${base}/api/account/export`, { headers: auth });
-    expect(r.status).toBe(200);
-    expect(r.headers.get('content-type')).toContain('application/json');
-    expect(r.headers.get('content-disposition')).toContain('attachment; filename="ecoauditor-export-test-company-1.json"');
-    const body = await r.json();
-    expect(body.exportedAt).toBeTruthy();
-    expect(body.company.id).toBe('test-company-1');
-    expect(Array.isArray(body.facilities)).toBe(true);
-    expect(Array.isArray(body.emissionEntries)).toBe(true);
-  });
-
-  it('deletes audit data but not the account, and export then comes back empty (DATA-005)', async () => {
-    const before = await (await fetch(`${base}/api/account/export`, { headers: auth })).json();
-    expect(before.emissionEntries.length).toBeGreaterThan(0);
-
-    const r = await fetch(`${base}/api/account/delete-data`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' } });
-    expect(r.status).toBe(200);
-    const body = await r.json();
-    expect(body.deleted).toBe(true);
-    expect(body.deletedEntries).toBe(before.emissionEntries.length);
-    expect(body.deletedFacilities).toBe(before.facilities.length);
-
-    const after = await (await fetch(`${base}/api/account/export`, { headers: auth })).json();
-    expect(after.emissionEntries).toHaveLength(0);
-    expect(after.facilities).toHaveLength(0);
-    // The company row itself must survive the delete.
-    expect(after.company.id).toBe('test-company-1');
+  // The export and the delete themselves run on real Postgres in
+  // tests/entries-write-api.test.ts (DATA-005): there is no sample company to
+  // export or delete any more (F-G-07).
+  it('without a database, export and delete-data answer 503 and serve no sample company (DATA-005)', async () => {
+    const exported = await fetch(`${base}/api/account/export`, { headers: auth });
+    expect(exported.status).toBe(503);
+    expect(await exported.text()).not.toContain('test-company-1');
+    const deleted = await fetch(`${base}/api/account/delete-data`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' } });
+    expect(deleted.status).toBe(503);
+    expect(await deleted.json()).toEqual({ success: false, error: 'Data store unavailable' });
   });
 
   it('requires authentication for both controls', async () => {
@@ -436,12 +441,10 @@ describe('Account data controls and readiness (integration)', () => {
 
   it('/ready gates on the data store, not the video (INFRA-003/INFRA-008)', async () => {
     const r = await fetch(`${base}/ready`);
-    // No DATABASE_URL configured -> ready (same semantics as /health), video
-    // is informational only.
+    // No DATABASE_URL configured -> ready (same semantics as /health); the
+    // video is not part of readiness, and the body is the status only (D-10).
     expect(r.status).toBe(200);
-    const body = await r.json();
-    expect(body.status).toBe('ok');
-    expect(body.db).toBe('not configured');
+    expect(await r.json()).toEqual({ status: 'ok' });
   });
 
   it('meters only /api/ paths with the global limiter (PERF-001)', async () => {

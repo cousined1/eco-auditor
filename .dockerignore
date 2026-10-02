@@ -3,9 +3,52 @@ dist
 static
 .git
 .github
-.env
-.env.*
-!.env.example
+# Credentials and local state never enter the build context (F-G-17): any *.env*
+# file at any depth (.env, .env.local, prod.env) except the committed *.example
+# templates, the server's old file store, the InsForge CLI state, editor MCP config.
+**/*.env*
+!**/*.example
+**/.data
+**/.insforge
+**/opencode.json
+**/opencode.jsonc
+gsc-key-temp.json
+# Agent state (the same list as .gitignore).
+.agent
+.agents
+.augment
+.cline
+.codegraph
+.codex
+.claude-flow
+.kilocode
+.omc
+.omo
+.opencode
+.playwright-mcp
+.qoder
+.qwen
+.refact
+.roo
+.swarm
+.trae
+.windsurf
+ruvector.db
+# Audit transcripts, reports, prompts and scan output: nothing in the image reads
+# them, and some of them held credentials (SECURITY-HISTORY.md). Root level only:
+# src/lib/consent-audit.ts and public/fonts/*.txt are source.
+*.txt
+*[Aa]udit*
+*AUDIT*
+LAUNCH*
+HANDOFF*
+dogfood-*
+*.patch
+*.sarif
+*.csv
+reports
+docs/audits
+docs/archive
 .vscode
 .idea
 .claude

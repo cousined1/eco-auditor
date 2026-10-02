@@ -7,10 +7,12 @@ const allowedAdvisories = new Set([
 ]);
 
 const npmCli = process.env.npm_execpath;
+// process.execPath is an absolute path, so it needs no shell. With `shell: true` on
+// Windows the unquoted "C:\Program Files\nodejs\node.exe" is split at the space by
+// cmd.exe, which is why `npm run security:audit` failed before auditing anything.
 const audit = npmCli
   ? spawnSync(process.execPath, [npmCli, 'audit', '--omit=dev', '--json'], {
       encoding: 'utf8',
-      shell: process.platform === 'win32',
     })
   : spawnSync('npm', ['audit', '--omit=dev', '--json'], {
       encoding: 'utf8',

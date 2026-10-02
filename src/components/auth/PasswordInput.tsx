@@ -1,11 +1,12 @@
 import { useId, useState } from 'react';
-import { authInputClass } from './authHelpers';
+import { authInputClass, authLabelClass } from './authHelpers';
 
 type PasswordInputProps = {
   id: string;
   value: string;
   onChange: (value: string) => void;
-  placeholder: string;
+  /** Optional: the visible label names the field, so no placeholder is needed. */
+  placeholder?: string;
   autoComplete: 'current-password' | 'new-password';
   disabled?: boolean;
   required?: boolean;
@@ -13,8 +14,12 @@ type PasswordInputProps = {
   minLength?: number;
   /** Set when the field currently fails validation (e.g. passwords differ). */
   invalid?: boolean;
-  /** id of an external error element, appended to the built-in hint. */
+  /** id of an external error element, listed first in aria-describedby. */
   errorId?: string;
+  /** id of static helper text (e.g. the password rule), listed after the error. */
+  hintId?: string;
+  /** Lets a form validate when the user leaves the field instead of on every keystroke. */
+  onBlur?: () => void;
   label: string;
   /** Rendered under the field — hint text, strength meter, or a link row. */
   children?: React.ReactNode;
@@ -48,15 +53,18 @@ export function PasswordInput({
   minLength,
   invalid = false,
   errorId,
+  hintId,
+  onBlur,
   label,
   children,
 }: PasswordInputProps) {
   const [revealed, setRevealed] = useState(false);
-  const hintId = useId();
+  const visibilityHintId = useId();
+  const describedBy = [errorId, hintId, visibilityHintId].filter(Boolean).join(' ');
 
   return (
     <div>
-      <label htmlFor={id} className="sr-only">
+      <label htmlFor={id} className={authLabelClass}>
         {label}
       </label>
       <div className="relative">
@@ -66,12 +74,13 @@ export function PasswordInput({
           autoComplete={autoComplete}
           required={required}
           {...(minLength === undefined ? {} : { minLength })}
-          placeholder={placeholder}
+          {...(placeholder === undefined ? {} : { placeholder })}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          {...(onBlur ? { onBlur } : {})}
           disabled={disabled}
           aria-invalid={invalid}
-          aria-describedby={errorId ? `${errorId} ${hintId}` : hintId}
+          aria-describedby={describedBy}
           // pr-12 keeps the text clear of the toggle button.
           className={`${authInputClass} pr-12`}
         />
@@ -87,7 +96,7 @@ export function PasswordInput({
           {revealed ? <EyeOffIcon /> : <EyeIcon />}
         </button>
       </div>
-      <span id={hintId} className="sr-only">
+      <span id={visibilityHintId} className="sr-only">
         {revealed ? 'Password is visible' : 'Password is hidden'}
       </span>
       {children}

@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { applyPrivacySignals, syncConsentMode } from './consent-mode';
+import { flushConsentAuditOutbox, submitConsentAudit } from './consent-audit';
 
 export type ConsentCategories = {
   strictlyNecessary: boolean;
@@ -82,12 +84,39 @@ function detectPrivacySignals(): PrivacySignals {
   };
 }
 
-// When a privacy signal is present and the visitor has no stored decision,
-// honor the signal by auto-rejecting non-essential categories (no banner).
-function initialConsentState(signals: PrivacySignals): ConsentState {
+type InitialConsent = {
+  state: ConsentState;
+  // True when a privacy signal decided (or overrode) the state on this load, so
+  // the mount effect persists it and writes the evidence record.
+  recordSignal: boolean;
+};
+
+// The state a page load starts from, with the browser's privacy signals applied
+// on EVERY load, not only when nothing is stored (F-F-05):
+//  - no stored decision and a signal: auto-reject non-essential categories, no banner;
+//  - a stored decision the signal contradicts (an "Accept" given before the visitor
+//    turned on Global Privacy Control): the signal wins and the change is recorded.
+// Once the override is stored it no longer contradicts the signal, so the next load
+// writes nothing: one evidence record per conflict.
+function resolveInitialConsent(signals: PrivacySignals): InitialConsent {
   const stored = readConsentFromStorage();
-  if (stored.hasConsented || (!signals.gpc && !signals.dnt)) return stored;
-  return { ...defaultConsentState, hasConsented: true };
+  if (stored.hasConsented) {
+    const consent = applyPrivacySignals(stored.consent, signals);
+    const contradicted = consent.analytics !== stored.consent.analytics || consent.marketing !== stored.consent.marketing;
+    return contradicted ? { state: { ...stored, consent }, recordSignal: true } : { state: stored, recordSignal: false };
+  }
+  if (signals.gpc || signals.dnt) return { state: { ...defaultConsentState, hasConsented: true }, recordSignal: true };
+  return { state: stored, recordSignal: false };
+}
+
+function persistConsent(state: ConsentState): void {
+  try {
+    localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage may be blocked (SecurityError, e.g. "Block all cookies"); keep the
+    // in-memory state and skip persistence instead of throwing above the app
+    // ErrorBoundary (FEW-01, same guard as useTheme).
+  }
 }
 
 function getVisitorId(): string | null {
@@ -104,80 +133,49 @@ function getVisitorId(): string | null {
   }
 }
 
-// Best-effort server-side audit trail; failures never block the UI.
-// UXE-006: a failure is no longer swallowed silently. The server answers
-// 503 {retryable:true} when it could not persist the record (GDPR/CCPA
-// evidence); the client retries once and then surfaces the failure loudly
-// (console.warn) so outages are observable instead of silent evidence loss.
+// Server-side audit trail (GDPR/CCPA evidence). Delivery, retry with Retry-After
+// and the durable outbox live in consent-audit.ts (UXE-006, F-X1-02); failures
+// never block the UI. Every decision calls this exactly once.
 function recordConsentAudit(consent: ConsentCategories, signals: PrivacySignals, method: ConsentMethod): void {
-  if (typeof fetch === 'undefined') return;
-  const post = (): Promise<Response> => fetch('/api/consent-audit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      visitorId: getVisitorId(),
-      consent,
-      policyVersion: POLICY_VERSION,
-      method,
-      gpc: signals.gpc,
-      dnt: signals.dnt,
-    }),
-    keepalive: true,
-    signal: AbortSignal.timeout(15000), // RT-06: bounded fetch
+  submitConsentAudit({
+    visitorId: getVisitorId(),
+    consent,
+    policyVersion: POLICY_VERSION,
+    method,
+    gpc: signals.gpc,
+    dnt: signals.dnt,
   });
-  const attempt = (retriesLeft: number): void => {
-    post().then((res) => {
-      if (res.ok) return;
-      if (retriesLeft > 0 && res.status === 503) {
-        window.setTimeout(() => attempt(retriesLeft - 1), 1000);
-        return;
-      }
-      console.warn(`[ConsentAudit] consent record not persisted (HTTP ${res.status})`);
-    }).catch(() => {
-      if (retriesLeft > 0) {
-        window.setTimeout(() => attempt(retriesLeft - 1), 1000);
-        return;
-      }
-      console.warn('[ConsentAudit] consent record not persisted (network failure)');
-    });
-  };
-  attempt(1);
 }
 
 export function ConsentProvider({ children }: { children: React.ReactNode }) {
   const [privacySignals] = useState<PrivacySignals>(() => detectPrivacySignals());
-  const [consentState, setConsentState] = useState<ConsentState>(() => initialConsentState(privacySignals));
+  const [initial] = useState<InitialConsent>(() => resolveInitialConsent(privacySignals));
+  const [consentState, setConsentState] = useState<ConsentState>(initial.state);
+  const handledMount = useRef(false);
 
-  // Persist and audit the auto-applied privacy-signal rejection once.
+  // Once per page load (not on every consent change: that wrote a second, spurious
+  // record when "Cookie preferences" reset the choice, F-F-16): deliver records an
+  // earlier load could not, and persist and audit a choice a privacy signal made.
   useEffect(() => {
-    if (!privacySignals.gpc && !privacySignals.dnt) return;
-    try {
-      const stored = localStorage.getItem(CONSENT_STORAGE_KEY);
-      if (stored && (JSON.parse(stored) as Partial<ConsentState>).hasConsented) return;
-    } catch {
-      // fall through and write a fresh record
-    }
-    const record: ConsentState = { ...consentState, timestamp: new Date().toISOString() };
-    try {
-      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record));
-    } catch {
-      // Storage may be blocked (SecurityError, e.g. "Block all cookies"); keep
-      // the in-memory state and skip persistence instead of throwing above the
-      // app ErrorBoundary (FEW-01, same guard as useTheme).
-    }
+    if (handledMount.current) return;
+    handledMount.current = true;
+    flushConsentAuditOutbox();
+    if (!initial.recordSignal) return;
+    const record: ConsentState = { ...initial.state, timestamp: new Date().toISOString() };
+    persistConsent(record);
     recordConsentAudit(record.consent, privacySignals, 'privacy_signal');
-  }, [consentState, privacySignals]);
+  }, [initial, privacySignals]);
+
+  // Google's tags learn the choice here, including the Marketing toggle and a
+  // withdrawal after the container has loaded (F-F-05).
+  useEffect(() => {
+    syncConsentMode(consentState.consent, privacySignals);
+  }, [consentState.consent, privacySignals]);
 
   const updateConsent = useCallback((categories: Partial<ConsentCategories>, method: ConsentMethod = 'custom') => {
-    const updated: ConsentCategories = {
-      ...consentState.consent,
-      ...categories,
-      strictlyNecessary: true, // always on
-      // Privacy signals are opt-outs the user set at the browser level;
-      // they take precedence over in-page consent choices.
-      ...(privacySignals.dnt ? { analytics: false } : {}),
-      ...(privacySignals.gpc ? { marketing: false } : {}),
-    };
+    // Privacy signals are opt-outs the user set at the browser level; they take
+    // precedence over in-page consent choices.
+    const updated = applyPrivacySignals({ ...consentState.consent, ...categories }, privacySignals);
     const timestamp = new Date().toISOString();
     const next: ConsentState = {
       consent: updated,
@@ -186,12 +184,9 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
       hasConsented: true,
     };
     setConsentState(next);
-    try {
-      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // Blocked storage must not escape the click handler: consent still
-      // applies for this session via the in-memory state (FEW-01).
-    }
+    // Blocked storage must not escape the click handler: consent still applies for
+    // this session via the in-memory state (FEW-01).
+    persistConsent(next);
     recordConsentAudit(updated, privacySignals, method);
   }, [consentState, privacySignals]);
 

@@ -224,6 +224,88 @@ describe('POST /api/publish — success contract', () => {
   });
 });
 
+// The FAQ feeds the FAQPage JSON-LD. The upsert used to rewrite title, meta and
+// body but never `faq`, so a wrong FAQ on a live post could not be corrected
+// through the normal publish pipeline (F-A-04 / F-R5-01).
+describe('POST /api/publish — faq upsert', () => {
+  const FAQ = [
+    { question: 'How much does it cost?', answer: 'Starter is $149/month.' },
+    { question: 'Is there a trial?', answer: 'Yes, 14 days.' },
+  ];
+  // Positions in the INSERT parameter list.
+  const FAQ_VALUE = 9;
+  const FAQ_PROVIDED = 14;
+
+  async function publishOne(post: Record<string, unknown>) {
+    const { h, queries } = handler();
+    const res = makeRes();
+    await h(makeReq({ posts: [post] }), res);
+    const insert = queries.find((q) => q.text.includes('INSERT INTO blog_posts'));
+    return { res, insert, values: (insert?.values ?? []) as unknown[], queries };
+  }
+
+  it('replaces the stored FAQ on conflict when the post carries one', async () => {
+    const { res, insert, values } = await publishOne(validPost({ faq: FAQ }));
+
+    expect(res.statusCode).toBe(200);
+    expect(values[FAQ_VALUE]).toBe(JSON.stringify(FAQ));
+    expect(values[FAQ_PROVIDED]).toBe(true);
+    // The conflict branch assigns faq, and only when the flag is set.
+    const update = insert!.text.slice(insert!.text.indexOf('DO UPDATE SET'));
+    expect(update).toMatch(/faq\s*=\s*CASE WHEN \$15::boolean THEN EXCLUDED\.faq ELSE blog_posts\.faq END/);
+  });
+
+  it('leaves the stored FAQ alone when the post does not carry one', async () => {
+    const { res, values } = await publishOne(validPost());
+
+    expect(res.statusCode).toBe(200);
+    // A new row still gets the column default; the flag keeps an existing FAQ.
+    expect(values[FAQ_VALUE]).toBe('[]');
+    expect(values[FAQ_PROVIDED]).toBe(false);
+  });
+
+  it('treats an explicit empty array as "clear the FAQ"', async () => {
+    const { res, values } = await publishOne(validPost({ faq: [] }));
+
+    expect(res.statusCode).toBe(200);
+    expect(values[FAQ_VALUE]).toBe('[]');
+    expect(values[FAQ_PROVIDED]).toBe(true);
+  });
+
+  it('stores only trimmed question and answer, never other keys', async () => {
+    const { values } = await publishOne(
+      validPost({ faq: [{ question: '  Q?  ', answer: '  A.  ', html: '<script>x</script>', extra: 1 }] }),
+    );
+
+    expect(JSON.parse(values[FAQ_VALUE] as string)).toEqual([{ question: 'Q?', answer: 'A.' }]);
+  });
+
+  const invalid: Array<[string, unknown]> = [
+    ['a string instead of an array', 'Q? A.'],
+    ['an object instead of an array', { question: 'Q?', answer: 'A.' }],
+    ['an item that is not an object', ['Q? A.']],
+    ['a null item', [null]],
+    ['an item without a question', [{ answer: 'A.' }]],
+    ['an item with a blank answer', [{ question: 'Q?', answer: '   ' }]],
+    ['a non-string answer', [{ question: 'Q?', answer: 42 }]],
+    ['a question over 300 characters', [{ question: 'q'.repeat(301), answer: 'A.' }]],
+    ['an answer over 2000 characters', [{ question: 'Q?', answer: 'a'.repeat(2001) }]],
+    ['more than 20 items', Array.from({ length: 21 }, (_, i) => ({ question: `Q${i}?`, answer: 'A.' }))],
+  ];
+
+  for (const [label, faq] of invalid) {
+    it(`rejects ${label} with 400 before touching the database`, async () => {
+      const { h, client } = handler();
+      const res = makeRes();
+      await h(makeReq({ posts: [validPost({ faq })] }), res);
+
+      expect(res.statusCode).toBe(400);
+      expect(String(res.body.error)).toMatch(/faq/);
+      expect(client.query).not.toHaveBeenCalled();
+    });
+  }
+});
+
 describe('POST /api/publish — failure handling', () => {
   it('rolls back and reports 503 when blog_posts is missing', async () => {
     const client = {
@@ -252,8 +334,9 @@ describe('POST /api/publish — failure handling', () => {
   });
 
   it('reports 503 when the database is not configured', async () => {
+    // server.cjs passes a pool that refuses every call when DATABASE_URL is unset (F-G-07).
     const h = createPublishHandler({
-      pgPool: null,
+      pgPool: { connect: async () => { throw Object.assign(new Error('Data store unavailable: no database is configured'), { code: '08001' }); } },
       deployToken: TOKEN,
       canonicalOrigin: ORIGIN,
       log: () => {},
@@ -261,5 +344,6 @@ describe('POST /api/publish — failure handling', () => {
     const res = makeRes();
     await h(makeReq({ posts: [validPost()] }), res);
     expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({ error: 'database is unavailable' });
   });
 });

@@ -21,12 +21,21 @@
  * 202 is deliberately never returned: the caller treats "accepted
  * asynchronously" as a failure because it cannot confirm the article landed.
  * Everything here is synchronous and terminal by the time we respond.
+ *
+ * A post may carry an optional `faq` ([{ question, answer }]). When present it
+ * replaces the stored FAQ, which feeds the FAQPage JSON-LD; when absent the
+ * stored FAQ is left as it is.
  */
 
 const crypto = require('crypto');
 
 const MAX_POSTS = 10;
 const MIN_BODY_LENGTH = 100;
+// FAQ bounds. The FAQ renders as plain text and feeds the FAQPage JSON-LD, so
+// it is bounded, not sanitised: markup is just text there.
+const MAX_FAQ_ITEMS = 20;
+const MAX_FAQ_QUESTION_LENGTH = 300;
+const MAX_FAQ_ANSWER_LENGTH = 2000;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const UNDEFINED_TABLE = '42P01';
 const SAFE_HTML_TAGS = new Set([
@@ -73,6 +82,27 @@ function bearerToken(header) {
   return token.length > 0 ? token : null;
 }
 
+/** Returns an error string, or null when `faq` is a storable FAQ list. */
+function validateFaq(faq, at) {
+  if (!Array.isArray(faq)) return `${at}.faq must be an array of { question, answer }`;
+  if (faq.length > MAX_FAQ_ITEMS) return `${at}.faq may contain at most ${MAX_FAQ_ITEMS} items`;
+  for (let i = 0; i < faq.length; i += 1) {
+    const item = faq[i];
+    const where = `${at}.faq[${i}]`;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return `${where} must be an object`;
+    for (const [field, max] of [['question', MAX_FAQ_QUESTION_LENGTH], ['answer', MAX_FAQ_ANSWER_LENGTH]]) {
+      if (typeof item[field] !== 'string' || item[field].trim() === '') return `${where}.${field} is required`;
+      if (item[field].trim().length > max) return `${where}.${field} is too long (over ${max} characters)`;
+    }
+  }
+  return null;
+}
+
+/** Only the two stored keys, trimmed: unknown keys never reach the row. */
+function normalizeFaq(faq) {
+  return faq.map((item) => ({ question: item.question.trim(), answer: item.answer.trim() }));
+}
+
 /** Returns an error string, or null when the post is publishable. */
 function validatePost(post, index) {
   const at = `posts[${index}]`;
@@ -100,6 +130,10 @@ function validatePost(post, index) {
   if (typeof post.publishDate !== 'string' || Number.isNaN(Date.parse(post.publishDate))) {
     return `${at}.publishDate must be an ISO 8601 datetime`;
   }
+  if (post.faq !== undefined && post.faq !== null) {
+    const faqProblem = validateFaq(post.faq, at);
+    if (faqProblem) return faqProblem;
+  }
   return null;
 }
 
@@ -113,7 +147,8 @@ function primaryKeywordOf(post) {
 
 /**
  * @param {object} deps
- * @param {object|null} deps.pgPool       pg Pool, or null when DATABASE_URL is unset
+ * @param {object} deps.pgPool            pg Pool (with no database configured, server.cjs passes one
+ *                                        that refuses every call: publishing then answers 503)
  * @param {string} deps.deployToken       SITE_DEPLOY_TOKEN
  * @param {string} deps.canonicalOrigin   e.g. https://ecoauditor.io
  * @param {string} [deps.target]          autoblog target name stored on each row
@@ -134,11 +169,6 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
     const token = bearerToken(req.headers && req.headers.authorization);
     if (!token || !timingSafeEqualString(token, deployToken)) {
       return res.status(401).json({ error: 'unauthorized' });
-    }
-
-    if (!pgPool) {
-      log('error', 'POST /api/publish: DATABASE_URL is not configured');
-      return res.status(503).json({ error: 'database is not configured' });
     }
 
     const body = req.body;
@@ -180,6 +210,13 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
       await client.query('BEGIN');
       for (let i = 0; i < posts.length; i += 1) {
         const post = posts[i];
+        // A post that carries `faq` replaces the stored FAQ (an empty array
+        // clears it). One that omits it leaves the stored FAQ alone: the
+        // publisher does not send one today, and a republish of a post whose
+        // FAQ was corrected by hand must not wipe it. Before this, the FAQ was
+        // never updated after the first insert, so a wrong FAQ (which feeds the
+        // FAQPage JSON-LD) could not be fixed through the normal pipeline.
+        const faqProvided = Array.isArray(post.faq);
         // Upsert on slug: the caller retries a failed publish with the same
         // idempotency key and the same content, so a second attempt must
         // succeed rather than collide on the unique index. Slugs are unique
@@ -196,6 +233,7 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
              meta_description = EXCLUDED.meta_description,
              body_html        = EXCLUDED.body_html,
              primary_keyword  = EXCLUDED.primary_keyword,
+             faq              = CASE WHEN $15::boolean THEN EXCLUDED.faq ELSE blog_posts.faq END,
              published_at     = EXCLUDED.published_at`,
           [
             `${requestId}-${i}`,
@@ -207,11 +245,12 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
             post.description,
             sanitizeBlogHtml(post.body),
             primaryKeywordOf(post),
-            EMPTY_JSON,
+            faqProvided ? JSON.stringify(normalizeFaq(post.faq)) : EMPTY_JSON,
             EMPTY_JSON,
             EMPTY_JSON,
             EMPTY_CTA,
             new Date(post.publishDate).toISOString(),
+            faqProvided,
           ],
         );
       }
@@ -220,7 +259,7 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
       if (!client) {
         // Connect failed before any client existed: nothing to roll back or
         // release. Same 503 contract as the other database-unavailable paths.
-        log('error', 'POST /api/publish: failed to acquire a database client', { error: err && err.message });
+        log('error', 'POST /api/publish: failed to acquire a database client', { error: err });
         return res.status(503).json({ error: 'database is unavailable' });
       }
       try {
@@ -232,7 +271,7 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
         log('error', 'POST /api/publish: blog_posts table is missing');
         return res.status(503).json({ error: 'blog storage is not initialised' });
       }
-      log('error', 'POST /api/publish:', { error: err && err.message });
+      log('error', 'POST /api/publish:', { error: err });
       return res.status(500).json({ error: 'failed to publish' });
     } finally {
       // Release only what was actually acquired (SVR-R1).
@@ -258,5 +297,5 @@ function createPublishHandler({ pgPool, deployToken, canonicalOrigin, target = '
 module.exports = {
   createPublishHandler,
   sanitizeBlogHtml,
-  __testing: { validatePost, bearerToken, timingSafeEqualString, primaryKeywordOf },
+  __testing: { validatePost, validateFaq, normalizeFaq, bearerToken, timingSafeEqualString, primaryKeywordOf },
 };

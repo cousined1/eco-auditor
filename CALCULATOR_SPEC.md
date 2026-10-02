@@ -1,3 +1,10 @@
+> **HISTORICAL DOCUMENT: do not build from it.** This is the original build prompt for the calculator.
+> Its factor table is stale and partly wrong (for example natural gas "0.0053 kg per kWh", R-410A 2088
+> and R-22 1810, which are IPCC AR4 values; the product uses AR5). The sample report's old R-410A figure
+> came from here (audit F-E-17). The factors in use are in `emission-factors.json` (current catalog) and
+> `emission-factors.v1.json` (the frozen 2026-07-24 catalog that prices older entries), with their
+> sources in `src/lib/emission-factors/registry.ts`.
+
 # EcoAuditor Carbon Calculator — Opencode Prompt
 ## Build in VS Code with OpenCode extension
 ## File location: `src/components/carbon-calculator.tsx`

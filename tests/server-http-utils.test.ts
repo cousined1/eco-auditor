@@ -78,6 +78,20 @@ describe('getStaticCacheHeaders (server-http-utils.cjs — express.static setHea
     );
   });
 
+  it('sends immutable caching for the self-hosted fonts, whose names carry the font version (F-F-06)', () => {
+    expect(getStaticCacheHeaders('/repo/static/fonts/inter-v20-latin.woff2')).toBe(
+      'public, max-age=31536000, immutable'
+    );
+    expect(getStaticCacheHeaders('/repo/static/fonts/jetbrains-mono-v24-latin.woff2')).toBe(
+      'public, max-age=31536000, immutable'
+    );
+  });
+
+  it('does not make other files in /fonts/ or a stray .woff2 immutable', () => {
+    expect(getStaticCacheHeaders('/repo/static/fonts/OFL-Inter.txt')).toBeNull();
+    expect(getStaticCacheHeaders('/repo/static/downloads/report.woff2')).toBeNull();
+  });
+
   it('sends no-cache, no-transform for HTML pages (the value the server actually ships)', () => {
     // The old tautological test asserted plain "no-cache" — the live drift
     // RT-05 documented. The extracted module must keep "no-transform" so a

@@ -1,7 +1,20 @@
+# Railway config as code is deprecated: Railway keeps honouring this file for
+# legacy services only until 2026-12-01. Before then the same deploy settings
+# (healthcheck path and timeout, restart policy) must exist in the service
+# settings, or deploys stop being gated on /ready: see
+# docs/runbooks/railway-settings.md. Until then, values here override the
+# dashboard, so keep the two identical.
+
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
+# The VITE_* values reach the Vite build through the ARG lines in the Dockerfile:
+# Railway passes a service variable to a Dockerfile build when the Dockerfile
+# declares it with ARG. The [[build.args]] entries below are not a documented
+# config-as-code key and are not what injects them; they are kept only so this
+# change is comment-only (delete them together with this file after the
+# migration in docs/runbooks/railway-settings.md).
 [[build.args]]
 name = "VITE_STRIPE_PK"
 value = "${VITE_STRIPE_PK}"
@@ -14,9 +27,10 @@ value = "${VITE_INSFORGE_BASE_URL}"
 name = "VITE_INSFORGE_ANON_KEY"
 value = "${VITE_INSFORGE_ANON_KEY}"
 
-# Vite inlines this into the bundle at build time — setting VITE_GTM_ID only as
-# a runtime variable in the Railway dashboard has no effect. Without it here,
-# GTM never loads in production and no ad spend can be attributed.
+# VITE_GTM_ID is inlined into the bundle at build time: set it as a Railway
+# service variable before the deploy that builds (the Dockerfile ARG carries it
+# into the build). Without it GTM never loads in production and no ad spend can
+# be attributed.
 [[build.args]]
 name = "VITE_GTM_ID"
 value = "${VITE_GTM_ID}"
@@ -24,8 +38,10 @@ value = "${VITE_GTM_ID}"
 [deploy]
 startCommand = "node server.cjs"
 # Railway gates the deploy on this path (it does NOT consume the Dockerfile's
-# HEALTHCHECK). /ready reports degraded when the intro video volume is missing
-# but still returns 200, so a healthy app with a missing asset does not block.
+# HEALTHCHECK). /ready answers 200 when the app can serve (database reachable,
+# or none configured) and 503 when the configured database is unreachable, so a
+# deploy that cannot reach its database is not promoted. The intro video is not
+# part of readiness.
 healthcheckPath = "/ready"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"

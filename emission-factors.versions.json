@@ -1,0 +1,15 @@
+{
+  "note": "One entry per emission-factor catalog version that a stored row may name. A version's content is immutable once released: tests/catalog-version.test.ts fails when a catalog file no longer matches the sha256 recorded here, so changing any factor, unit, scope rule or label needs a new `version` in emission-factors.json and a new entry here. To release a new version: copy emission-factors.json to emission-factors.v<N>.json and point its entry's `file` at the copy (it is frozen from then on), require() the copy in emission-factors.cjs so rows pinned to it keep resolving, then edit emission-factors.json with the new `version` and add its entry with the new hash. sha256 is over the file with LF line endings.",
+  "current": "2026-09-30",
+  "legacy": "2026-07-24",
+  "catalogs": {
+    "2026-07-24": {
+      "file": "emission-factors.v1.json",
+      "sha256": "a8754bc4f411dca2520b2e1be4ef643829fd98d855f49820b574f3a15189bafe"
+    },
+    "2026-09-30": {
+      "file": "emission-factors.json",
+      "sha256": "0ec7ea1af74baab118ed58b615b1694f66c677e2eebbc89db49d21e59ddc53ef"
+    }
+  }
+}

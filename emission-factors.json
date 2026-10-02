@@ -1,8 +1,47 @@
 {
-  "version": "2026-07-24",
-  "basis": "kg CO2e per activity unit",
+  "version": "2026-09-30",
+  "supersedes": "2026-07-24",
+  "basis": "kg CO2e per activity unit: CO2, CH4 and N2O at IPCC AR5 GWP-100, unless a source's own basis says otherwise",
   "gwpBasis": "ipcc-ar5-gwp100",
-  "note": "Single source of truth for emission factors. Consumed by emissions-engine.cjs (server, CSV import) and src/lib/emission-factors (client calculator). Previously these were two independent tables that disagreed for the same activity. Every source carries factorSource, which must match an id in src/lib/emission-factors/registry.ts. Units are explicit: a factor is only valid for the units listed under it.",
+  "confidenceWeighting": "emissions",
+  "precomputedConfidence": 50,
+  "note": "Single source of truth for emission factors, consumed by emissions-engine.cjs (server, CSV import) and src/lib/emission-factors (client calculator). A catalog version is immutable once any row may have been priced with it: this file prices new entries and previews, emission-factors.v1.json (version 2026-07-24, frozen) prices every row stored without a pin, and a row's catalog_version decides which one prices and classifies it. Change a factor here only together with a new `version` (tests/catalog-version.test.ts checks emission-factors.versions.json). Every source carries factorSource, which must match an id in src/lib/emission-factors/registry.ts and in `datasets` below. Units are explicit: a factor is only valid for the units listed under it. Classification is data: `reportingBucket` moves a whole source out of its category's scope (memo:non-kyoto), `biogenicCO2` is kg of biogenic CO2 per unit reported outside the scopes, and a category's `marketBasedShare` scales its location-based Scope 2 value into the market-based total (0 for zero-emission contracts; every other Scope 2 row reports the same value market-based as location-based, because no residual-mix factor is applied).",
+  "datasets": {
+    "epa-efh-2025": {
+      "revision": "EPA GHG Emission Factors Hub 2025 (Last Modified 2025-01-15)",
+      "url": "https://www.epa.gov/system/files/documents/2025-01/ghg-emission-factors-hub-2025.pdf",
+      "retrieved": "2026-09-30",
+      "sha256": "5d07c678fae6783623acb1e23faa4a7c46268ee6c5a0654c9e49c50de7caf924"
+    },
+    "epa-egrid-2023": {
+      "revision": "eGRID2023 Revision 2 (released 2025-06-12)",
+      "url": "https://www.epa.gov/egrid/summary-data",
+      "retrieved": "2026-09-30"
+    },
+    "epa-warm-2023": {
+      "revision": "EPA WARM factors (documentation December 2023) as published in the EPA GHG Emission Factors Hub 2025, Table 9 (AR4 GWPs)",
+      "url": "https://www.epa.gov/system/files/documents/2025-01/ghg-emission-factors-hub-2025.pdf",
+      "retrieved": "2026-09-30",
+      "sha256": "5d07c678fae6783623acb1e23faa4a7c46268ee6c5a0654c9e49c50de7caf924"
+    },
+    "ipcc-ar5-gwp100": {
+      "revision": "IPCC AR5 GWP-100 (2013), as tabulated in EPA GHG Emission Factors Hub 2025 Tables 11-12 and GHG Protocol GWP values v2.0 (2024-08-07)",
+      "url": "https://ghgprotocol.org/sites/default/files/2024-08/Global-Warming-Potential-Values%20%28August%202024%29.pdf",
+      "retrieved": "2026-09-30",
+      "sha256": "5f0bbd46600e0b27ea4eda97932d683aaef9b6e70a88830e8b219c885aeea387"
+    },
+    "desnz-2026": {
+      "revision": "UK DESNZ GHG conversion factors 2026, flat file (published 2026-06-11, revised 2026-07-31)",
+      "url": "https://assets.publishing.service.gov.uk/media/6a6c9748862aaf18d9c62ac9/ghg-conversion-factors-2026-flat-format-revised.xlsx",
+      "retrieved": "2026-09-30",
+      "sha256": "a9a455ab396dae226d510c7be6233748416d490c41a5d20f3dc7a0c45feecd5e"
+    },
+    "internal-estimate": {
+      "revision": "Eco-Auditor internal estimates, carried unchanged from catalog 2026-07-24 (no published source recorded)",
+      "url": "",
+      "retrieved": ""
+    }
+  },
   "categories": [
     {
       "key": "stationary_combustion",
@@ -15,116 +54,170 @@
           "label": "Natural Gas",
           "factorSource": "epa-efh-2025",
           "units": {
-            "MMBtu": 53.06,
-            "therms": 5.306,
-            "MCF": 54.44,
-            "GJ": 50.29
+            "MMBtu": 53.1145,
+            "therms": 5.31145,
+            "MCF": 54.4953,
+            "GJ": 50.3428
           },
-          "note": "53.06 kg CO2/MMBtu. therms = /10, MCF = x1.026 MMBtu/MCF heat content, GJ = /1.055056."
+          "citation": "Table 1, Natural Gas: 53.06 kg CO2, 1.0 g CH4, 0.10 g N2O per mmBtu; 0.05444 kg CO2, 0.00103 g CH4, 0.00010 g N2O per scf. therms = mmBtu / 10, MCF = 1,000 scf, GJ = mmBtu / 1.055056."
         },
         {
           "key": "propane",
           "label": "Propane",
           "factorSource": "epa-efh-2025",
           "units": {
-            "MMBtu": 62.87,
-            "gallons": 5.72,
-            "liters": 1.5111
-          }
+            "MMBtu": 63.113,
+            "gallons": 5.74081,
+            "liters": 1.51656
+          },
+          "citation": "Table 1, Propane: 62.87 kg CO2, 3.0 g CH4, 0.60 g N2O per mmBtu; 5.72 kg CO2, 0.27 g CH4, 0.05 g N2O per gallon. liters = gallons / 3.785411784."
         },
         {
           "key": "diesel",
           "label": "Diesel",
           "factorSource": "epa-efh-2025",
           "units": {
-            "MMBtu": 73.96,
-            "gallons": 10.21,
-            "liters": 2.6972
-          }
+            "MMBtu": 74.203,
+            "gallons": 10.2427,
+            "liters": 2.70583
+          },
+          "citation": "Table 1, Distillate Fuel Oil No. 2: 73.96 kg CO2, 3.0 g CH4, 0.60 g N2O per mmBtu; 10.21 kg CO2, 0.41 g CH4, 0.08 g N2O per gallon. liters = gallons / 3.785411784."
         },
         {
           "key": "fuel_oil_1",
           "label": "Fuel Oil No. 1",
           "factorSource": "epa-efh-2025",
           "units": {
-            "MMBtu": 73.25,
-            "gallons": 10.18
-          }
+            "MMBtu": 73.493,
+            "gallons": 10.213
+          },
+          "citation": "Table 1, Distillate Fuel Oil No. 1: 73.25 kg CO2, 3.0 g CH4, 0.60 g N2O per mmBtu; 10.18 kg CO2, 0.42 g CH4, 0.08 g N2O per gallon."
         },
         {
           "key": "fuel_oil_2",
           "label": "Fuel Oil No. 2",
           "factorSource": "epa-efh-2025",
           "units": {
-            "MMBtu": 73.96,
-            "gallons": 10.21
-          }
+            "MMBtu": 74.203,
+            "gallons": 10.2427
+          },
+          "citation": "Table 1, Distillate Fuel Oil No. 2: 73.96 kg CO2, 3.0 g CH4, 0.60 g N2O per mmBtu; 10.21 kg CO2, 0.41 g CH4, 0.08 g N2O per gallon."
         },
         {
           "key": "fuel_oil_4",
           "label": "Fuel Oil No. 4",
           "factorSource": "epa-efh-2025",
           "units": {
-            "gallons": 10.69
+            "gallons": 10.9962
           },
-          "verified": false,
-          "note": "UNVERIFIED: 10.69 kg/gal does not reconcile with EPA EFH 2025, which gives Fuel Oil No. 4 at 75.04 kg CO2/MMBtu x ~0.146 MMBtu/gal = ~10.96 kg/gal. 10.69 looks like a digit transposition of 10.96 (-2.5%). Confirm against the EPA source table before relying on this row."
+          "citation": "Table 1, Distillate Fuel Oil No. 4: 10.96 kg CO2, 0.44 g CH4, 0.09 g N2O per gallon. Catalog 2026-07-24 had 10.69, the Hub's Lubricants row."
         },
         {
           "key": "fuel_oil_6",
           "label": "Fuel Oil No. 6",
           "factorSource": "epa-efh-2025",
           "units": {
-            "gallons": 11.1
+            "gallons": 11.3064
           },
-          "verified": false,
-          "note": "UNVERIFIED: 11.1 kg/gal is ~1.5% below the EPA EFH 2025 derivation (75.10 kg CO2/MMBtu x 0.15 MMBtu/gal = ~11.27 kg/gal). Confirm against the EPA source table."
+          "citation": "Table 1, Residual Fuel Oil No. 6: 11.27 kg CO2, 0.45 g CH4, 0.09 g N2O per gallon. Catalog 2026-07-24 had 11.1, which matches no row."
         },
         {
           "key": "kerosene",
           "label": "Kerosene",
           "factorSource": "epa-efh-2025",
           "units": {
-            "MMBtu": 75.2,
-            "gallons": 10.15
-          }
+            "MMBtu": 75.443,
+            "gallons": 10.1827
+          },
+          "citation": "Table 1, Kerosene: 75.20 kg CO2, 3.0 g CH4, 0.60 g N2O per mmBtu; 10.15 kg CO2, 0.41 g CH4, 0.08 g N2O per gallon."
         },
         {
           "key": "gasoline",
           "label": "Gasoline",
           "factorSource": "epa-efh-2025",
           "units": {
-            "gallons": 8.78
-          }
+            "gallons": 8.81184
+          },
+          "citation": "Table 1, Motor Gasoline: 8.78 kg CO2, 0.38 g CH4, 0.08 g N2O per gallon."
         },
         {
-          "key": "coal",
-          "label": "Coal",
+          "key": "coal_anthracite",
+          "label": "Coal: Anthracite",
           "factorSource": "epa-efh-2025",
-          "verified": false,
           "units": {
-            "MMBtu": 95.35,
-            "short tons": 2070,
-            "metric tons": 2280
+            "MMBtu": 104.422,
+            "short tons": 2620.33,
+            "metric tons": 2888.42
           },
-          "note": "UNVERIFIED: Hub 2025 publishes separate rows for mixed commercial (2016 kg/short ton) and mixed industrial (2116). 2070 sits between them and matches neither. Pick a specific coal rank before relying on this."
+          "citation": "Table 1, Anthracite: 103.69 kg CO2, 11 g CH4, 1.6 g N2O per mmBtu; 2,602 kg CO2, 276 g CH4, 40 g N2O per short ton. metric tons = short tons x 1.10231131."
+        },
+        {
+          "key": "coal_bituminous",
+          "label": "Coal: Bituminous",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "MMBtu": 94.012,
+            "short tons": 2343.27,
+            "metric tons": 2583.02
+          },
+          "citation": "Table 1, Bituminous: 93.28 kg CO2, 11 g CH4, 1.6 g N2O per mmBtu; 2,325 kg CO2, 274 g CH4, 40 g N2O per short ton. metric tons = short tons x 1.10231131."
+        },
+        {
+          "key": "coal_subbituminous",
+          "label": "Coal: Sub-bituminous",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "MMBtu": 97.902,
+            "short tons": 1688.74,
+            "metric tons": 1861.52
+          },
+          "citation": "Table 1, Sub-bituminous: 97.17 kg CO2, 11 g CH4, 1.6 g N2O per mmBtu; 1,676 kg CO2, 190 g CH4, 28 g N2O per short ton. metric tons = short tons x 1.10231131."
         },
         {
           "key": "lignite_coal",
-          "label": "Lignite Coal",
+          "label": "Coal: Lignite",
           "factorSource": "epa-efh-2025",
           "units": {
-            "short tons": 1410
-          }
+            "MMBtu": 98.452,
+            "short tons": 1399.46,
+            "metric tons": 1542.64
+          },
+          "citation": "Table 1, Lignite: 97.72 kg CO2, 11 g CH4, 1.6 g N2O per mmBtu; 1,389 kg CO2, 156 g CH4, 23 g N2O per short ton (40 CFR 98 Tables C-1 and C-2 as tabulated by the Hub). 1,399.46 is the CO2e with CH4 and N2O at AR5; catalog 2026-07-24 had 1,410, which matches neither. metric tons = short tons x 1.10231131."
+        },
+        {
+          "key": "coal_mixed_commercial",
+          "label": "Coal: Mixed (commercial sector)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "MMBtu": 95.002,
+            "short tons": 2031.59,
+            "metric tons": 2239.44
+          },
+          "citation": "Table 1, Mixed (Commercial Sector): 94.27 kg CO2, 11 g CH4, 1.6 g N2O per mmBtu; 2,016 kg CO2, 235 g CH4, 34 g N2O per short ton. metric tons = short tons x 1.10231131."
+        },
+        {
+          "key": "coal_mixed_industrial",
+          "label": "Coal: Mixed (industrial sector)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "MMBtu": 95.402,
+            "short tons": 2132.43,
+            "metric tons": 2350.6
+          },
+          "citation": "Table 1, Mixed (Industrial Sector): 94.67 kg CO2, 11 g CH4, 1.6 g N2O per mmBtu; 2,116 kg CO2, 246 g CH4, 36 g N2O per short ton. metric tons = short tons x 1.10231131."
         },
         {
           "key": "wood",
           "label": "Wood and Wood Residuals",
           "factorSource": "epa-efh-2025",
           "units": {
+            "short tons": 20.223
+          },
+          "biogenicCO2": {
             "short tons": 1640
           },
-          "note": "Under GHG Protocol, biogenic CO2 belongs OUTSIDE the scopes as a separate line item; only CH4/N2O are Scope 1. This engine has no biogenic bucket yet, so the value is right but its placement is not."
+          "basis": "Scope 1: kg CO2e of CH4 and N2O per short ton. The biogenic CO2 (1,640 kg per short ton) is reported separately, outside the scopes.",
+          "citation": "Table 1, Wood and Wood Residuals: 1,640 kg CO2, 126 g CH4, 63 g N2O per short ton. GHG Protocol Corporate Standard ch. 4: direct CO2 from the combustion of biomass is not included in Scope 1 but reported separately."
         }
       ]
     },
@@ -144,7 +237,8 @@
           ],
           "units": {
             "gallons": 8.78
-          }
+          },
+          "basis": "kg CO2 per gallon; CH4 and N2O are excluded because EPA publishes them per vehicle-mile (Hub Tables 3-5)."
         },
         {
           "key": "diesel",
@@ -156,7 +250,8 @@
           ],
           "units": {
             "gallons": 10.21
-          }
+          },
+          "basis": "kg CO2 per gallon; CH4 and N2O are excluded because EPA publishes them per vehicle-mile (Hub Tables 3-5)."
         },
         {
           "key": "jet_fuel",
@@ -164,17 +259,58 @@
           "factorSource": "epa-efh-2025",
           "units": {
             "gallons": 9.75
-          }
+          },
+          "basis": "kg CO2 per gallon; CH4 and N2O are excluded because EPA publishes them per vehicle-mile (Hub Tables 3-5)."
         },
         {
-          "key": "natural_gas_vehicle",
-          "label": "Natural Gas Vehicle",
+          "key": "lng",
+          "label": "Liquefied Natural Gas (LNG)",
           "factorSource": "epa-efh-2025",
-          "verified": false,
           "units": {
-            "gallons": 11.171
+            "gallons": 4.5
           },
-          "note": "UNVERIFIED: matches no published EPA figure. Hub 2025 lists LNG at 4.50 kg/gal and CNG at 0.05444 kg/scf. This entry does not state which fuel basis it means — resolve before relying on it."
+          "basis": "kg CO2 per gallon of LNG; CH4 and N2O excluded (published per vehicle-mile).",
+          "citation": "Table 2, Liquefied Natural Gas (LNG): 4.50 kg CO2 per gallon. Replaces catalog 2026-07-24's Natural Gas Vehicle (11.171 per gallon, no fuel basis)."
+        },
+        {
+          "key": "cng",
+          "label": "Compressed Natural Gas (CNG)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "scf": 0.05444
+          },
+          "basis": "kg CO2 per standard cubic foot of CNG; CH4 and N2O excluded (published per vehicle-mile).",
+          "citation": "Table 2, Compressed Natural Gas (CNG): 0.05444 kg CO2 per scf."
+        },
+        {
+          "key": "fleet_truck_medium_heavy",
+          "label": "Own fleet: medium- or heavy-duty truck (distance)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "vehicle-miles": 1.30829
+          },
+          "basis": "Distance-based estimate for vehicles you own or control. Enter fuel in gallons instead when you have fuel records.",
+          "citation": "Table 8, Medium- and Heavy-Duty Truck: 1.298 kg CO2, 0.0115 g CH4, 0.0376 g N2O per vehicle-mile (EPA's national average per vehicle-mile, used here for Scope 1 fleet distance)."
+        },
+        {
+          "key": "fleet_light_duty_truck",
+          "label": "Own fleet: light-duty truck, SUV or van (distance)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "vehicle-miles": 0.396637
+          },
+          "basis": "Distance-based estimate for vehicles you own or control. Enter fuel in gallons instead when you have fuel records.",
+          "citation": "Table 8, Light-Duty Truck: 0.394 kg CO2, 0.0109 g CH4, 0.0088 g N2O per vehicle-mile (EPA's national average per vehicle-mile, used here for Scope 1 fleet distance)."
+        },
+        {
+          "key": "fleet_passenger_car",
+          "label": "Own fleet: passenger car (distance)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "vehicle-miles": 0.29857
+          },
+          "basis": "Distance-based estimate for vehicles you own or control. Enter fuel in gallons instead when you have fuel records.",
+          "citation": "Table 8, Passenger Car: 0.297 kg CO2, 0.0059 g CH4, 0.0053 g N2O per vehicle-mile (EPA's national average per vehicle-mile, used here for Scope 1 fleet distance)."
         }
       ]
     },
@@ -232,14 +368,17 @@
         },
         {
           "key": "refrigerant_r22",
-          "label": "Refrigerant R-22",
+          "label": "Refrigerant R-22 (reported separately)",
           "factorSource": "ipcc-ar5-gwp100",
           "aliases": [
             "refrigerant_r_22"
           ],
           "units": {
             "kg": 1760
-          }
+          },
+          "reportingBucket": "memo:non-kyoto",
+          "basis": "kg CO2e per kg of HCFC-22 at AR5 GWP-100, reported as a separate line and not in Scope 1.",
+          "citation": "GHG Protocol GWP values v2.0 (2024), HCFC-22: AR5 GWP-100 1,760. HCFC-22 is controlled by the Montreal Protocol, not the Kyoto Protocol, so the GHG Protocol Corporate Standard (ch. 4) keeps it out of Scope 1 and has it reported separately; EPA Hub 2025 Table 12 counts HCFC constituents as 0."
         },
         {
           "key": "natural_gas_leak",
@@ -258,6 +397,7 @@
       "label": "Purchased Electricity",
       "showInCalculator": true,
       "sourceListLabel": "eGRID subregion",
+      "sourceHint": "Electricity bought under a renewable contract (RECs, PPA, green tariff) goes under renewable_electricity, with the site's eGRID subregion.",
       "sources": [
         {
           "key": "AKGD",
@@ -514,21 +654,19 @@
             "kWh": 0.3497,
             "MWh": 349.7
           }
-        },
-        {
-          "key": "RENEWABLE",
-          "label": "Renewable / zero-carbon contract",
-          "factorSource": "epa-egrid-2023",
-          "aliases": [
-            "renewable"
-          ],
-          "units": {
-            "kWh": 0,
-            "MWh": 0
-          },
-          "note": "Location-based reporting should use the grid factor. A zero factor is market-based and requires contractual instruments (RECs/PPAs) as evidence."
         }
       ]
+    },
+    {
+      "key": "renewable_electricity",
+      "scope": 2,
+      "label": "Purchased Electricity: renewable contract (RECs, PPA, green tariff)",
+      "showInCalculator": true,
+      "sourceListLabel": "eGRID subregion of the site",
+      "sourcesFrom": "purchased_electricity",
+      "marketBasedShare": 0,
+      "note": "Location-based: the site's eGRID subregion factor, like any grid electricity (GHG Protocol Scope 2 Guidance 1.5.1: report location-based and market-based totals). Market-based: 0, which holds only with contractual instruments (RECs, PPA, green tariff) that meet the Scope 2 Quality Criteria; keep them as evidence. Replaces catalog 2026-07-24's RENEWABLE source, which counted 0 in the single location-labelled Scope 2 total.",
+      "sources": []
     },
     {
       "key": "purchased_heat_steam",
@@ -541,20 +679,20 @@
           "label": "Steam",
           "factorSource": "epa-efh-2025",
           "units": {
-            "lb": 0.066,
-            "MMBtu": 66.33
+            "MMBtu": 66.3981
           },
-          "verified": false,
-          "note": "UNVERIFIED per-lb basis: 0.066 = 66.33 kg/MMBtu x exactly 0.001, i.e. it assumes 1,000 Btu/lb. Saturated steam is ~1,194 Btu/lb, which would give ~0.079 kg/lb, so per-lb rows may be understated ~17%. State the heat-content basis or switch users to the MMBtu unit."
+          "basis": "Per mmBtu of steam purchased. Steam billed in pounds: convert with the enthalpy (Btu per lb) your supplier states; EPA publishes no per-pound factor.",
+          "citation": "Table 7, Steam and Heat: 66.33 kg CO2, 1.250 g CH4, 0.125 g N2O per mmBtu of steam or heat purchased (natural gas at 80 % thermal efficiency). Catalog 2026-07-24's per-lb unit assumed 1,000 Btu per lb."
         },
         {
           "key": "hot_water",
           "label": "Hot Water",
           "factorSource": "epa-efh-2025",
-          "verified": false,
           "units": {
-            "lb": 0.052
-          }
+            "MMBtu": 66.3981
+          },
+          "basis": "Per mmBtu of heat purchased as hot water.",
+          "citation": "Table 7, Steam and Heat: 66.33 kg CO2, 1.250 g CH4, 0.125 g N2O per mmBtu of steam or heat purchased. Catalog 2026-07-24's 0.052 kg per lb had no recorded source."
         }
       ]
     },
@@ -722,39 +860,48 @@
         },
         {
           "key": "air_short_haul",
-          "label": "Air Short Haul",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Air, short haul (under 300 miles)",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "passenger-miles": 0.255
-          }
+            "passenger-miles": 0.208928
+          },
+          "citation": "Table 10, Air Travel - Short Haul (< 300 miles): 0.207 kg CO2, 0.0064 g CH4, 0.0066 g N2O per passenger-mile."
+        },
+        {
+          "key": "air_medium_haul",
+          "label": "Air, medium haul (300 to 2,300 miles)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "passenger-miles": 0.130103
+          },
+          "citation": "Table 10, Air Travel - Medium Haul (>= 300 miles, < 2300 miles): 0.129 kg CO2, 0.0006 g CH4, 0.0041 g N2O per passenger-mile."
         },
         {
           "key": "air_long_haul",
-          "label": "Air Long Haul",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Air, long haul (2,300 miles or more)",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "passenger-miles": 0.195
-          }
+            "passenger-miles": 0.164395
+          },
+          "citation": "Table 10, Air Travel - Long Haul (>= 2300 miles): 0.163 kg CO2, 0.0006 g CH4, 0.0052 g N2O per passenger-mile."
         },
         {
           "key": "hotel",
-          "label": "Hotel",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Hotel (United States)",
+          "factorSource": "desnz-2026",
           "units": {
-            "room-nights": 20.6
-          }
+            "room-nights": 16.1
+          },
+          "citation": "Flat file ID 29_600_4053_13_1: Hotel stay, United States, 16.1 kg CO2e per room per night."
         },
         {
           "key": "rental_car",
-          "label": "Rental Car",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Rental Car (passenger car)",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "miles": 0.404
-          }
+            "miles": 0.29857
+          },
+          "citation": "Table 10, Passenger Car: 0.297 kg CO2, 0.0059 g CH4, 0.0053 g N2O per vehicle-mile (an SUV or minivan is a Light-Duty Truck in Table 10: 0.3966 kg CO2e per mile)."
         }
       ]
     },
@@ -775,30 +922,49 @@
         },
         {
           "key": "car_alone",
-          "label": "Car Alone",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Car Alone (passenger car)",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "miles": 0.404
-          }
+            "miles": 0.29857
+          },
+          "citation": "Table 10, Passenger Car: 0.297 kg CO2, 0.0059 g CH4, 0.0053 g N2O per vehicle-mile."
         },
         {
           "key": "car_pool",
-          "label": "Car Pool",
-          "factorSource": "internal-estimate",
+          "label": "Car Pool (per commuter, 2 occupants assumed)",
+          "factorSource": "epa-efh-2025",
           "verified": false,
           "units": {
-            "miles": 0.202
-          }
+            "miles": 0.149285
+          },
+          "citation": "Table 10, Passenger Car per vehicle-mile (0.29857 kg CO2e) divided by an assumed 2 occupants; enter the miles each commuter travels. The occupancy is Eco-Auditor's assumption, not EPA's, so the factor stays provisional."
         },
         {
-          "key": "public_transit",
-          "label": "Public Transit",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "key": "bus",
+          "label": "Bus",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "passenger-miles": 0.164
-          }
+            "passenger-miles": 0.0666323
+          },
+          "citation": "Table 10, Bus: 0.066 kg CO2, 0.0046 g CH4, 0.0019 g N2O per passenger-mile. With commuter_rail and transit_rail it replaces catalog 2026-07-24's single Public Transit factor (0.164)."
+        },
+        {
+          "key": "commuter_rail",
+          "label": "Commuter Rail",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "passenger-miles": 0.133983
+          },
+          "citation": "Table 10, Commuter Rail: 0.133 kg CO2, 0.0105 g CH4, 0.0026 g N2O per passenger-mile."
+        },
+        {
+          "key": "transit_rail",
+          "label": "Transit Rail (subway, tram)",
+          "factorSource": "epa-efh-2025",
+          "units": {
+            "passenger-miles": 0.093475
+          },
+          "citation": "Table 10, Transit Rail (i.e. Subway, Tram): 0.093 kg CO2, 0.0075 g CH4, 0.0010 g N2O per passenger-mile."
         },
         {
           "key": "remote",
@@ -828,75 +994,78 @@
         },
         {
           "key": "landfill",
-          "label": "Landfill",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Landfill (mixed municipal solid waste)",
+          "factorSource": "epa-warm-2023",
           "units": {
-            "kg": 0.586
-          }
+            "kg": 0.639341,
+            "short tons": 580
+          },
+          "citation": "Hub Table 9, Mixed MSW, landfilled: 0.58 metric tons CO2e per short ton (AR4 GWPs, excludes avoided emissions). kg = 580 kg / 907.18474 kg."
         },
         {
           "key": "recycling",
-          "label": "Recycling",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Recycling (mixed recyclables)",
+          "factorSource": "epa-warm-2023",
           "units": {
-            "kg": 0.02
-          }
+            "kg": 0.099208,
+            "short tons": 90
+          },
+          "citation": "Hub Table 9, Mixed Recyclables, recycled: 0.09 metric tons CO2e per short ton (AR4 GWPs, excludes avoided emissions). kg = 90 kg / 907.18474 kg."
         },
         {
           "key": "composting",
-          "label": "Composting",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "label": "Composting (mixed organics)",
+          "factorSource": "epa-warm-2023",
           "units": {
-            "kg": 0.01
-          }
+            "kg": 0.1433,
+            "short tons": 130
+          },
+          "citation": "Hub Table 9, Mixed Organics, composted: 0.13 metric tons CO2e per short ton (AR4 GWPs, excludes avoided emissions). kg = 130 kg / 907.18474 kg."
         }
       ]
     },
     {
       "key": "transportation",
       "scope": 3,
-      "label": "Transportation (own fleet distance)",
+      "label": "Third-Party Freight (distance)",
       "showInCalculator": true,
+      "note": "Freight carried by vehicles you do not own or control (Scope 3 categories 4 and 9). Your own fleet is Scope 1: Mobile Combustion. Catalog 2026-07-24 labelled this category 'Transportation (own fleet distance)' while filing it in Scope 3.",
       "sources": [
         {
-          "key": "heavy_duty_diesel",
-          "label": "Heavy Duty Diesel",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "key": "truck_medium_heavy",
+          "label": "Medium- or heavy-duty truck, dedicated (vehicle-miles)",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "miles": 1.018
-          }
+            "vehicle-miles": 1.30829
+          },
+          "citation": "Table 8, Medium- and Heavy-Duty Truck: 1.298 kg CO2, 0.0115 g CH4, 0.0376 g N2O per vehicle-mile (the whole vehicle carries your freight)."
         },
         {
-          "key": "medium_duty_gasoline",
-          "label": "Medium Duty Gasoline",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "key": "light_duty_truck",
+          "label": "Light-duty truck or van, dedicated (vehicle-miles)",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "miles": 0.65
-          }
+            "vehicle-miles": 0.396637
+          },
+          "citation": "Table 8, Light-Duty Truck: 0.394 kg CO2, 0.0109 g CH4, 0.0088 g N2O per vehicle-mile."
         },
         {
-          "key": "light_duty_gasoline",
-          "label": "Light Duty Gasoline",
-          "factorSource": "internal-estimate",
-          "verified": false,
+          "key": "truck_ton_miles",
+          "label": "Truck, shared load (short ton-miles)",
+          "factorSource": "epa-efh-2025",
           "units": {
-            "miles": 0.404
-          }
+            "short ton-miles": 0.187476
+          },
+          "citation": "Table 8, Medium- and Heavy-Duty Truck: 0.186 kg CO2, 0.0016 g CH4, 0.0054 g N2O per short ton-mile (the vehicle is shared with other shippers' goods)."
         },
         {
           "key": "rail",
-          "label": "Rail",
+          "label": "Rail freight (short ton-miles)",
           "factorSource": "epa-efh-2025",
           "units": {
-            "miles": 0.021
+            "short ton-miles": 0.0211773
           },
-          "verified": false,
-          "note": "UNVERIFIED unit basis: 0.021 kg/mile matches EPA's freight-rail factor per SHORT TON-MILE (~0.022), not per train-mile. If users enter actual rail miles this understates by orders of magnitude. Confirm whether this category means ton-miles and relabel the unit."
+          "citation": "Table 8, Rail: 0.021 kg CO2, 0.0016 g CH4, 0.0005 g N2O per short ton-mile. Catalog 2026-07-24 offered this per-ton-mile value under the unit 'miles'."
         }
       ]
     }

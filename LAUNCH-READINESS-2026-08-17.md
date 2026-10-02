@@ -31,5 +31,6 @@ Evidence-first; minimal diff. Full-surface audit trails already exist in
 
 1. Create live Stripe products/prices (Starter/Growth/Pro × monthly/annual) and set the six
    `STRIPE_PRICE_*` vars + `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PK` in Railway.
-2. Point the Stripe webhook endpoint at the deployed `/api/webhooks/stripe` URL.
+2. Point the Stripe webhook endpoint at the deployed `/api/webhook` URL (`https://ecoauditor.io/api/webhook`).
+   Corrected 2026-09-30: the path given here before does not exist and answers 404.
 3. Reconcile `src/content/pricing.ts` amounts against the live Stripe price amounts (pricing.ts checklist item 3).

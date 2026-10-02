@@ -96,7 +96,7 @@ Confirm these are all present, or the new boot check will (deliberately) refuse 
 
 Missing price IDs only log a warning (those plans just can't be bought). Missing `APP_URL` or `STRIPE_WEBHOOK_SECRET` with a Stripe key present now throws at boot — that's intentional. It's better than discovering it from a customer who paid and got redirected to `localhost`.
 
-Also point the Stripe webhook endpoint at `https://ecoauditor.io/api/webhooks/stripe` in the Stripe dashboard if you haven't.
+Also point the Stripe webhook endpoint at `https://ecoauditor.io/api/webhook` in the Stripe dashboard if you haven't. (Corrected 2026-09-30: the path given here before does not exist and answers 404. The only webhook route is `app.post('/api/webhook')` in `server.cjs`; `DEPLOY.md` §7 was already right.)
 
 ## 5. Still open — I could not do these from here
 

@@ -22,6 +22,15 @@ const FOCUSABLE = [
 export function useFocusTrap<T extends HTMLElement>(onClose: () => void) {
   const ref = useRef<T>(null);
 
+  // Callers pass an inline arrow, i.e. a new `onClose` on every render. Keying the
+  // effect below on it re-ran the focus-in step after every render of the parent,
+  // so each keystroke in the chat input moved focus to "Close chat". The effect
+  // runs once per mount; Escape reads the latest callback from this ref.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
@@ -38,7 +47,7 @@ export function useFocusTrap<T extends HTMLElement>(onClose: () => void) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -67,7 +76,7 @@ export function useFocusTrap<T extends HTMLElement>(onClose: () => void) {
       document.removeEventListener('keydown', handleKeyDown, true);
       previouslyFocused?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return ref;
 }

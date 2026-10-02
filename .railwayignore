@@ -1,3 +1,52 @@
 node_modules
 .next
 .git
+# Credentials and local state never leave the machine with `railway up`, even with
+# --no-gitignore (F-G-17): any *.env* file except the committed *.example templates,
+# the server's old file store, the InsForge CLI state, editor MCP config.
+*.env*
+!*.example
+.data/
+.insforge/
+opencode.json
+opencode.jsonc
+gsc-key-temp.json
+# Agent state (the same list as .gitignore).
+.agent/
+.agents/
+.augment/
+.claude/
+.cline/
+.codegraph/
+.codex/
+.claude-flow/
+.kilocode/
+.omc/
+.omo/
+.opencode/
+.playwright-mcp/
+.qoder/
+.qwen/
+.refact/
+.roo/
+.security-audit/
+.swarm/
+.trae/
+.windsurf/
+ruvector.db
+# Audit transcripts, reports, prompts and scan output: the build never reads them,
+# and some of them held credentials (SECURITY-HISTORY.md). Anchored to the root
+# with "/" (this file has .gitignore syntax): src/lib/consent-audit.ts,
+# public/robots.txt, public/llms.txt and public/fonts/*.txt are source.
+/*.txt
+/*[Aa]udit*
+/*AUDIT*
+/LAUNCH*
+/HANDOFF*
+/dogfood-*
+/*.patch
+/*.sarif
+/*.csv
+/reports/
+/docs/audits/
+/docs/archive/

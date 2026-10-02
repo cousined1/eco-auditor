@@ -1,0 +1,58 @@
+{
+  "/": {
+    "title": "Eco-Auditor — GHG Carbon Accounting for SMBs",
+    "description": "Carbon accounting for SMBs: import activity data by CSV, calculate Scope 1-3 emissions with EPA, eGRID and IPCC factors, and download a PDF summary."
+  },
+  "/pricing": {
+    "title": "Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs",
+    "description": "Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo, or from $124/mo billed annually. 14-day free trial on monthly Starter and Growth plans."
+  },
+  "/methodology": {
+    "title": "Carbon Accounting Methodology — Eco-Auditor | GHG Protocol Alignment",
+    "description": "How Eco-Auditor calculates Scope 1-3 emissions: EPA, eGRID and IPCC factors, aligned with the GHG Protocol. Spend-based Scope 3 factors are internal estimates."
+  },
+  "/sample-report": {
+    "title": "Sample Carbon Report — Eco-Auditor | See What You Get",
+    "description": "See a sample Eco-Auditor carbon report built from fictional data: Scope 1, 2 and 3 breakdown and data-quality scores."
+  },
+  "/security": {
+    "title": "Security & Trust — Eco-Auditor | Data Protection and Compliance",
+    "description": "Eco-Auditor security and trust: HTTPS with HSTS, security headers, rate limiting, Stripe-processed payments, and a Data Processing Addendum for GDPR customers."
+  },
+  "/demo": {
+    "title": "Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough",
+    "description": "Book a 25–30 minute Eco-Auditor demo. Tell us your goal: a Scope 1/2 baseline, a customer emissions-data request, or California SB 253 questions."
+  },
+  "/contact": {
+    "title": "Contact Us — Eco-Auditor",
+    "description": "Contact Eco-Auditor for a demo, pricing questions, billing or product support, or privacy and DPA requests."
+  },
+  "/privacy": {
+    "title": "Privacy Policy — Eco-Auditor",
+    "description": "Eco-Auditor Privacy Policy — how we collect, use, and protect your data."
+  },
+  "/terms": {
+    "title": "Terms of Service — Eco-Auditor",
+    "description": "Eco-Auditor Terms of Service — the agreement governing your use of the Eco-Auditor platform."
+  },
+  "/dpa": {
+    "title": "Data Processing Addendum — Eco-Auditor",
+    "description": "Eco-Auditor Data Processing Addendum — the data processing terms for customers subject to the GDPR."
+  },
+  "/blog": {
+    "title": "Blog — Eco-Auditor | Carbon Accounting for SMBs",
+    "description": "Eco-Auditor blog: carbon accounting guidance for small and mid-size businesses — Scope 1-3 baselines, supplier data collection, and disclosure readiness."
+  },
+  "/login": {
+    "title": "Sign In — Eco-Auditor",
+    "description": "Sign in to your Eco-Auditor account."
+  },
+  "/signup": {
+    "title": "Start Your Free Trial — Eco-Auditor",
+    "description": "Start a 14-day free Starter trial. No card required when you sign up directly; the dashboard, imports and reports pause at trial end until you choose a plan."
+  },
+  "/forgot-password": {
+    "title": "Reset Your Password — Eco-Auditor",
+    "description": "Reset your Eco-Auditor password."
+  }
+}

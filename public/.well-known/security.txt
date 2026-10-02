@@ -2,5 +2,4 @@ Contact: mailto:hello@developer312.com
 Contact: tel:+1-510-591-0163
 Preferred-Languages: en
 Canonical: https://ecoauditor.io/.well-known/security.txt
-Policy: https://ecoauditor.io/privacy
 Expires: 2027-05-21T00:00:00.000Z

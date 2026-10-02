@@ -1,9 +1,22 @@
-import { describe, expect, it } from 'vitest';
-import { buildApiRequestInit, getUpgradeRequired } from '../src/lib/api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { apiFetch, getUpgradeRequired } from '../src/lib/api';
 
+// apiFetch replaced buildApiRequestInit as the only way server calls get the
+// session token; these keep the two header guarantees the helper had.
 describe('API request helper', () => {
-  it('passes through the current InsForge authorization header', () => {
-    const init = buildApiRequestInit({
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubOk() {
+    const server = vi.fn(async () => new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', server);
+    return server;
+  }
+
+  it('passes through the current InsForge authorization header', async () => {
+    const server = stubOk();
+    await apiFetch('/api/emissions/summary', {}, {
       getHttpClient() {
         return {
           getHeaders() {
@@ -13,11 +26,12 @@ describe('API request helper', () => {
       },
     });
 
-    expect(init.headers).toEqual({ Authorization: 'Bearer token-123' });
+    expect(server).toHaveBeenCalledWith('/api/emissions/summary', { headers: { Authorization: 'Bearer token-123' } });
   });
 
-  it('does not forward non-auth SDK headers to same-origin app APIs', () => {
-    const init = buildApiRequestInit({
+  it('does not forward non-auth SDK headers to same-origin app APIs', async () => {
+    const server = stubOk();
+    await apiFetch('/api/emissions/summary', {}, {
       getHttpClient() {
         return {
           getHeaders() {
@@ -27,7 +41,7 @@ describe('API request helper', () => {
       },
     });
 
-    expect(init.headers).toEqual({});
+    expect(server).toHaveBeenCalledWith('/api/emissions/summary', { headers: {} });
   });
 });
 

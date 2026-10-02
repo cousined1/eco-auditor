@@ -29,13 +29,22 @@ function spaFallback(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react(), spaFallback()],
 
   resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
+    alias: [
+      // `vite build` only: the public pages become route-level chunks, so the
+      // landing page does not ship the legal pages, the sign-in forms and the
+      // rest (F-F-14). The prerender step (scripts/prerender.mjs has its own
+      // config), the tests and the dev server keep the static module: they
+      // render with renderToString, which cannot wait for a lazy chunk.
+      // Must stay before '@': the first matching alias wins.
+      ...(command === 'build'
+        ? [{ find: '@/routePages', replacement: path.resolve(import.meta.dirname, './src/routePages.lazy.ts') }]
+        : []),
+      { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
+    ],
   },
 
   build: {
@@ -72,4 +81,4 @@ export default defineConfig({
     host: true,       // Bind to 0.0.0.0 so Railway's proxy can reach it
     strictPort: true, // Fail fast if the port is already taken
   },
-});
+}));

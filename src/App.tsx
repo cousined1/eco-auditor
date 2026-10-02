@@ -1,33 +1,49 @@
 import { Routes, Route, NavLink, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useTheme } from './hooks/useTheme';
 import { useFocusTrap } from './hooks/useFocusTrap';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
-import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
+import { onSessionExpired } from './lib/api';
+import { useCompanyName } from './lib/companyName';
+import { isSessionValid } from './lib/session';
+import type { AuthNoticeState } from './components/auth/authHelpers';
+import { VERIFY_EMAIL_PATH } from './components/auth/emailVerification';
 import { createCheckoutSession, verifyCheckoutSession } from './lib/stripe';
-import LandingPage from './pages/LandingPage';
-import BlogList from './pages/BlogList';
-import BlogPostPage from './pages/BlogPost';
-import MethodologyPublic from './pages/MethodologyPublic';
-import SampleReport from './pages/SampleReport';
-import Security from './pages/Security';
-import Pricing from './pages/Pricing';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
-import ContactUs from './pages/ContactUs';
-import Demo from './pages/Demo';
-import DataProcessingAddendum from './pages/DataProcessingAddendum';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import ForgotPassword from './pages/ForgotPassword';
-import AuthCallback from './pages/AuthCallback';
-import NotFound from './pages/NotFound';
+// The public pages come from one module with two builds: static for the prerender
+// step, the tests and dev, route-level chunks in the production client build
+// (F-F-14). See src/routePages.ts.
+import {
+  AuthCallback,
+  BlogList,
+  BlogPostPage,
+  ContactUs,
+  DataProcessingAddendum,
+  Demo,
+  ForgotPassword,
+  LandingPage,
+  Login,
+  MethodologyPublic,
+  NotFound,
+  Pricing,
+  PrivacyPolicy,
+  SampleReport,
+  Security,
+  Signup,
+  TermsOfService,
+  VerifyEmailCode,
+} from '@/routePages';
 import Footer from './components/Footer';
 import Header from './components/Header';
+import BrandMark from './components/BrandMark';
+import ConnectionProblemBanner from './components/ConnectionProblemBanner';
+import ScrollManager from './components/ScrollManager';
+import SkipLink from './components/SkipLink';
+import ThemeToggle from './components/ThemeToggle';
+import TrialPill from './components/TrialPill';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { lazyRoute, retryChunkLoads } from './lib/chunkRecovery';
 
 // Authenticated surfaces are split out of the entry graph. Every one of these
 // is behind the /app auth gate and none is prerendered, so an anonymous visitor
@@ -35,18 +51,24 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 // the calculator, which pull in recharts (~112KB gzipped of charting an
 // unauthenticated visitor can never see).
 //
-// The prerendered marketing routes above stay static on purpose:
-// scripts/prerender.mjs calls renderToString(), which cannot resolve a lazy
-// chunk, so making those lazy would empty the prerendered HTML.
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const DataIntake = lazy(() => import('./pages/DataIntake'));
-const AIAssistant = lazy(() => import('./pages/AIAssistant'));
-const Ledger = lazy(() => import('./pages/Ledger'));
-const Reports = lazy(() => import('./pages/Reports'));
-const Suppliers = lazy(() => import('./pages/Suppliers'));
-const Methodology = lazy(() => import('./pages/Methodology'));
-const Settings = lazy(() => import('./pages/Settings'));
-const CarbonCalculator = lazy(() => import('./components/carbon-calculator'));
+// The public pages are static in the prerender and lazy in the client build, see
+// src/routePages.ts: renderToString() cannot resolve a lazy chunk, so the
+// prerender needs them imported.
+//
+// lazyRoute is React.lazy plus recovery from a chunk that will not load
+// (offline, or a tab left open across a deploy): see src/lib/chunkRecovery.ts.
+const Dashboard = lazyRoute(() => import('./pages/Dashboard'), 'Dashboard');
+const DataIntake = lazyRoute(() => import('./pages/DataIntake'), 'DataIntake');
+const AIAssistant = lazyRoute(() => import('./pages/AIAssistant'), 'AIAssistant');
+const Ledger = lazyRoute(() => import('./pages/Ledger'), 'Ledger');
+const Reports = lazyRoute(() => import('./pages/Reports'), 'Reports');
+const Suppliers = lazyRoute(() => import('./pages/Suppliers'), 'Suppliers');
+const Methodology = lazyRoute(() => import('./pages/Methodology'), 'Methodology');
+const Settings = lazyRoute(() => import('./pages/Settings'), 'Settings');
+const CarbonCalculator = lazyRoute(() => import('./components/carbon-calculator'), 'CarbonCalculator');
+// First-run onboarding for a company the server created (F-B-03): wraps the routes
+// that would otherwise be the first screen, and is authenticated-only like them.
+const OnboardingGate = lazyRoute(() => import('./components/onboarding/OnboardingGate'), 'OnboardingGate');
 
 // The authenticated mobile navigation, as a real modal dialog.
 //
@@ -106,7 +128,7 @@ const NAV_ITEMS = [
   { to: '/app/calculator', label: 'Calculator', icon: CalculatorIcon },
   { to: '/app/assistant', label: 'AI Assistant', icon: AssistantIcon, soon: true },
   { to: '/app/ledger', label: 'Ledger', icon: LedgerIcon, soon: true },
-  { to: '/app/reports', label: 'Reports', icon: ReportsIcon, soon: true },
+  { to: '/app/reports', label: 'Reports', icon: ReportsIcon },
   { to: '/app/suppliers', label: 'Suppliers', icon: SuppliersIcon, soon: true },
   { to: '/app/methodology', label: 'Methodology', icon: MethodologyIcon, soon: true },
   { to: '/app/pricing', label: 'Pricing', icon: PricingIcon },
@@ -129,36 +151,28 @@ function TrackPageViews() {
     trackPageView(location.pathname + location.search);
   }, [location, trackPageView]);
 
-  // A SPA keeps the scroll position across navigations, so moving from a
-  // scrolled landing page to /pricing used to land mid-page. Reset scroll and
-  // move focus to the main landmark, which also gives keyboard and screen
-  // reader users a defined starting point instead of leaving focus on the link
-  // they just followed.
-  useEffect(() => {
-    if (location.hash) {
-      // In-page anchor: honour the target rather than jumping to the top.
-      document.getElementById(location.hash.slice(1))?.scrollIntoView();
-      return;
-    }
-    window.scrollTo(0, 0);
-    document.getElementById('main-content')?.focus({ preventScroll: true });
-  }, [location.pathname, location.hash]);
-
   return null;
 }
 
 export default function App() {
   return (
     <ErrorBoundary>
-      <AppContent />
+      {/* First in the document, so it comes before the page in the tab order and
+          in reading order (F-C-07). Last, it took every link on the page to reach
+          by Tab; first, Shift+Tab from the page content gets to it after the
+          header's few controls. (ScrollManager leaves focus alone at load, so the
+          first Tab reaches this bar, and the skip link once it is answered: D-6.)
+          It is a fixed bar, so its place in the DOM does not change where it is
+          drawn. */}
       <CookieConsentBanner />
+      <AppContent />
       <TrackPageViews />
+      <ScrollManager />
     </ErrorBoundary>
   );
 }
 
 function AppContent() {
-  const { theme, toggle } = useTheme();
   const locationInfo = useLocation();
   // express.static 301-redirects bare marketing paths to their trailing-slash
   // form (/privacy -> /privacy/), and the prerenderer declares that slashed URL
@@ -173,6 +187,8 @@ function AppContent() {
   const isAppPage = location === '/app' || location.startsWith('/app/');
 
   const [user, setUser] = useState<AppUser | null>(null);
+  // The company's own name, once a screen has loaded it (the auth profile never holds one).
+  const companyName = useCompanyName();
   const [authStatus, setAuthStatus] = useState<'loading' | 'authed' | 'anon'>('loading');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [checkoutBanner, setCheckoutBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -216,11 +232,20 @@ function AppContent() {
     return () => { cancelled = true; };
   }, [isAppPage]);
 
+  // Read through a ref so the effect below is set up once per signed-in app
+  // session: `navigate` changes identity on every pathname change, and keying
+  // the effect on it tore the expiry handling down on each navigation.
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+
   // #81: Real mid-session expiry detection. The browser SDK's getCurrentUser()
   // only reads cached session state, so re-validation must hit the server.
-  // We (a) intercept any /api/* 401 to force re-login immediately, and
-  // (b) proactively re-validate against an auth-guarded endpoint on an interval
-  // and whenever the tab regains focus.
+  // (a) Every server call goes through apiFetch (src/lib/api.ts), which
+  // refreshes an expired access token and calls onSessionExpired only when the
+  // session cannot be recovered; (b) we proactively re-validate against an
+  // auth-guarded endpoint on an interval and whenever the tab regains focus.
   useEffect(() => {
     if (!isAppPage || authStatus !== 'authed') return;
     let done = false;
@@ -248,33 +273,41 @@ function AppContent() {
       } catch {
         /* local session is cleared either way */
       }
-      setUser(null);
-      setAuthStatus('anon');
       // Preserve where the user was so re-login returns them there. Login
       // already honors ?redirect=; sending a bare /login discarded the deep
       // link and any pending ?checkout= intent on a mid-session expiry.
       const returnTo = encodeURIComponent(
         window.location.pathname + window.location.search
       );
-      navigate(`/login?redirect=${returnTo}`, { replace: true });
+      const state: AuthNoticeState = { authNotice: 'session-expired' };
+      // One transition for the reset and the navigation. BrowserRouter applies
+      // navigations inside startTransition, so a plain setAuthStatus('anon')
+      // rendered the signed-out <Navigate> below first, with the old location;
+      // its navigation replaced this one and dropped the notice.
+      startTransition(() => {
+        setUser(null);
+        setAuthStatus('anon');
+        navigateRef.current(`/login?redirect=${returnTo}`, { replace: true, state });
+      });
     };
-    const revalidate = async () => {
-      const ok = await isSessionValid();
-      if (!ok) void forceReauth();
+    // No handling of the result: apiFetch reports an unrecoverable session
+    // itself, and a transient failure must not sign anyone out.
+    const revalidate = () => {
+      void isSessionValid();
     };
-    const uninstall = installUnauthorizedInterceptor(() => { void forceReauth(); });
+    const unregister = onSessionExpired(() => { void forceReauth(); });
     const intervalId = window.setInterval(revalidate, 5 * 60 * 1000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void revalidate();
+      if (document.visibilityState === 'visible') revalidate();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       done = true;
-      uninstall();
+      unregister();
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [isAppPage, authStatus, navigate]);
+  }, [isAppPage, authStatus]);
 
   useEffect(() => {
     if (authStatus !== 'authed') return;
@@ -359,14 +392,7 @@ function AppContent() {
   if (isLegalPage) {
     return (
       <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
-        <Header
-          variant="legal"
-          extra={
-            <button type="button" onClick={toggle} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors" aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
-              {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-            </button>
-          }
-        />
+        <Header variant="legal" />
         <main id="main-content" tabIndex={-1}>
           <Routes>
             <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -395,6 +421,7 @@ function AppContent() {
     }
     return (
       <div className="flex h-screen overflow-hidden bg-surface-50 dark:bg-surface-950">
+        <SkipLink />
         {mobileNavOpen && (
           <MobileNavDrawer onClose={() => setMobileNavOpen(false)}>
             <SidebarContent user={user} onLogout={handleLogout} onNavigate={() => setMobileNavOpen(false)} />
@@ -418,25 +445,21 @@ function AppContent() {
               >
                 <MenuIcon />
               </button>
-              <EcoLogo />
+              <BrandMark />
               <span className="font-semibold text-sm">Eco-Auditor</span>
             </div>
             <div className="hidden md:flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
-              <span className="truncate max-w-[200px]">{user?.companyName || 'Your organization'}</span>
+              <span className="truncate max-w-[200px]">{companyName || user?.companyName || 'Your organization'}</span>
               <span className="text-surface-300">/</span>
               <span className="font-medium text-surface-800 dark:text-surface-200">FY {new Date().getFullYear()}</span>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={toggle}
-                className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors"
-                aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-              >
-                {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-              </button>
+              <TrialPill />
+              <ThemeToggle />
             </div>
           </header>
+
+          <ConnectionProblemBanner />
 
           {checkoutBanner && (
             <div
@@ -445,7 +468,7 @@ function AppContent() {
                   ? 'bg-brand-50 border-brand-200 dark:bg-brand-900/20 dark:border-brand-800'
                   : 'bg-risk-high/10 border-risk-high/20'
               }`}
-              role="status"
+              role={checkoutBanner.type === 'error' ? 'alert' : 'status'}
             >
               <div className="flex items-center justify-between gap-4">
                 <span
@@ -469,21 +492,30 @@ function AppContent() {
             </div>
           )}
 
-          <main className="flex-1 overflow-y-auto">
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto">
             <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/app" element={<Dashboard />} />
-                <Route path="/app/intake" element={<DataIntake />} />
-                <Route path="/app/calculator" element={<CarbonCalculator />} />
-                <Route path="/app/assistant" element={<AIAssistant />} />
-                <Route path="/app/ledger" element={<Ledger />} />
-                <Route path="/app/reports" element={<Reports />} />
-                <Route path="/app/suppliers" element={<Suppliers />} />
-                <Route path="/app/methodology" element={<Methodology />} />
-                <Route path="/app/pricing" element={<Pricing />} />
-                <Route path="/app/settings" element={<Settings />} />
-                <Route path="*" element={<NotFound title="Page not found" message="That section of the app does not exist." homeHref="/app" />} />
-              </Routes>
+              {/* A page that fails (a chunk that will not load, or a render error)
+                  is contained here, so the sidebar and navigation survive it. */}
+              <ErrorBoundary inShell resetKey={locationInfo.key} onReset={retryChunkLoads}>
+                <Routes>
+                  {/* The onboarding gate shows onboarding instead of these while a
+                      company the server created is unnamed and has not chosen
+                      "Finish later"; Settings and Pricing stay reachable without it. */}
+                  <Route element={<OnboardingGate />}>
+                    <Route path="/app" element={<Dashboard />} />
+                    <Route path="/app/intake" element={<DataIntake />} />
+                    <Route path="/app/calculator" element={<CarbonCalculator />} />
+                    <Route path="/app/reports" element={<Reports />} />
+                  </Route>
+                  <Route path="/app/assistant" element={<AIAssistant />} />
+                  <Route path="/app/ledger" element={<Ledger />} />
+                  <Route path="/app/suppliers" element={<Suppliers />} />
+                  <Route path="/app/methodology" element={<Methodology />} />
+                  <Route path="/app/pricing" element={<Pricing embedded />} />
+                  <Route path="/app/settings" element={<Settings />} />
+                  <Route path="*" element={<NotFound title="Page not found" message="That section of the app does not exist." homeHref="/app" />} />
+                </Routes>
+              </ErrorBoundary>
             </Suspense>
           </main>
         </div>
@@ -522,6 +554,7 @@ function AppContent() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path={VERIFY_EMAIL_PATH} element={<VerifyEmailCode />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -537,8 +570,8 @@ function SidebarContent({ user, onLogout, onNavigate }: SidebarContentProps) {
   return (
     <>
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-surface-200 dark:border-surface-800">
-        <Link to="/" onClick={onNavigate}>
-          <EcoLogo />
+        <Link to="/" onClick={onNavigate} aria-label="Eco-Auditor home">
+          <BrandMark />
         </Link>
         <div>
           <Link to="/" onClick={onNavigate} className="font-semibold text-sm text-surface-900 dark:text-white tracking-tight hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Eco-Auditor</Link>
@@ -599,26 +632,6 @@ function SidebarContent({ user, onLogout, onNavigate }: SidebarContentProps) {
   );
 }
 
-function EcoLogo() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Bottom cycle arrow — teal */}
-      <path fill="none" stroke="#06b6d4" strokeWidth="24" strokeLinecap="round" d="M380 310 A150 150 0 0 0 132 310" />
-      <polygon points="115,295 132,270 148,298" fill="#06b6d4" />
-      {/* Top cycle arrow — navy */}
-      <path fill="none" stroke="#1e3a5f" strokeWidth="24" strokeLinecap="round" d="M132 202 A150 150 0 0 0 380 202" />
-      <polygon points="397,217 380,242 364,214" fill="#1e3a5f" />
-      {/* Abstract leaf */}
-      <path fill="#52b788" d="M256 120 C256 120 200 170 200 260 C200 310 225 350 256 380 C287 350 312 310 312 260 C312 170 256 120 256 120Z" />
-      <path fill="#ffffff" d="M256 160 C256 160 225 200 225 260 C225 300 240 330 256 350 C272 330 287 300 287 260 C287 200 256 160 256 160Z" />
-      <line x1="256" y1="155" x2="256" y2="365" stroke="#2d6a4f" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-      {/* Checkmark badge */}
-      <circle cx="256" cy="430" r="28" fill="#1e3a5f" />
-      <polyline points="242,430 252,440 270,420" fill="none" stroke="#ffffff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function DashboardIcon({ className }: { className?: string }) {
   return <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="1" width="5.5" height="5.5" rx="1"/><rect x="9.5" y="1" width="5.5" height="5.5" rx="1"/><rect x="1" y="9.5" width="5.5" height="5.5" rx="1"/><rect x="9.5" y="9.5" width="5.5" height="5.5" rx="1"/></svg>;
 }
@@ -648,12 +661,6 @@ function CalculatorIcon({ className }: { className?: string }) {
 }
 function SettingsIcon({ className }: { className?: string }) {
   return <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/></svg>;
-}
-function MoonIcon() {
-  return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 12.5A5.5 5.5 0 018 2.5a5.5 5.5 0 010 11z"/></svg>;
-}
-function SunIcon() {
-  return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>;
 }
 function MenuIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg>;

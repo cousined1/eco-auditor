@@ -35,10 +35,14 @@ jobs:
         run: npm ci
 
       - name: Test
+        # The Docker-backed suites (tests/e2e-helpers.ts) start their own
+        # throwaway Postgres containers; the runner's Docker engine is enough.
         run: npm run build && npm test
 
-      - name: Lint changed security surfaces
-        run: npx eslint tests/server-security.test.ts tests/server-billing.test.ts tests/server-health.test.ts scripts/audit-production.mjs
+      - name: Lint
+        # The whole repository, not a hand-picked list: a file added tomorrow is
+        # linted without anyone editing this step.
+        run: npm run lint
 
       - name: Audit production dependencies
         run: npm run security:audit
@@ -47,6 +51,11 @@ jobs:
         run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854 detect --source /repo --no-git --redact --config /repo/.gitleaks.toml --exit-code 1
 
       - name: Scan git history for secrets (DATA-007 remediation)
+        # Deliberately non-blocking (`|| echo`) until the leaked credentials in
+        # SECURITY-HISTORY.md are rotated and a REDACTED baseline is committed;
+        # docs/runbooks/credential-rotation.md step 7 makes this step blocking.
+        # A baseline created before rotation would mark live credentials as
+        # accepted.
         run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854 detect --source /repo --redact --config /repo/.gitleaks.toml --exit-code 1 || echo "::warning::gitleaks history scan reported findings (previously rotated/redacted credentials remain in immutable history; see SECURITY-HISTORY.md)"
 
       - name: Check migration state (INFRA-D2)
@@ -56,6 +65,10 @@ jobs:
         # Without them the script exits 2 ("cannot determine"): skip with a loud
         # warning instead of failing every run. With them set, exit 1 (pending
         # migrations) fails the build - schema must not ship ahead of code.
+        # Push to master only: the access token is platform-admin, and a
+        # pull_request job runs the PR's code with the step's secrets in reach.
+        # Owner setup: docs/runbooks/ci-gates.md.
+        if: github.event_name == 'push'
         env:
           INSFORGE_ACCESS_TOKEN: ${{ secrets.INSFORGE_ACCESS_TOKEN }}
           INSFORGE_PROJECT_ID: ${{ secrets.INSFORGE_PROJECT_ID }}

@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 // @ts-expect-error -- importing a Node ESM .mjs module with no type declarations
 import { scanLegalPlaceholders, BANNED_PHRASES } from '../scripts/check-legal-placeholders.mjs';
 
@@ -30,5 +32,13 @@ describe('legal placeholder guardrail (P0-02)', () => {
       ]);
       expect(matches.length, `expected phrase "${phrase}" to be flagged`).toBeGreaterThan(0);
     }
+  });
+
+  it('the shipped legal pages pass the same scan the build runs, so the gate fails in vitest and not only in npm run build', () => {
+    const files = ['TermsOfService', 'PrivacyPolicy', 'DataProcessingAddendum'].map((name) => ({
+      path: `src/pages/${name}.tsx`,
+      content: readFileSync(resolve(`src/pages/${name}.tsx`), 'utf8'),
+    }));
+    expect(scanLegalPlaceholders(files)).toEqual([]);
   });
 });

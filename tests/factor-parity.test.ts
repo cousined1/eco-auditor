@@ -10,7 +10,7 @@ import {
 
 const require = createRequire(import.meta.url);
 const { calculateEntry } = require('../emissions-engine.cjs');
-const { factorFor: serverFactorFor, CATALOG } = require('../emission-factors.cjs');
+const { factorFor: serverFactorFor, CATALOG, CATALOG_VERSION } = require('../emission-factors.cjs');
 
 // The client calculator and the server engine each read emission-factors.json
 // through their own adapter. Before the merge they carried independent tables
@@ -49,12 +49,15 @@ describe('factor parity between client and server', () => {
 
     for (const t of triples) {
       const clientKg = calculateEmissions(t.category, t.source, amount, t.unit);
+      // The form prices a new entry, so the engine side does too: a row with no
+      // catalog_version is a stored legacy row to the engine (frozen catalog).
       const engine = calculateEntry({
         scope: String(scopeOf(t.category)),
         category: t.category,
         source: t.source,
         amount,
         unit: t.unit,
+        catalog_version: CATALOG_VERSION,
       });
       const engineKg = engine.co2e_tonnes * 1000;
       // round() in the engine keeps 6 decimals of tonnes, i.e. 0.001 kg.
@@ -97,6 +100,19 @@ describe('factor parity between client and server', () => {
     expect(serverFactorFor('purchased_goods', 'acme_supplies_inc', 'USD')).toBe(0.25);
     expect(getSource('purchased_goods', 'acme_supplies_inc')?.key).toBe('purchased_goods');
   });
+
+  it('resolves a category that lists another category\'s sources the same way on both sides', () => {
+    // renewable_electricity has no sources of its own; it prices every eGRID
+    // subregion (location-based) like purchased_electricity.
+    const subregions = CATALOG.categories.find((c: { key: string }) => c.key === 'purchased_electricity').sources;
+    expect(subregions.length).toBeGreaterThan(20);
+    for (const source of subregions) {
+      for (const unit of Object.keys(source.units)) {
+        expect(clientFactorFor('renewable_electricity', source.key, unit), source.key).toBe(source.units[unit]);
+        expect(serverFactorFor('renewable_electricity', source.key, unit), source.key).toBe(source.units[unit]);
+      }
+    }
+  });
 });
 
 describe('the unit selector is no longer decorative', () => {
@@ -106,9 +122,10 @@ describe('the unit selector is no longer decorative', () => {
     const perMMBtu = calculateEmissions('stationary_combustion', 'natural_gas', 1000, 'MMBtu');
     const perTherm = calculateEmissions('stationary_combustion', 'natural_gas', 1000, 'therms');
 
-    expect(perMMBtu).toBeCloseTo(53060, 3);
-    expect(perTherm).toBeCloseTo(5306, 3);
-    // The old code returned 53,060 for both — a 10x overstatement on therms.
+    // EPA Hub 2025 Table 1 with CH4 and N2O at AR5 (catalog 2026-09-30).
+    expect(perMMBtu).toBeCloseTo(53114.5, 3);
+    expect(perTherm).toBeCloseTo(5311.45, 3);
+    // The old code returned the per-MMBtu figure for both — a 10x overstatement on therms.
     expect(perTherm).not.toBeCloseTo(perMMBtu as number, 0);
   });
 

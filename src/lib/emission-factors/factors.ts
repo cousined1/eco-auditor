@@ -14,6 +14,12 @@ export interface FactorSource {
   readonly aliases?: readonly string[];
   readonly units: Readonly<Record<string, number>>;
   readonly note?: string;
+  readonly basis?: string;
+  readonly citation?: string;
+  /** Set when the source is not reported in its category's scope (e.g. 'memo:non-kyoto'). */
+  readonly reportingBucket?: string;
+  /** kg of biogenic CO2 per unit, reported outside the scopes. */
+  readonly biogenicCO2?: Readonly<Record<string, number>>;
 }
 
 export interface FactorCategory {
@@ -22,10 +28,24 @@ export interface FactorCategory {
   readonly label: string;
   readonly showInCalculator: boolean;
   readonly sourceListLabel?: string;
+  /** Prices the sources of this other category (renewable_electricity lists the eGRID subregions). */
+  readonly sourcesFrom?: string;
+  readonly marketBasedShare?: number;
   readonly sources: readonly FactorSource[];
 }
 
-const CATEGORIES = catalog.categories as readonly FactorCategory[];
+const CATEGORIES = catalog.categories as unknown as readonly FactorCategory[];
+
+/** The catalog new entries are priced with. */
+export const CATALOG_VERSION: string = catalog.version;
+/** Confidence the current catalog gives a CO2e total typed in directly (F-E-09). */
+export const PRECOMPUTED_CONFIDENCE: number = catalog.precomputedConfidence;
+/**
+ * The frozen catalog (emission-factors.v1.json) that prices every entry saved
+ * without a pin. The client does not load it; tests/catalog-version.test.ts
+ * checks this constant against the file.
+ */
+export const LEGACY_CATALOG_VERSION = '2026-07-24';
 
 // Mirrors normalizeKey() in emission-factors.cjs so a value typed in the form,
 // imported from CSV, or already persisted as a display label all collapse to
@@ -37,10 +57,17 @@ function normalizeKey(value: string): string {
 const CATEGORY_BY_KEY = new Map<string, FactorCategory>();
 const SOURCE_BY_KEY = new Map<string, Map<string, FactorSource>>();
 
+for (const category of CATEGORIES) CATEGORY_BY_KEY.set(normalizeKey(category.key), category);
+
+/** A category's own sources, or those of the category it prices from (same rule as emission-factors.cjs). */
+function listedSources(category: FactorCategory): readonly FactorSource[] {
+  if (!category.sourcesFrom) return category.sources;
+  return CATEGORY_BY_KEY.get(normalizeKey(category.sourcesFrom))?.sources ?? [];
+}
+
 for (const category of CATEGORIES) {
-  CATEGORY_BY_KEY.set(normalizeKey(category.key), category);
   const sources = new Map<string, FactorSource>();
-  for (const source of category.sources) {
+  for (const source of listedSources(category)) {
     sources.set(normalizeKey(source.key), source);
     for (const alias of source.aliases ?? []) sources.set(normalizeKey(alias), source);
   }
@@ -66,7 +93,8 @@ export function categoriesForScope(scope: Scope): FactorCategory[] {
 }
 
 export function sourcesForCategory(categoryKey: string): readonly FactorSource[] {
-  return getCategory(categoryKey)?.sources ?? [];
+  const category = getCategory(categoryKey);
+  return category ? listedSources(category) : [];
 }
 
 /**
@@ -140,6 +168,15 @@ export const PROVISIONAL_SCOPE12: number = (() => {
   }
   return count;
 })();
+
+/**
+ * The Scope 1/2 categories those provisional factors sit in, by label, so the
+ * methodology copy names them from the catalog instead of a list typed once
+ * and left behind when factors are corrected.
+ */
+export const PROVISIONAL_SCOPE12_CATEGORIES: readonly string[] = CATEGORIES
+  .filter((category) => (category.scope === 1 || category.scope === 2) && category.sources.some((source) => source.verified === false))
+  .map((category) => category.label);
 
 /** Display label for a stored category value; falls back to the raw string. */
 export function labelForCategory(categoryKey: string): string {

@@ -15,29 +15,24 @@
       })();
     </script>
 
-    <!-- Primary SEO -->
+    <!-- Primary SEO (homepage defaults; each route's values are written at build time) -->
     <title>Eco-Auditor — GHG Carbon Accounting for SMBs</title>
-    <meta name="description" content="Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Import activity data by CSV, connect integrations (roadmap), and generate Scope 1-3 reports aligned with the GHG Protocol." />
-    <meta name="keywords" content="carbon accounting, GHG Protocol, Scope 1 2 3 emissions, sustainability reporting, SMB carbon footprint, ESG audit" />
+    <meta name="description" content="Carbon accounting for SMBs: import activity data by CSV, calculate Scope 1-3 emissions with EPA, eGRID and IPCC factors, and download a PDF summary." />
+    <meta name="keywords" content="carbon accounting, GHG Protocol, Scope 1 2 3 emissions, SMB carbon footprint, emissions inventory" />
     <meta name="author" content="Developer312" />
     <meta name="robots" content="index, follow" />
     <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity canonical links do not load executable subresources -->
     <link rel="canonical" href="https://ecoauditor.io/" />
 
-    <meta name="geo.region" content="US-CA" />
-    <meta name="geo.placename" content="San Francisco, California" />
-    <meta name="geo.position" content="37.7749;-122.4194" />
-    <meta name="ICBM" content="37.7749, -122.4194" />
-
     <!-- Open Graph (LinkedIn, Facebook, Slack) -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://ecoauditor.io/" />
     <meta property="og:title" content="Eco-Auditor — GHG Carbon Accounting for SMBs" />
-    <meta property="og:description" content="Reviewable Scope 1-3 emissions data without enterprise software. Import activity data by CSV; connect QuickBooks/Xero/UPS/FedEx (roadmap)." />
+    <meta property="og:description" content="Carbon accounting for SMBs: import activity data by CSV, calculate Scope 1-3 emissions with EPA, eGRID and IPCC factors, and download a PDF summary." />
     <meta property="og:image" content="https://ecoauditor.io/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping. Reviewable Scope 1-3 emissions data for SMBs." />
+    <meta property="og:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping. Scope 1-3 emissions data for SMBs." />
     <meta property="og:site_name" content="Eco-Auditor" />
     <meta property="og:locale" content="en_US" />
 
@@ -45,7 +40,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://ecoauditor.io/" />
     <meta name="twitter:title" content="Eco-Auditor — GHG Carbon Accounting for SMBs" />
-    <meta name="twitter:description" content="Reviewable Scope 1-3 emissions data without enterprise software. GHG Protocol aligned." />
+    <meta name="twitter:description" content="Carbon accounting for SMBs: import activity data by CSV, calculate Scope 1-3 emissions with EPA, eGRID and IPCC factors, and download a PDF summary." />
     <meta name="twitter:image" content="https://ecoauditor.io/og-image.png" />
     <meta name="twitter:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping" />
     <meta name="twitter:site" content="@developer312" />
@@ -65,12 +60,11 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- Performance: preconnect to font origins -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Fonts are self-hosted (see @font-face in src/index.css): nothing is requested from Google before a visitor has chosen anything (F-F-06).
+         Preload the one face every page needs; `crossorigin` is required for fonts even on the same origin. -->
+    <link rel="preload" href="/fonts/inter-v20-latin.woff2" as="font" type="font/woff2" crossorigin />
 
-    <!-- JSON-LD Structured Data -->
+    <!-- JSON-LD Structured Data (site-wide entities only; page-level entities are added per route at build time) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -81,7 +75,7 @@
           "name": "Eco-Auditor",
           "url": "https://ecoauditor.io",
           "logo": "https://ecoauditor.io/favicon-512x512.png",
-          "description": "Carbon accounting and sustainability reporting platform for small and mid-size businesses",
+          "description": "Carbon accounting software for small and mid-size businesses",
           "parentOrganization": {
             "@type": "Organization",
             "name": "NIGHT LITE USA LLC"
@@ -100,14 +94,9 @@
           "@id": "https://ecoauditor.io/#website",
           "url": "https://ecoauditor.io",
           "name": "Eco-Auditor",
-          "description": "GHG carbon accounting and sustainability reporting for SMBs",
+          "description": "GHG carbon accounting for SMBs",
           "publisher": {
             "@id": "https://ecoauditor.io/#organization"
-          },
-          "potentialAction": {
-            "@type": "SearchAction",
-            "target": "https://ecoauditor.io/?s={search_term_string}",
-            "query-input": "required name=search_term_string"
           }
         },
         {
@@ -117,7 +106,7 @@
           "url": "https://ecoauditor.io",
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web",
-          "description": "GHG emissions tracking for Scope 1, 2, and 3. Built for SMBs facing SB 253, CBAM, and supply chain carbon disclosure requirements.",
+          "description": "GHG emissions accounting for Scope 1, 2, and 3 from CSV activity data, with a PDF emissions summary. Built for SMBs answering customer and supply-chain emissions-data requests.",
           "offers": {
             "@type": "AggregateOffer",
             "lowPrice": "149",
@@ -131,68 +120,9 @@
             "PDF emissions summary reports",
             "GHG Protocol aligned methodology"
           ],
-          "screenshot": "https://ecoauditor.io/favicon-192x192.png",
           "author": {
             "@id": "https://ecoauditor.io/#organization"
           }
-        },
-        {
-          "@type": "WebPage",
-          "@id": "https://ecoauditor.io/#webpage",
-          "url": "https://ecoauditor.io",
-          "name": "Eco-Auditor — GHG Carbon Accounting for SMBs",
-          "isPartOf": {
-            "@id": "https://ecoauditor.io/#website"
-          },
-          "about": {
-            "@id": "https://ecoauditor.io/#software"
-          },
-          "primaryImageOfPage": {
-            "@type": "ImageObject",
-            "url": "https://ecoauditor.io/og-image.png"
-          }
-        },
-        {
-          "@type": "BreadcrumbList",
-          "@id": "https://ecoauditor.io/#breadcrumb",
-          "itemListElement": [
-            {
-              "@type": "ListItem",
-              "position": 1,
-              "name": "Home",
-              "item": "https://ecoauditor.io/"
-            }
-          ]
-        },
-        {
-          "@type": "FAQPage",
-          "@id": "https://ecoauditor.io/#faq",
-          "mainEntity": [
-            {
-              "@type": "Question",
-              "name": "What is Eco-Auditor?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Eco-Auditor is a GHG Protocol-aligned carbon accounting and ESG disclosure platform purpose-built for small and mid-size enterprises navigating Scope 1, 2, and 3 emissions reporting, California SB 253, and EU CBAM mandates."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "How does Eco-Auditor calculate Scope 1, Scope 2, and Scope 3 emissions?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Eco-Auditor leverages official EPA GHG Emission Factors Hub datasets, eGRID subregional electric grid emission factors, and international standards to compute CO2 equivalent emissions directly from uploaded activity data and utility logs."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "Is Eco-Auditor audit-ready for regulatory frameworks like California SB 253 and EU CBAM?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Yes. Eco-Auditor produces verifiable audit trails, versioned calculation logs, methodology disclosures, executive-ready exportable PDF reports, and a machine-readable JSON data export suitable for third-party assurance."
-              }
-            }
-          ]
         }
       ]
     }

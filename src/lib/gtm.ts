@@ -1,4 +1,5 @@
-import { useConsent } from './consent-context';
+import { useConsent, type ConsentCategories, type PrivacySignals } from './consent-context';
+import { syncConsentMode } from './consent-mode';
 import { useCallback } from 'react';
 
 const GTM_ID = import.meta.env.VITE_GTM_ID || '';
@@ -29,7 +30,7 @@ export function useGTM() {
   return { trackEvent, trackPageView };
 }
 
-export function initializeGTM() {
+export function initializeGTM(consent: ConsentCategories, signals: PrivacySignals) {
   if (typeof window === 'undefined') return;
 
   if (!GTM_ID) {
@@ -39,6 +40,13 @@ export function initializeGTM() {
 
   const scriptId = `gtm-script-${GTM_ID}`;
   if (document.getElementById(scriptId)) return;
+
+  // Consent Mode first (F-F-05): the container reads its consent state when
+  // gtm.js starts, so the default (everything denied) and the visitor's current
+  // choice have to be queued ahead of the 'gtm.js' event below. A container that
+  // starts without them fires every tag on its own triggers, whatever the
+  // Marketing toggle says.
+  syncConsentMode(consent, signals);
 
   // Initialize dataLayer
   const gtmWindow = window as GTMWindow;

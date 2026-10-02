@@ -5,40 +5,109 @@ import Header from '../components/Header';
 // links at all — Google and Meta both require an accessible privacy policy
 // from the ad destination. See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-9).
 import Footer from '../components/Footer';
+import { useTheme } from '../hooks/useTheme';
 import { summarizeQuality } from '../lib/reports/quality-summary';
+import { scopeColors, type ScopeName } from '../lib/scopeColors';
 import fixture from '../lib/reports/sample-report-fixture.json';
+import routeMeta from '@/content/route-meta.json';
+import { trialHeadline, trialLimitsLabel } from '@/content/pricing';
+
+// Title and description come from src/content/route-meta.json, the file the
+// prerender step writes into the HTML, so raw and JS-rendered meta agree
+// (F-A-12). The JSON-LD reads the same entry: it used to type its own
+// description and drifted from the meta.
+const SAMPLE_META = routeMeta['/sample-report'];
+const HOME_META = routeMeta['/'];
 
 const SCHEMA = {
   "@context": "https://schema.org",
   "@type": "WebPage",
-  "name": "Sample Carbon Emissions Report — Eco-Auditor",
-  "description": "See what a reviewable GHG emissions report looks like. Scope 1-3 breakdown, data quality scoring, compliance framework alignment.",
+  "name": SAMPLE_META.title,
+  "description": SAMPLE_META.description,
 };
 
-const fmt = (n: number) => n.toLocaleString('en-US');
+// Every figure below is computed by scripts/generate-sample-report.cjs from the
+// ledger rows (see sample-report-consistency.test.tsx). The generator picks the
+// fewest decimals at which the displayed scope values still add up to the
+// displayed total, so the page never shows arithmetic that visibly disagrees.
+const fmt = (n: number, digits: number = fixture.metrics.displayDecimals) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 const METRICS = {
   total: fmt(fixture.metrics.total),
+  exactTotal: fmt(fixture.metrics.total, 3),
   unit: fixture.metrics.unit,
-  scope1: { value: fmt(fixture.metrics.scope1.value), pct: fixture.metrics.scope1.pct, color: 'bg-red-500' },
-  scope2: { value: fmt(fixture.metrics.scope2.value), pct: fixture.metrics.scope2.pct, color: 'bg-blue-500' },
-  scope3: { value: fmt(fixture.metrics.scope3.value), pct: fixture.metrics.scope3.pct, color: 'bg-emerald-500' },
+  scope1: { value: fmt(fixture.metrics.scope1.value), pct: fixture.metrics.scope1.pct },
+  scope2: { value: fmt(fixture.metrics.scope2.value), pct: fixture.metrics.scope2.pct },
+  scope3: { value: fmt(fixture.metrics.scope3.value), pct: fixture.metrics.scope3.pct },
 };
+
+// The stacked bar and the three figures under it read one list and are coloured
+// from src/lib/scopeColors.ts, so they cannot disagree with each other or with
+// the dashboard and calculator charts (F-C-17).
+const SCOPE_ROWS: { name: ScopeName; value: string; pct: number }[] = [
+  { name: 'Scope 1', value: METRICS.scope1.value, pct: METRICS.scope1.pct },
+  { name: 'Scope 2', value: METRICS.scope2.value, pct: METRICS.scope2.pct },
+  { name: 'Scope 3', value: METRICS.scope3.value, pct: METRICS.scope3.pct },
+];
 
 const QUALITY_SCORES = fixture.quality;
 
-const YEAR_COMPARISON = fixture.year.map(y => ({
-  year: String(y.year),
-  total: fmt(y.total),
-  change: y.change,
-}));
+const LEDGER_ROWS = fixture.activityData.length;
+const FACTOR_COUNT = fixture.factorRegister.reduce((sum, dataset) => sum + dataset.factors.length, 0);
+
+// Only what a fresh trial tenant can actually do or see today goes under an
+// "available today" heading; everything else is labelled roadmap (audit F-C-04:
+// per-entry factor, dataset, confidence and timestamp are not shown in the app).
+const PACKAGE_COLUMNS = [
+  {
+    title: 'Generated PDF — available today',
+    roadmap: false,
+    items: [
+      'Total emissions with Scope 1, 2 and 3 subtotals',
+      // emissions-engine.cjs aggregateConfidence: weighted when any row was priced by a catalog that says so
+      // (2026-09-30 on), the plain row average for a period made only of older rows. A report generated in the
+      // app names the method it used (report-generator.cjs); the committed sample PDF states none.
+      'Overall confidence score (weighted by emissions when the period holds entries priced with the 2026-09-30 factor catalog or later; the plain average of the entry scores otherwise)',
+      'One-line methodology statement',
+      'A count of provisional factors, when any were applied',
+    ],
+  },
+  {
+    title: 'In the app — available today',
+    roadmap: false,
+    items: [
+      'CSV import of your activity data',
+      'Entry list showing scope, category, source, CO₂e and facility',
+      'Dashboard with totals by scope and a monthly trend chart',
+      'Machine-readable JSON export of your company profile, facilities and emissions entries (Settings → Export my data)',
+    ],
+  },
+  {
+    title: 'Roadmap — not available yet',
+    roadmap: true,
+    items: [
+      'The emission factor applied and its published dataset, shown for every entry',
+      'Confidence score and timestamp shown for every entry',
+      'Ledger export (CSV)',
+      'Factor register export with dataset versions',
+      'Evidence index linking entries to source documents',
+      'Reviewer sign-off per entry',
+      'Version history with diffs',
+      'Framework-specific filing templates',
+    ],
+  },
+];
 
 export default function SampleReport() {
+  const { theme } = useTheme();
+  const colors = scopeColors(theme);
+
   useEffect(() => {
-    document.title = 'Sample Carbon Report — Eco-Auditor | See What You Get';
+    document.title = SAMPLE_META.title;
 
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Preview a sample reviewable GHG emissions report from Eco-Auditor. See Scope 1-3 breakdown, data quality scoring, and compliance dashboard.';
+    if (desc) desc.content = SAMPLE_META.description;
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -46,8 +115,8 @@ export default function SampleReport() {
     document.head.appendChild(script);
 
     return () => {
-      document.title = 'Eco-Auditor — GHG Carbon Accounting for SMBs';
-      if (desc) desc.content = 'Eco-Auditor gives small and mid-size businesses defensible GHG emissions data. Upload bills, connect integrations, and generate Scope 1-3 reports aligned with the GHG Protocol.';
+      document.title = HOME_META.title;
+      if (desc) desc.content = HOME_META.description;
       document.head.removeChild(script);
     };
   }, []);
@@ -64,12 +133,13 @@ export default function SampleReport() {
             Sample output — illustrative data
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-surface-900 dark:text-white leading-tight tracking-tight">
-            See the reports<br className="hidden sm:block" />
+            See the reports{' '}
+            <br className="hidden sm:block" />
             <span className="text-brand-600 dark:text-brand-400">your team will actually use</span>
           </h1>
           <p className="mt-6 text-lg text-surface-600 dark:text-surface-400 max-w-3xl mx-auto leading-relaxed">
-            Here's what a <strong className="text-surface-700 dark:text-surface-300">mid-market manufacturing company</strong> sees after uploading their data,
-            and the report package we're building toward. Every figure on this page is fictional.
+            Here's what a <strong className="text-surface-700 dark:text-surface-300">mid-market freight and logistics company</strong> sees after uploading their data,
+            and the report package we're building toward. The company and its activity data are fictional; every total on this page can be recomputed from the ledger CSV below.
           </p>
         </div>
       </section>
@@ -95,6 +165,9 @@ export default function SampleReport() {
             <div className="text-5xl font-bold text-surface-900 dark:text-white">{METRICS.total}</div>
             <div className="text-lg text-surface-500 mt-1">{METRICS.unit}</div>
             <p className="text-xs text-surface-600 dark:text-surface-400 mt-2">{fixture.boundary} boundary · Base year: {fixture.baseYear}</p>
+            <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">
+              Exactly {METRICS.exactTotal} {METRICS.unit}: the sum of the {LEDGER_ROWS} ledger rows. Each row is activity × emission factor ÷ 1,000, so you can recompute it from the CSV below.
+            </p>
           </div>
 
           {/* Scope breakdown */}
@@ -102,33 +175,15 @@ export default function SampleReport() {
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Emissions by Scope</h3>
             {/* Stacked bar */}
             <div className="h-6 rounded-full overflow-hidden flex mb-4">
-              <div className="bg-red-500" style={{ width: `${METRICS.scope1.pct}%` }} title={`Scope 1: ${METRICS.scope1.pct}%`} />
-              <div className="bg-blue-500" style={{ width: `${METRICS.scope2.pct}%` }} title={`Scope 2: ${METRICS.scope2.pct}%`} />
-              <div className="bg-emerald-500" style={{ width: `${METRICS.scope3.pct}%` }} title={`Scope 3: ${METRICS.scope3.pct}%`} />
-            </div>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              {[
-                { label: 'Scope 1', value: METRICS.scope1.value, pct: METRICS.scope1.pct, color: 'text-red-600 dark:text-red-400' },
-                { label: 'Scope 2', value: METRICS.scope2.value, pct: METRICS.scope2.pct, color: 'text-blue-600 dark:text-blue-400' },
-                { label: 'Scope 3', value: METRICS.scope3.value, pct: METRICS.scope3.pct, color: 'text-emerald-600 dark:text-emerald-400' },
-              ].map((s) => (
-                <div key={s.label}>
-                  <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
-                  <div className="text-xs text-surface-500">{s.label} · {s.pct}%</div>
-                </div>
+              {SCOPE_ROWS.map((s) => (
+                <div key={s.name} style={{ width: `${s.pct}%`, backgroundColor: colors[s.name] }} title={`${s.name}: ${s.pct}%`} />
               ))}
             </div>
-          </div>
-
-          {/* Year-over-year */}
-          <div className="px-6 py-6 border-b border-surface-100 dark:border-surface-800">
-            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-3">Year-over-year comparison</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {YEAR_COMPARISON.map((y) => (
-                <div key={y.year} className="rounded-lg bg-surface-50 dark:bg-surface-800/50 p-4 text-center">
-                  <div className="text-xs text-surface-500">{y.year} Total</div>
-                  <div className="text-xl font-bold text-surface-900 dark:text-white">{y.total} <span className="text-sm font-medium text-surface-500">tCO₂e</span></div>
-                  {y.change && <div className="text-xs font-medium text-risk-high mt-1">{y.change} vs prior year</div>}
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {SCOPE_ROWS.map((s) => (
+                <div key={s.name}>
+                  <div className="text-lg font-bold" style={{ color: colors[s.name] }}>{s.value}</div>
+                  <div className="text-xs text-surface-500">{s.name} · {s.pct}%</div>
                 </div>
               ))}
             </div>
@@ -153,9 +208,14 @@ export default function SampleReport() {
             <p className="text-xs text-surface-600 dark:text-surface-400 mt-3">
               {(() => {
                 const quality = summarizeQuality(QUALITY_SCORES);
-                return `${quality.primaryOrBetter}% of total emissions backed by primary source data or better. ${quality.estimated}% flagged for improvement.`;
+                return `${quality.primaryOrBetter.toFixed(1)}% of total emissions backed by primary source data or better. ${quality.estimated.toFixed(1)}% flagged for improvement.`;
               })()}
             </p>
+            {fixture.metrics.provisionalEntries > 0 && (
+              <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">
+                Ledger rows on a provisional factor (an Eco-Auditor estimate, not a published dataset): {fixture.metrics.provisionalEntries} of {LEDGER_ROWS}. The factor register flags {fixture.metrics.provisionalEntries === 1 ? 'it' : 'them'}.
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -164,20 +224,20 @@ export default function SampleReport() {
       <section className="max-w-5xl mx-auto px-6 py-12">
         <h2 className="text-2xl font-bold text-surface-900 dark:text-white text-center mb-3">What the report package includes</h2>
         <p className="text-sm text-surface-500 text-center max-w-2xl mx-auto mb-10">
-          The generated PDF is available today. The detail ledger and evidence exports illustrated on this page are on the roadmap — the columns below say which is which.
+          The first two columns list what you can do in the product today. The per-entry factor, confidence and timestamp views, and the ledger, factor-register and evidence exports illustrated on this page, are on the roadmap.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            { title: 'Generated PDF — available today', items: ['Total emissions across Scope 1, 2, and 3', 'Scope breakdown', 'Overall data-confidence score', 'Methodology and factor basis'] },
-            { title: 'In the app — available today', items: ['Every imported entry with its activity type', 'The emission factor applied and its published dataset', 'Confidence score per entry', 'Timestamp per entry', '12-month emissions trend'] },
-            { title: 'Roadmap', items: ['Ledger export (CSV)', 'Evidence index linking entries to source documents', 'Reviewer sign-off per entry', 'Version history with diffs', 'Framework-specific filing templates'] },
-          ].map((cat) => (
+          {PACKAGE_COLUMNS.map((cat) => (
             <div key={cat.title} className="card">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-3">{cat.title}</h3>
               <ul className="space-y-2">
                 {cat.items.map((item) => (
                   <li key={item} className="flex items-start gap-2 text-xs text-surface-600 dark:text-surface-400">
-                    <svg className="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16"><path d="M4 8l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    {cat.roadmap ? (
+                      <svg className="w-3.5 h-3.5 text-surface-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.5" strokeDasharray="2 2" /></svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5 text-brand-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    )}
                     {item}
                   </li>
                 ))}
@@ -202,7 +262,7 @@ export default function SampleReport() {
             <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9-9 0 0 0-9-9" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Sample report (PDF)</h3>
-              <p className="text-2xs text-surface-500">Executive summary · Fictional data · ~3 KB</p>
+              <p className="text-2xs text-surface-500">Summary page · Fictional data</p>
             </div>
             <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
           </a>
@@ -214,7 +274,7 @@ export default function SampleReport() {
             <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9-9 0 0 0-9-9" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Activity data (CSV)</h3>
-              <p className="text-2xs text-surface-500">Detailed ledger · Fictional data · 11 rows</p>
+              <p className="text-2xs text-surface-500">Detailed ledger · Fictional data · {LEDGER_ROWS} rows</p>
             </div>
             <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
           </a>
@@ -226,7 +286,7 @@ export default function SampleReport() {
             <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6 0v6m-6 0h12M4.5 4.5h15v3h-15v-3z" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Factor register (CSV)</h3>
-              <p className="text-2xs text-surface-500">Source, version, geography, effective period · 5 factors</p>
+              <p className="text-2xs text-surface-500">Dataset, version, table and value per factor · {FACTOR_COUNT} factors</p>
             </div>
             <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
           </a>
@@ -238,13 +298,18 @@ export default function SampleReport() {
             <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Evidence index (CSV)</h3>
-              <p className="text-2xs text-surface-500">Source references + data-quality level per entry · 11 entries</p>
+              <p className="text-2xs text-surface-500">Source references + data-quality level per entry · {LEDGER_ROWS} entries</p>
             </div>
             <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
           </a>
         </div>
         <p className="text-center mt-6 text-2xs text-surface-600 dark:text-surface-400">
-          All sample data is fictional and clearly labeled as illustrative. No real customer data is represented.
+          The company and its activity data are fictional and clearly labeled as illustrative. No real customer data is represented. Emission factors are the published values listed in the factor register.
+        </p>
+        {/* The ledger was taken for an import file and the importer refused it
+            ("missing required column: source"): say what the import format is. */}
+        <p className="text-center mt-2 text-2xs text-surface-600 dark:text-surface-400">
+          The activity-data CSV above is report output, not the import format. To import your own data, download the CSV template from the Data Intake page in the app.
         </p>
       </section>
 
@@ -254,13 +319,13 @@ export default function SampleReport() {
           <div className="relative">
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Ready to see your own report?</h2>
             <p className="text-brand-100 max-w-lg mx-auto mb-6 text-sm">
-              Import your activity data by CSV and we'll build your carbon inventory. Start your 14-day free trial.
+              Import your activity data by CSV and we'll build your carbon inventory. Start your {trialHeadline()}; no card required. Trial limits: {trialLimitsLabel()}.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link to="/signup" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg">
+              <Link to="/signup/" className="inline-flex items-center justify-center px-8 py-3 bg-white hover:bg-surface-50 text-brand-700 font-semibold text-sm rounded-lg transition-colors shadow-lg">
                 Start Free Trial
               </Link>
-              <Link to="/methodology" className="inline-flex items-center justify-center px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-lg transition-colors border border-white/20">
+              <Link to="/methodology/" className="inline-flex items-center justify-center px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-lg transition-colors border border-white/20">
                 View Methodology
               </Link>
             </div>
