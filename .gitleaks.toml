@@ -27,3 +27,12 @@ paths = [
 [[allowlists]]
 description = "Test fixture uses a structurally-valid but non-functional token"
 paths = ['''tests/insforge\.test\.ts$''']
+
+[[allowlists]]
+description = "2026-09-29 MVP-audit test fixtures: synthetic, non-functional tokens asserted against in tests (fake sk_test-shaped markers in the failing-SDK preload + server-failure-policy env object and its not.toContain assertion; fake generic key in entry-validation; fake GA secret id in the CSP-report fixture) - no credential material"
+paths = [
+  '''tests/entry-validation\.test\.ts$''',
+  '''tests/helpers/failing-sdk-preload\.cjs$''',
+  '''tests/server-csp-report\.test\.ts$''',
+  '''tests/server-failure-policy\.test\.ts$''',
+]
