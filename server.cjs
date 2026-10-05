@@ -1702,7 +1702,15 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
       }
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    // The 409 guard above is check-then-act with no reservation, so two
+    // concurrent POSTs (double-click, or a client retry after a network
+    // timeout) both observe "no subscription" and both create a live session.
+    // Completing both yields two concurrent subscriptions and a flapping
+    // entitlement. An idempotency key makes a retry return the SAME session
+    // instead of a second billable one. Scoped to this user+price for a short
+    // window, so a genuine later repurchase is unaffected.
+    const idempotencyKey = `checkout:${req.user.id}:${priceId}:${Math.floor(Date.now() / (10 * 60 * 1000))}`;
+    const session = await stripe.checkout.sessions.create(sessionParams, { idempotencyKey });
     log('info', 'Checkout session created', { sessionId: session.id, userId: req.user.id });
     return res.json({ url: session.url });
   } catch (err) {
@@ -1739,9 +1747,29 @@ app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async f
       return res.json({ verified: false, reason: 'no_subscription_on_session' });
     }
 
-    // Lower bound taken before the read, so the watermark reflects when this
-    // state was true rather than when we finished writing it.
-    const readAt = Math.floor(Date.now() / 1000);
+    // The watermark must reflect WHEN THIS PURCHASE was true, not what time it
+    // is now. Using the wall clock made the ordering guard in
+    // syncSubscriptionRecord admit every write: the stored
+    // subscription_event_at is always older than "now", so replaying a stale
+    // session always won.
+    //
+    // Concretely: buy Growth (session A -> S1), cancel, buy Pro (session B ->
+    // S2 active). Revisiting the old confirmation link passes the ownership
+    // check above, loads S1 (canceled), and stamped that over the live Pro
+    // entitlement — the customer was 402'd off a plan they were paying for,
+    // while the route answered verified:true. Recovery waited for the next
+    // genuine Stripe event, up to a billing cycle.
+    //
+    // session.created is the purchase's own ordering key, so a replayed old
+    // session is rejected by the same guard that stops out-of-order webhooks.
+    // syncSubscriptionRecord reports that as a correct skip
+    // ({ok:true, reason:'stale_event'}), which means "the row already holds
+    // state at least as fresh as this" — so we can still answer verified:true
+    // with the CURRENT billing state.
+    const sessionCreated = Number(session.created);
+    const readAt = Number.isFinite(sessionCreated) && sessionCreated > 0
+      ? sessionCreated
+      : Math.floor(Date.now() / 1000);
     const subscription = typeof session.subscription === 'string'
       ? await stripe.subscriptions.retrieve(session.subscription)
       : session.subscription;
@@ -1753,7 +1781,11 @@ app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async f
     }
 
     const state = await loadBillingState(req.user.id);
-    log('info', 'Checkout verified and subscription reconciled', { userId: req.user.id, subId: subscription.id });
+    log('info', 'Checkout verified and subscription reconciled', {
+      userId: req.user.id,
+      subId: subscription.id,
+      superseded: result.reason === 'stale_event',
+    });
     return res.json({ verified: true, billing: state });
   } catch (err) {
     log('error', 'Checkout verify failed', { error: String(err) });
@@ -3038,6 +3070,12 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, re
     const companyId = await requireCompanyAccess(req, res, req.params.id);
     if (!companyId) return;
     const period = req.body && req.body.period ? String(req.body.period) : null;
+    // Same validation the summary route applies. reports.period is an
+    // unconstrained TEXT column, so an unvalidated body field let any
+    // authenticated account persist a ~100 KB "period" string per request.
+    if (period !== null && !SUMMARY_PERIOD_PATTERN.test(period)) {
+      return res.status(400).json({ success: false, error: 'period must be a 4-digit year, e.g. 2026' });
+    }
     const entries = await loadEmissionEntries(companyId, period);
     const summary = summarizeEntries(entries, { companyId: companyId, period: period });
 

@@ -12,7 +12,12 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleDelete(entry: EmissionEntry) {
-    if (!window.confirm(`Delete emission entry "${entry.source}"? This cannot be undone.`)) {
+    // Name the row the way the table names it. The row reads "Natural gas"
+    // (labelForSource); confirming "natural_gas" meant the user could not tell
+    // which irreversible delete they were approving, and VoiceOver announced
+    // the raw key.
+    const label = labelForSource(entry.category, entry.source);
+    if (!window.confirm(`Delete emission entry "${label}"? This cannot be undone.`)) {
       return;
     }
     setDeletingId(entry.id);
@@ -93,7 +98,7 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
                     onClick={() => handleDelete(e)}
                     disabled={deletingId === e.id}
                     className="text-surface-600 dark:text-surface-400 hover:text-risk-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label={`Delete entry ${e.source}`}
+                    aria-label={`Delete entry ${labelForSource(e.category, e.source)}`}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                       <path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" />

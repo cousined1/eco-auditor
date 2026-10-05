@@ -14,6 +14,7 @@ export default function CarbonCalculator() {
   const [entries, setEntries] = useState<EmissionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
 
   const loadEntries = useCallback(async (companyId: number) => {
     const { data, error: fetchError } = await insforge.database
@@ -109,8 +110,29 @@ export default function CarbonCalculator() {
         company_id: company.id,
       }]);
 
-    if (insertError) throw insertError;
-    await loadEntries(company.id);
+    // The SDK returns errors as plain objects, so `err instanceof Error` in the
+    // form was false and the customer only ever saw the generic "Failed to add
+    // emission entry" — never the actual reason (an RLS denial, a quota, a
+    // constraint). Re-throw a real Error carrying the server's message.
+    if (insertError) {
+      throw new Error(insertError.message || 'Failed to add emission entry');
+    }
+
+    // The row is committed at this point. A failed re-read must NOT be
+    // reported as a failed save: the form keeps its values on a thrown error,
+    // so the user pressed "Add Entry" again and created a duplicate row that
+    // silently inflated every downstream total (pie, bar, PDF). Surface the
+    // refresh problem on its own and let the form clear as normal.
+    try {
+      await loadEntries(company.id);
+      setRefreshNotice(null);
+    } catch (err) {
+      setRefreshNotice(
+        err instanceof Error
+          ? `Entry saved, but the list could not be refreshed (${err.message}). Reload before adding another entry.`
+          : 'Entry saved, but the list could not be refreshed. Reload before adding another entry.'
+      );
+    }
   }
 
   async function handleDelete(id: number) {
@@ -168,6 +190,15 @@ export default function CarbonCalculator() {
           <span className="badge-green">{entries.length} Entries</span>
         </div>
       </div>
+
+      {refreshNotice && (
+        <div
+          role="status"
+          className="card border border-risk-medium/40 text-sm text-surface-700 dark:text-surface-200"
+        >
+          {refreshNotice}
+        </div>
+      )}
 
       <EmissionForm facilities={facilities} onSubmit={handleSubmit} />
       <EmissionsDashboard entries={entries} facilities={facilities} />
