@@ -23,6 +23,13 @@ export function readIntentFromParams(params: URLSearchParams): AuthIntent | null
   return { plan, billing: params.get('billing') === 'annual' ? 'annual' : 'monthly' };
 }
 
+/** Validates the receiving app's checkout trigger as strictly as the auth pages. */
+export function readIntentFromCheckout(value: string | null): AuthIntent | null {
+  if (!value) return null;
+  const match = /^(starter|growth|pro)_(monthly|annual)$/.exec(value);
+  return match ? { plan: match[1]!, billing: match[2] as AuthIntent['billing'] } : null;
+}
+
 /** Stashes the intent before handing control to an OAuth provider. */
 export function saveAuthIntent(intent: AuthIntent | null): void {
   try {

@@ -21,6 +21,10 @@ const FOCUSABLE = [
  */
 export function useFocusTrap<T extends HTMLElement>(onClose: () => void) {
   const ref = useRef<T>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const node = ref.current;
@@ -38,7 +42,8 @@ export function useFocusTrap<T extends HTMLElement>(onClose: () => void) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        event.preventDefault();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -67,7 +72,7 @@ export function useFocusTrap<T extends HTMLElement>(onClose: () => void) {
       document.removeEventListener('keydown', handleKeyDown, true);
       previouslyFocused?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return ref;
 }

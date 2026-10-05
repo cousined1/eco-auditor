@@ -10,7 +10,7 @@ const npmCli = process.env.npm_execpath;
 const audit = npmCli
   ? spawnSync(process.execPath, [npmCli, 'audit', '--omit=dev', '--json'], {
       encoding: 'utf8',
-      shell: process.platform === 'win32',
+      shell: false,
     })
   : spawnSync('npm', ['audit', '--omit=dev', '--json'], {
       encoding: 'utf8',

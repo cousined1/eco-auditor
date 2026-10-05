@@ -51,10 +51,14 @@ const QUICK_REPLIES = ['💰 Pricing', '📅 Book a Demo', '🚀 How it works', 
 // "localStorage is not defined" failure under renderToStaticMarkup.
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return '';
-  const stored = localStorage.getItem('ecochat_session_id');
-  if (stored) return stored;
   const id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-  localStorage.setItem('ecochat_session_id', id);
+  try {
+    const stored = localStorage.getItem('ecochat_session_id');
+    if (stored) return stored;
+    localStorage.setItem('ecochat_session_id', id);
+  } catch {
+    // Keep the chat session in memory when browser storage is unavailable.
+  }
   return id;
 }
 
@@ -87,6 +91,7 @@ export default function ChatWidget({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
+  const sessionIdRef = useRef<string | null>(null);
   // The launcher is unmounted while the panel is open, so useFocusTrap's saved
   // "previously focused" node is gone by the time it tries to restore focus and
   // the browser falls back to <body> — the next Tab then restarts from the top
@@ -133,7 +138,7 @@ export default function ChatWidget({
         signal: controller.signal,
         body: JSON.stringify({
           message: trimmed,
-          sessionId: getOrCreateSessionId(),
+          sessionId: sessionIdRef.current ?? (sessionIdRef.current = getOrCreateSessionId()),
           state: newState || chatState,
         }),
       });

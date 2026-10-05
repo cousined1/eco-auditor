@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { insforge, isInsForgeConfigured } from '../lib/insforge';
 import {
   AuthError,
@@ -28,6 +28,8 @@ const isPasswordValid = (value: string) =>
  */
 export default function ForgotPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const loginHref = `/login${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
   const [step, setStep] = useState<'request' | 'reset'>('request');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -101,7 +103,7 @@ export default function ForgotPassword() {
 
       // Send them to sign in rather than assuming a session — the reset
       // endpoint's job is the password, not establishing a login.
-      navigate('/login', { replace: true });
+      navigate(loginHref, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not reset your password. Please try again.');
     } finally {
@@ -250,7 +252,7 @@ export default function ForgotPassword() {
 
       <p className="mt-6 text-center text-sm text-surface-500">
         Remembered it?{' '}
-        <Link to="/login" className="font-medium text-accent-text hover:underline">
+        <Link to={loginHref} className="font-medium text-accent-text hover:underline">
           Back to sign in
         </Link>
       </p>

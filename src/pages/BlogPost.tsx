@@ -49,7 +49,7 @@ export default function BlogPostPage() {
     let cancelled = false;
     async function fetchPost() {
       try {
-        const resp = await fetch(`/api/blog-posts/${encodeURIComponent(slug ?? '')}`);
+        const resp = await fetch(`/api/blog-posts/${encodeURIComponent(slug ?? '')}`, { signal: AbortSignal.timeout(15000) });
         if (cancelled) return;
         if (!resp.ok) {
           setError(resp.status === 404 ? 'Post not found' : 'Failed to load post');

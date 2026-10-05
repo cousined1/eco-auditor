@@ -17,8 +17,8 @@ import { resolve } from 'node:path';
 
 const REPO_ROOT = resolve(__dirname, '..');
 // Creates the InsForge auth prerequisites (auth schema, auth.users,
-// auth.uid(), roles) the repo migrations expect. Kept outside the repo.
-const BOOTSTRAP_SQL = 'C:/Users/embro/bootstrap-auth-e2e.sql';
+// auth.uid(), roles) the repo migrations expect, for throwaway test databases only.
+const BOOTSTRAP_SQL = resolve(REPO_ROOT, 'tests/fixtures/insforge-auth-bootstrap.sql');
 
 export interface RunResult {
   code: number;

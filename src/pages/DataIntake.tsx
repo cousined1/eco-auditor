@@ -72,6 +72,10 @@ export default function DataIntake() {
         collected.push({ name: file.name, status: 'skipped', detail: 'Not a CSV file' });
         continue;
       }
+      if (file.size > 100 * 1024) {
+        collected.push({ name: file.name, status: 'failed', detail: 'File is larger than the 100 KB import limit — split it into smaller files and retry' });
+        continue;
+      }
 
       try {
         const text = await file.text();
@@ -83,6 +87,7 @@ export default function DataIntake() {
           method: 'POST',
           headers: { ...(authInit.headers as Record<string, string>), 'Content-Type': 'text/csv' },
           body: text,
+          signal: AbortSignal.timeout(15000),
         });
         if (res.status === 401) {
           collected.push({ name: file.name, status: 'failed', detail: 'Session expired — sign in again to upload' });

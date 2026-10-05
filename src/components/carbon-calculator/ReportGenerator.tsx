@@ -25,6 +25,7 @@ export default function ReportGenerator({ company, entries }: Props) {
         method: 'POST',
         headers,
         body: JSON.stringify({}),
+        signal: AbortSignal.timeout(15000),
       });
 
       const upgrade = await getUpgradeRequired(genRes);
@@ -42,7 +43,7 @@ export default function ReportGenerator({ company, entries }: Props) {
       }
 
       // Download the generated PDF (auth header required — so fetch + blob, not a bare link).
-      const dlRes = await fetch(data.download_url, init);
+      const dlRes = await fetch(data.download_url, { ...init, signal: AbortSignal.timeout(15000) });
       if (!dlRes.ok) throw new Error(`Report download failed (${dlRes.status})`);
       const blob = await dlRes.blob();
       const url = URL.createObjectURL(blob);

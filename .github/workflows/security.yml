@@ -3,7 +3,7 @@ name: Security
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main, master]
 
 permissions:
   contents: read
@@ -37,8 +37,8 @@ jobs:
       - name: Test
         run: npm run build && npm test
 
-      - name: Lint changed security surfaces
-        run: npx eslint tests/server-security.test.ts tests/server-billing.test.ts tests/server-health.test.ts scripts/audit-production.mjs
+      - name: Lint repository
+        run: npm run lint
 
       - name: Audit production dependencies
         run: npm run security:audit

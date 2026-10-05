@@ -8,6 +8,7 @@ import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
 import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
 import { createCheckoutSession, verifyCheckoutSession } from './lib/stripe';
+import { readIntentFromCheckout } from './lib/authIntent';
 import LandingPage from './pages/LandingPage';
 import BlogList from './pages/BlogList';
 import BlogPostPage from './pages/BlogPost';
@@ -320,8 +321,9 @@ function AppContent() {
     }
 
     if (checkout) {
-      const [planId, billing] = checkout.split('_');
-      if (planId && (billing === 'monthly' || billing === 'annual')) {
+      const intent = readIntentFromCheckout(checkout);
+      if (intent) {
+        const { plan: planId, billing } = intent;
         params.delete('checkout');
         replaced = true;
         void (async () => {

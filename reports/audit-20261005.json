@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-05",
+  "repository": "cousined1/eco-auditor",
+  "branch": "fix/full-audit-20261005",
+  "audited_live_sha": "13743299071fc3bdd2f6c9e5039a2042be9ca653",
+  "requested_scope": "Audit shipped code, remediate issues including signup plan/billing handoff, commit and merge to main, deploy live; reconcile P2-1 through P2-7 when their original descriptions are available.",
+  "scope": ["Public routes and HTTP headers", "Auth and checkout handoff", "Dashboard, ingestion, reporting, settings and chat", "Server tenant/billing boundaries and existing regression coverage", "Dependencies, runtime packaging, CI and test portability", "Review of draft PR 35 rollout prerequisites"],
+  "fixed": [
+    { "id": "P2-6", "issue": "Signup's selected plan was not shown, and the configured emailed-code verification path had no code input. Signup also sent an unallowlisted /login redirect intended for link verification.", "change": "Read and display the validated plan and billing interval; use code verification with resend and refresh recovery; resume the exact checkout destination after immediate signup or verification. Preserve existing OAuth and authenticated visitor intent paths.", "tests": "18 signup/intent regressions; real bundled SDK with mocked auth and checkout in desktop/mobile Chrome" },
+    { "id": "AUTH-02", "issue": "Annual and Pro signup advertised a free trial although those checkout prices are not trial eligible.", "change": "Show payment and trial copy for the selected plan and interval." },
+    { "id": "AUTH-03", "issue": "App checkout receiver accepted unknown plans and trailing segments.", "change": "Validate an exact starter/growth/pro and monthly/annual checkout trigger." },
+    { "id": "AUTH-04", "issue": "Email forms remained active while OAuth was pending.", "change": "Disable and guard email submission during a provider handoff." },
+    { "id": "AUTH-05", "issue": "Forgot-password navigation discarded plan/billing query parameters.", "change": "Retain query parameters through the reset and return-to-login path." },
+    { "id": "UI-01", "issue": "Dashboard multiplied null trend values into 0% and rounded small inventories to whole zero tonnes.", "change": "Preserve null comparisons and display totals to two decimal places." },
+    { "id": "UI-02", "issue": "Dashboard, CSV upload, billing, report generation/download, and blog fetches could leave the UI waiting indefinitely.", "change": "Bound those HTTP requests to 15 seconds." },
+    { "id": "UI-03", "issue": "CSV upload read oversized files before server rejection.", "change": "Check the 100 KiB body limit before reading the file." },
+    { "id": "UI-04", "issue": "Blocked localStorage prevented chat requests.", "change": "Fall back to an in-memory chat identifier." },
+    { "id": "UI-05", "issue": "Inline dialog close callbacks restarted the focus trap on every edit.", "change": "Keep the trap mounted while updating the close callback through a ref." },
+    { "id": "CI-01", "issue": "CI only linted selected files and push verification excluded main.", "change": "Lint the repository and run push verification on both main and master." },
+    { "id": "CI-02", "issue": "Database regression suites depended on C:/Users/embro/bootstrap-auth-e2e.sql, unavailable in CI.", "change": "Commit a minimal disposable-database auth fixture and resolve it relative to the repository." },
+    { "id": "DEP-01", "issue": "Vulnerable brace-expansion and Undici versions were pinned/resolved; CSS build tools were shipped in the runtime image.", "change": "Apply compatible brace-expansion patches and Undici 7.30.0; move CSS tooling to devDependencies; pin Tailwind to 3.4.19. Production audit reports zero vulnerabilities." },
+    { "id": "TOOL-01", "issue": "The security audit script failed on Windows when Node's executable path contained spaces.", "change": "Invoke the Node executable without shell interpretation." }
+  ],
+  "verification": {
+    "build": "PASS: TypeScript, Vite and 14 prerendered routes",
+    "lint": "PASS: eslint .",
+    "local_tests_node24": "PASS: 35 files, 347 tests; three Docker-dependent suites excluded explicitly after a baseline attempt failed with spawn docker ENOENT",
+    "node22": "PASS: Node v22.23.3 typecheck and 22 new UI/signup regression tests; official Windows archive checksum verified",
+    "browser": "PASS: Chrome at 1440x1000 and 390x844, configured local backend fixture, bundled SDK signup -> code verification -> App -> exact annual Growth checkout. No real accounts, emails or payment sessions created.",
+    "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
+    "live_baseline": "PASS: 14 public routes return 200, unknown route returns 404, CSP/HSTS present, /health and /ready return 200 and DB ok",
+    "ci": "Pending PR verification, including the three Docker-backed database suites"
+  },
+  "open": [
+    { "id": "EDGE-01", "severity": "P1", "issue": "www redirects omit the slash before the path: /health -> https://ecoauditor.iohealth and /pricing?plan=growth&billing=annual -> https://ecoauditor.iopricing?plan=growth&billing=annual.", "evidence": "Live manual-redirect HTTP requests return 301 with those Location headers.", "required": "Correct the Cloudflare redirect target to retain http.request.uri.path and preserve the query string. A source-only application deploy cannot correct a redirect issued before the origin request." },
+    { "id": "DEPENDENCY-REMAINDER", "severity": "P2", "issue": "Full development dependency audit still reports five high-severity package findings from the same unpatched braces 3.0.3 stack-exhaustion advisory, propagated through Tailwind/chokidar/fast-glob/micromatch.", "required": "Track the upstream patch. Tailwind 3.4 is required by AGENTS.md; do not force-upgrade to v4. These packages are now excluded from the production npm dependency installation." },
+    { "id": "PR35", "issue": "Draft PR 35 is a separate 137-finding remediation with production schema/content prerequisites, not part of this release.", "required": "Resolve its rollout scope and obtain authenticated backend access for the documented migration/content order. Do not deploy the draft image ahead of its schema." },
+    { "id": "PREVIOUS-P2-REGISTER", "issue": "Original descriptions of P2-1 through P2-7 were not supplied or found in the local reports. The clarification reply concerned agentops PR 21 and did not list them.", "required": "Provide the eco-auditor findings/report to reconcile each historical ID. P2-6 in this request is specifically covered; do not claim all seven are closed." }
+  ],
+  "release": {
+    "status": "Awaiting commit, PR and CI",
+    "main_sync": "main is behind shipped master by PR 34; this branch includes that already-deployed change when targeting main.",
+    "deployment": "After PR CI passes and main is merged, fast-forward master to that exact main merge commit, then verify live health SHA and shipped signup assets.",
+    "migrations": "No new production migrations in this release.",
+    "rollback": "Revert this release's application changes on the deployment branch and redeploy; no schema rollback is required."
+  }
+}
