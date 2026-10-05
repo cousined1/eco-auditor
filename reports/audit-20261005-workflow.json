@@ -119,8 +119,8 @@
     {
       "id": "EDGE-01",
       "severity": "P1",
-      "issue": "www redirects omit the slash before the path: /health redirects to https://ecoauditor.iohealth and /pricing?plan=growth to https://ecoauditor.iopricing?plan=growth.",
-      "required": "Correct the Cloudflare redirect target to retain http.request.uri.path and preserve the query string. The redirect is issued before the origin request, so no application deploy can fix it; it needs the Cloudflare dashboard."
+      "issue": "www redirects omit the slash before the path: /health returns Location https://ecoauditor.iohealth and /pricing?plan=growth returns https://ecoauditor.iopricing?plan=growth. Re-verified live 2026-10-05 with curl; the query string survives, so only the separator is missing and the host fuses into a different registrable name.",
+      "required": "Correct the Cloudflare redirect target to retain http.request.uri.path and preserve the query string. The redirect is issued before the origin request, so no application deploy can fix it. No Cloudflare connector is connected in this session (the only connected App is matrix), so it must be applied in the Cloudflare dashboard. docs/EDGE-01-cloudflare-redirect.md has the confirmed before/after, the expression for both Single Redirects and Bulk Redirects, and copy-paste verification commands."
     },
     {
       "id": "PR35",
@@ -135,7 +135,7 @@
     }
   ],
   "release": {
-    "status": "Five commits on fix/full-audit-20261005, not pushed and not deployed. A PR targeting main would need CI, including the three Docker-backed database suites.",
+    "status": "Six commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
     "migrations": "No schema migrations.",
     "rollback": "Revert the application commits; no schema rollback required."
   }
