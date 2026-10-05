@@ -939,7 +939,14 @@ app.get('/ready', async function (_req, res) {
 // ─── Trial status endpoint (used by frontend after OAuth) ───
 app.get('/api/trial-status', authGuard, async function (req, res) {
   if (!pgPool) {
-    return res.json({ trial: true, trialEndsAt: null, source: 'no-db' });
+    // Fail closed here too, for the same reason the catch branch below does:
+    // this endpoint is a UI hint about entitlement, and an invented
+    // `trial: true` tells an expired user their trial is still running. The
+    // catch branch was fixed for exactly that and this early return — which
+    // returns the very value that was judged wrong — was left behind, so the
+    // two branches of one function disagreed. 503 lets session.ts retry
+    // instead of caching an answer nobody can substantiate.
+    return res.status(503).json({ error: 'Trial status unavailable', source: 'no-db' });
   }
   try {
     const { rows } = await pgPool.query(
@@ -965,7 +972,14 @@ app.get('/api/trial-status', authGuard, async function (req, res) {
 // ─── Billing state endpoint (trial + subscription, synced from Stripe webhooks) ───
 app.get('/api/billing', authGuard, async function (req, res) {
   if (!pgPool) {
-    return res.json({ active: true, plan: 'starter', status: 'trialing', trialActive: true, source: 'no-db' });
+    // Do not fabricate a subscription. This used to answer
+    // { active: true, plan: 'starter', status: 'trialing' } whenever the store
+    // was unavailable, so a paying Pro customer during a database outage was
+    // told — on the Settings screen they opened to check their plan — that
+    // they were on a free Starter trial. Entitlement itself is enforced by
+    // requirePlan, which fails closed, so this was never an access bypass; it
+    // was billing misinformation presented as fact.
+    return res.status(503).json({ success: false, error: 'Billing status unavailable, please retry', source: 'no-db' });
   }
   try {
     const state = await loadBillingState(req.user.id);

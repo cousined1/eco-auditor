@@ -35,6 +35,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   peekAuthIntent,
   readIntentFromCheckout,
@@ -42,6 +44,9 @@ import {
   safeRedirectPath,
   takeAuthIntent,
 } from '../src/lib/authIntent';
+
+const readRepoFile = (...segments: string[]) =>
+  readFileSync(resolve(__dirname, '..', ...segments), 'utf8');
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -134,10 +139,7 @@ describe('peekAuthIntent reads without destroying', () => {
 // ── Source guards for the SDK race and the copy defect ───────────────────────
 
 describe('AuthCallback does not depend on the SDK-stripped param', () => {
-  const source = require('node:fs').readFileSync(
-    require('node:path').resolve(__dirname, '..', 'src', 'pages', 'AuthCallback.tsx'),
-    'utf8'
-  ) as string;
+  const source = readRepoFile('src', 'pages', 'AuthCallback.tsx');
 
   it('treats error_description as a provider error in its own right', () => {
     // The strip only removes `error`. If the short-circuit does not also key
@@ -162,10 +164,7 @@ describe('AuthCallback does not depend on the SDK-stripped param', () => {
 });
 
 describe('Signup honours the redirect it is forwarded', () => {
-  const source = require('node:fs').readFileSync(
-    require('node:path').resolve(__dirname, '..', 'src', 'pages', 'Signup.tsx'),
-    'utf8'
-  ) as string;
+  const source = readRepoFile('src', 'pages', 'Signup.tsx');
 
   it('resolves its destination through the shared same-origin helper', () => {
     expect(source).toContain('safeRedirectPath(searchParams.get(\'redirect\'), intent)');
@@ -180,10 +179,7 @@ describe('Signup honours the redirect it is forwarded', () => {
 });
 
 describe('ForgotPassword never renders an empty address', () => {
-  const source = require('node:fs').readFileSync(
-    require('node:path').resolve(__dirname, '..', 'src', 'pages', 'ForgotPassword.tsx'),
-    'utf8'
-  ) as string;
+  const source = readRepoFile('src', 'pages', 'ForgotPassword.tsx');
 
   it('guards the interpolation instead of printing the raw value', () => {
     expect(source).not.toMatch(/subtitle=\{`If an account exists for \$\{email\}/);

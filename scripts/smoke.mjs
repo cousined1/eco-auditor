@@ -246,6 +246,27 @@ async function run() {
       const { status } = await get(route);
       check(`${route} refuses unauthenticated`, status >= 400, `got ${status}`);
     }
+
+    // ENT-01: with no database, the entitlement endpoints used to answer 200
+    // with an invented subscription — /api/billing said
+    // { active: true, plan: 'starter', status: 'trialing' } and /api/trial-status
+    // said { trial: true }. Settings renders the first directly, so a paying
+    // customer was told they were on a free trial.
+    //
+    // Here authGuard answers first (no InsForge configured), so this cannot
+    // reach the no-pool branch. That is fine and is the point: the assertion is
+    // that NO reachable configuration produces a 200 carrying entitlement. If
+    // someone ever reorders the guards so the no-pool branch runs, this fires.
+    console.log('\nEntitlement is never fabricated (no database)');
+    for (const route of ['/api/billing', '/api/trial-status']) {
+      const { status, text } = await get(route);
+      check(`${route} does not answer 200 without a database`, status !== 200, `got ${status}`);
+      check(
+        `${route} invents no entitlement`,
+        !/"(active|trial)"\s*:\s*true/.test(text) && !/"plan"\s*:\s*"starter"/.test(text),
+        text.slice(0, 120),
+      );
+    }
     for (const route of ['/api/checkout', '/api/ingest/csv', '/api/companies/1/facilities', '/api/account/delete-data']) {
       const { status } = await get(route, { init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' } });
       check(`POST ${route} refuses unauthenticated`, status >= 400, `got ${status}`);
