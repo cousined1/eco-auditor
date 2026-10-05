@@ -996,12 +996,60 @@ async function loadCompanyExportRow(companyId) {
   return sampleCompanies[companyId] || null;
 }
 
+/**
+ * The company's generated reports and their sign-off state — the compliance
+ * audit trail. Kept separate from loadEmissionEntries so a missing table (an
+ * unmigrated database) degrades the export instead of failing the customer's
+ * data-portability request outright.
+ */
+async function loadReportsForExport(companyId) {
+  if (!pgPool) return [];
+  try {
+    const { rows } = await pgPool.query(
+      `SELECT id, title, type, status, last_updated, completeness, signoff, created_at
+         FROM public.reports WHERE company_id = $1 ORDER BY created_at ASC`,
+      [companyId]
+    );
+    return rows;
+  } catch (err) {
+    log('warn', 'Account export: reports unavailable', { error: String(err.message || err) });
+    return [];
+  }
+}
+
+/** Import history, so the customer can reconcile what entered the inventory. */
+async function loadCsvImportEventsForExport(companyId) {
+  if (!pgPool) return [];
+  try {
+    const { rows } = await pgPool.query(
+      `SELECT id, row_count, created_at
+         FROM public.csv_import_events WHERE company_id = $1 ORDER BY created_at ASC`,
+      [companyId]
+    );
+    return rows;
+  } catch (err) {
+    log('warn', 'Account export: csv_import_events unavailable', { error: String(err.message || err) });
+    return [];
+  }
+}
+
 app.get('/api/account/export', apiAuthGuard, async function (req, res) {
   try {
     const companyId = await requireCompanyAccess(req, res, null);
     if (!companyId) return;
     const company = await loadCompanyExportRow(companyId);
     const facilities = await loadFacilities(companyId);
+
+    // The audit trail. /api/account/delete-data deliberately PRESERVES reports
+    // and csv_import_events (they carry the compliance sign-off and the import
+    // history), but the export left them out entirely — so a customer could
+    // never obtain a copy of data the platform was keeping on their behalf, and
+    // could not exercise a data-portability right over it. reports.signoff in
+    // particular is the compliance artifact the whole product exists to
+    // produce, and it was silently absent from "export my data".
+    const reports = await loadReportsForExport(companyId);
+    const importEvents = await loadCsvImportEventsForExport(companyId);
+
     let entries = await loadEmissionEntries(companyId);
     const notes = [];
     if (entries.length > EXPORT_MAX_ENTRIES) {
@@ -1014,6 +1062,8 @@ app.get('/api/account/export', apiAuthGuard, async function (req, res) {
       company: company,
       facilities: facilities,
       emissionEntries: entries,
+      reports: reports,
+      csvImportEvents: importEvents,
     };
     if (notes.length) payload.notes = notes;
     res.setHeader('Content-Type', 'application/json');
