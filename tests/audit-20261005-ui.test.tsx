@@ -6,8 +6,13 @@ import { useFocusTrap } from '../src/hooks/useFocusTrap';
 import Dashboard from '../src/pages/Dashboard';
 import DataIntake from '../src/pages/DataIntake';
 import ChatWidget from '../src/components/ChatbotWidget';
+import Onboarding from '../src/components/carbon-calculator/Onboarding';
 
-vi.mock('../src/lib/insforge', () => ({ insforge: { getHttpClient: () => ({ getHeaders: () => ({ Authorization: 'Bearer user-fixture' }) }) } }));
+const databaseFrom = vi.hoisted(() => vi.fn());
+vi.mock('../src/lib/insforge', () => ({ insforge: {
+  getHttpClient: () => ({ getHeaders: () => ({ Authorization: 'Bearer user-fixture' }) }),
+  database: { from: databaseFrom },
+} }));
 vi.mock('../src/lib/consent-context', () => ({ useConsent: () => ({ consentState: { hasConsented: true, consent: { analytics: false } } }) }));
 vi.mock('recharts', () => ({
   AreaChart: () => null, Area: () => null, XAxis: () => null, YAxis: () => null,
@@ -24,6 +29,7 @@ async function mount(element: React.ReactNode) {
 }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  databaseFrom.mockReset();
 });
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
@@ -34,6 +40,26 @@ afterEach(async () => {
 });
 
 describe('October audit UI regressions', () => {
+  it('does not write a company or facility when the existing-company lookup fails', async () => {
+    const lookup = vi.fn().mockResolvedValue({ data: null, error: { message: 'Company lookup unavailable' } });
+    const insert = vi.fn();
+    const update = vi.fn();
+    databaseFrom.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: lookup }) }), insert, update });
+    const complete = vi.fn();
+    await mount(<Onboarding userId="user-fixture" onComplete={complete} />);
+    const input = container.querySelector<HTMLInputElement>('#onboarding-company-name')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Northstar Foods');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Company lookup unavailable');
+    expect(databaseFrom).toHaveBeenCalledTimes(1);
+    expect(insert).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(complete).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
+  });
   it('keeps focus in the current control across dialog edits and uses the latest close callback', async () => {
     const closed = vi.fn();
     function Dialog() {

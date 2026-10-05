@@ -41,11 +41,15 @@ export default function Onboarding({ userId, onComplete }: Props) {
       // insert therefore fails with a constraint violation whenever the server
       // got there first — which it does as soon as the user opens the
       // dashboard. Adopt the existing row and name it instead of competing.
-      const { data: existing } = await insforge.database
+      const { data: existing, error: lookupError } = await insforge.database
         .from('companies')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
+
+      if (lookupError) {
+        throw new Error(lookupError.message || 'Failed to load your company. Please try again.');
+      }
 
       const { data: company, error: companyError } = existing
         ? await insforge.database
