@@ -136,13 +136,31 @@ export default function CarbonCalculator() {
   }
 
   async function handleDelete(id: number) {
+    if (!company) return;
+
     const { error: deleteError } = await insforge.database
       .from('emission_entries')
       .delete()
       .eq('id', id);
 
-    if (deleteError) throw deleteError;
-    if (company) await loadEntries(company.id);
+    // Same reasoning as the insert path above: the SDK returns plain objects, so
+    // throwing this raw made EmissionList's `err instanceof Error` false and the
+    // customer only ever saw "Failed to delete entry" — never the real reason.
+    if (deleteError) throw new Error(deleteError.message || 'Failed to delete entry');
+
+    // The row is gone at this point. A failed re-read must NOT be reported as a
+    // failed delete: the list kept the row on screen with an error beside it, and
+    // every retry re-issued a DELETE for a row that no longer existed.
+    try {
+      await loadEntries(company.id);
+      setRefreshNotice(null);
+    } catch (err) {
+      setRefreshNotice(
+        err instanceof Error
+          ? `Entry deleted, but the list could not be refreshed (${err.message}). Reload before deleting another entry.`
+          : 'Entry deleted, but the list could not be refreshed. Reload before deleting another entry.'
+      );
+    }
   }
 
   if (loading) {

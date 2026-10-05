@@ -8,9 +8,23 @@ interface Props {
   entries: EmissionEntry[];
 }
 
+/**
+ * Status carries an explicit tone instead of encoding severity in the message.
+ * The styling used to be `status.startsWith('Error') ? risk : low`, so the plan
+ * gate — "Reports require an active plan" — took the success branch and rendered
+ * a blocked action in the same green as a completed download.
+ */
+type Status = { tone: 'error' | 'warn' | 'ok'; message: string } | null;
+
+const TONE_CLASS: Record<NonNullable<Status>['tone'], string> = {
+  error: 'text-risk-high',
+  warn: 'text-risk-medium',
+  ok: 'text-risk-low',
+};
+
 export default function ReportGenerator({ company, entries }: Props) {
   const [generating, setGenerating] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<Status>(null);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -30,7 +44,7 @@ export default function ReportGenerator({ company, entries }: Props) {
 
       const upgrade = await getUpgradeRequired(genRes);
       if (upgrade) {
-        setStatus('Reports require an active plan — visit Pricing to upgrade.');
+        setStatus({ tone: 'warn', message: 'Reports require an active plan — visit Pricing to upgrade.' });
         return;
       }
       if (!genRes.ok) {
@@ -53,11 +67,20 @@ export default function ReportGenerator({ company, entries }: Props) {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
 
-      setStatus('Report generated and downloaded.');
+      // Revoking synchronously here releases the blob before the browser has
+      // finished reading it. Chrome tolerates that; Firefox and Safari resolve
+      // the download asynchronously and the click yields no file at all — while
+      // the card still reported success, with nothing to retry. Defer past the
+      // download turn instead; the object URL is freed either way.
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+
+      setStatus({ tone: 'ok', message: 'Report generated and downloaded.' });
     } catch (err) {
-      setStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setStatus({
+        tone: 'error',
+        message: err instanceof Error ? err.message : 'Report generation failed',
+      });
     } finally {
       setGenerating(false);
     }
@@ -73,8 +96,9 @@ export default function ReportGenerator({ company, entries }: Props) {
           Create a PDF summary of {entries.length} emission entries for {company.name}.
         </p>
         {status && (
-          <p className={`text-xs mt-1 ${status.startsWith('Error') ? 'text-risk-high' : 'text-risk-low'}`}>
-            {status}
+          // role=status so the result is announced when the async work resolves.
+          <p role="status" className={`text-xs mt-1 ${TONE_CLASS[status.tone]}`}>
+            {status.message}
           </p>
         )}
       </div>

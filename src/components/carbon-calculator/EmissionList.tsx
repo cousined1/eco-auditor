@@ -25,7 +25,11 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
     try {
       await onDelete(entry.id);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete entry');
+      // The caller throws a real Error, so err.message carries the server's
+      // reason. The old `err instanceof Error` test was false against the SDK's
+      // plain objects and collapsed every failure to one generic string.
+      const detail = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? '');
+      setDeleteError(detail || 'Failed to delete entry');
     } finally {
       setDeletingId(null);
     }
@@ -59,7 +63,11 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
         Emission Entries ({entries.length})
       </h2>
       {deleteError && (
-        <p className="text-sm text-risk-high mb-3">{deleteError}</p>
+        // role=alert so a failed delete is announced when focus is elsewhere;
+        // the row otherwise looks untouched.
+        <p role="alert" className="text-sm text-risk-high mb-3">
+          {deleteError}
+        </p>
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

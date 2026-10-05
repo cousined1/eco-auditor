@@ -35,6 +35,15 @@
       "change": "Both read the shared table. The endpoint now returns days_left, a date_status and an explicit applicability:'unknown' with a note, rather than implying every framework applies to every tenant."
     },
     {
+      "id": "COMP-03",
+      "severity": "medium",
+      "issue": "Two defects in one function, both about CSRD. (a) Stale date: the deadline table carried csrd_wave2 due_date 2026-12-31, 'wave 2 companies report for FY2025'. Directive (EU) 2025/794 ('Stop-the-Clock', OJ L 2025/794 of 16.4.2025, in force 17 April 2025) postponed wave 2 by two years, so it is 2028 for FY2027. (b) Contradictory threshold: getComplianceStatus hardcoded `region in EU && employees >= 500`, while the same table's wave 2 row said 'EU entities with 250+ employees'.",
+      "impact": "Latent, not live. /api/companies/:id/compliance already answers 501 for real tenants because company revenue/employees/region are not modelled, and both sample companies are region CA, so nothing customer-facing changes today. When an EU tenant is supported, (a) would tell wave 2 customers they owe a sustainability statement on a date that stopped being legally correct around eighteen months earlier, and (b) would report every EU company with 251-500 employees as not_applicable with a null deadline, contradicting the product's own table. Same failure shape as COMP-01: a hardcoded date outliving the regulation, plus a second reader of the table disagreeing with the first.",
+      "change": "Wave 2 moved to due_date 2028-12-31 with previously_scheduled '2026-12-31' retained for audit and the Directive cited in the file header; wave 1 deliberately left on its unmodified 2025 date because the postponement did not touch it. Applicability no longer restated in code: every deadline row now carries a machine-readable `applies` block (regions / min_revenue / min_employees) alongside its human `applies_to` string, with deadlineAppliesTo() and deadlinesApplicableTo() as the single reader. getComplianceStatus selects from those rows instead of computing thresholds. `applicable` is now derived from whether ANY deadline for the framework applies, so scope no longer flips to 'not applicable' merely because the date passed; `in_scope_deadlines` exposes what the company is actually on the hook for.",
+      "sources": "Directive (EU) 2025/794, verified against the primary text on EUR-Lex on 2026-10-05: https://eur-lex.europa.eu/eli/dir/2025/794/oj/eng — wave 2 'to report in 2026 for financial years beginning on or after 1 January 2025', and 'the sustainability reporting requirements for those undertakings should be postponed by two years'. Transposition deadline 31 December 2025.",
+      "tests": "tests/compliance-deadlines.test.ts COMP-03 block — 9 cases: the superseded date is gone and the previous one is retained, wave 1 is unchanged, a 251-employee EU company is in scope with a 2028 deadline, a 250-employee one is not, applicability agrees with the table at seven headcount boundaries including both sides of each threshold, SB 253 scope 1/2 still precedes scope 3, scope survives every deadline passing, and region matching is checked against the real shipped row (both 'EU' and 'europe' spellings, plus the state fallback)."
+    },
+    {
       "id": "DATA-01",
       "severity": "high",
       "issue": "A successful emission-entry INSERT followed by a failed list re-read was reported as 'Failed to add emission entry'. The form keeps its values on a thrown error, so pressing 'Add Entry' again wrote a second row for the same activity.",
@@ -77,6 +86,46 @@
       "severity": "low",
       "issue": "DataIntake had no re-entry guard on the hidden file input, so overlapping upload loops raced and the slower one overwrote the newer results; results were also keyed by file name alone, colliding across folders.",
       "change": "Guarded re-entry, disabled the input during upload, and keyed outcomes by name plus position."
+    },
+    {
+      "id": "CJU-01",
+      "severity": "high",
+      "issue": "ReportGenerator.tsx called URL.revokeObjectURL synchronously immediately after link.click(). Releasing the object URL in the same turn as the click frees the blob before the browser has read it.",
+      "impact": "Chrome tolerates this; Firefox and Safari resolve the download asynchronously and the click produces no file at all. Line 58 then unconditionally set 'Report generated and downloaded.' — so on those browsers the product's headline paid action reported success while delivering nothing, with no error state and no retry. In a product whose output is the customer's audit artifact, a silently missing PDF is worse than a visible failure.",
+      "change": "The revoke is deferred with window.setTimeout(..., 10_000), past the point where the download turn has resolved, so the object URL is still freed rather than leaked.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-01 — stubs URL.createObjectURL/revokeObjectURL and anchor click, then asserts the revoke has NOT fired once the handler settles, and separately that advancing past the delay DOES fire it so deferring cannot silently become leaking. Verified non-vacuous by reverting the fix: both cases fail against the old synchronous revoke."
+    },
+    {
+      "id": "CJU-02",
+      "severity": "medium",
+      "issue": "The delete path carried two copies of the bug DATA-01 had already fixed on the insert path. handleDelete threw the InsForge SDK's plain error object, so EmissionList's `err instanceof Error` was false and every failure collapsed to 'Failed to delete entry', never the real reason. And because the post-delete re-read was unisolated, a refresh failure was reported as a failed delete.",
+      "impact": "The real cause (an RLS denial, a constraint, a quota) was never shown to the customer. Worse, when the DELETE succeeded but the re-read failed, the row stayed on screen beside an error saying the delete failed — and every retry re-issued a DELETE for a row that no longer existed, so the UI could not be recovered without a manual reload.",
+      "change": "handleDelete now throws a real Error carrying the server's message, mirroring the insert path, and wraps the re-read so a refresh failure sets the existing refreshNotice ('Entry deleted, but the list could not be refreshed...') instead of a delete error. EmissionList additionally reads .message off a non-Error throw and the banner carries role=\"alert\" so a delete that fails while focus is elsewhere is announced rather than leaving the row looking untouched.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-02 — three cases driving the real component: the server's message is shown rather than the generic string, the banner is a role=alert live region, and a successful delete followed by a failing re-read produces the refresh notice and NO delete error."
+    },
+    {
+      "id": "CJU-03",
+      "severity": "medium",
+      "issue": "Dashboard.tsx treated any 400 or 403 — from either of two parallel requests — as 'no company yet'. The catch could not tell which request had failed, and a 403 is not a no-company signal.",
+      "impact": "If the summary succeeded but the trend call returned 400/403, setEmissions was never reached and the render fell into the needsOnboarding branch: 'Welcome to EcoAuditor — your account is ready' for an existing account with real data. That screen has two navigation links and no retry, so the customer is stuck there with no way to recover except navigating away.",
+      "change": "The fetch effect records which request failed. Only a 400 from the summary request is treated as onboarding; a trend failure or any 403 now falls through to the error branch, which carries a retry affordance.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-03 renders the real Dashboard against a stubbed fetch: a summary 400 does show onboarding, a trend 403 does not, a summary 403 does not, and the trend failure path offers a retry control."
+    },
+    {
+      "id": "CJU-04",
+      "severity": "low",
+      "issue": "ReportGenerator styled its status with `status.startsWith('Error') ? 'text-risk-high' : 'text-risk-low'`, encoding severity as a message prefix. The plan gate sets 'Reports require an active plan — visit Pricing to upgrade.', which does not start with 'Error'.",
+      "impact": "A blocked, non-upgraded action rendered in the same green (#16a34a) as a completed report download.",
+      "change": "Status is now a {tone, message} object with tones error/warn/ok mapped through TONE_CLASS. The plan gate is 'warn' (amber, risk.medium), which is a real token in tailwind.config.js rather than an arbitrary colour.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-04 drives a real 402 upgrade_required response and asserts the rendered class is text-risk-medium and NOT text-risk-low."
+    },
+    {
+      "id": "CJU-05",
+      "severity": "low",
+      "issue": "Three async result regions had no live region: the EmissionList delete-error banner, the ReportGenerator status line, and the Dashboard loading spinner text.",
+      "impact": "A failed delete, a failed or successful report generation, and the dashboard content swapping in after its fetch were all silent for screen-reader users. The codebase already set role=\"alert\"/role=\"status\" correctly elsewhere (DataIntake.tsx, carbon-calculator/index.tsx), so this was an inconsistency rather than a missing convention.",
+      "change": "role=\"alert\" on the delete-error banner; role=\"status\" on the ReportGenerator result line and the Dashboard loading text.",
+      "tests": "CJU-02 asserts the delete banner is a role=alert live region, CJU-06 asserts the report status region is a role=status live region carrying the error tone on a failed generate, and the CJU-03 block asserts the dashboard loading state is announced while its fetch is still in flight."
     },
     {
       "id": "FACTORY-01",
@@ -223,12 +272,19 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "442 passed across 50 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +94 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "464 passed across 51 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +116 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "runtime_smoke": "PASS: scripts/smoke.mjs — 94/94 checks against a real booted server. Three defects in this report (SEO-03 route shadowing, SEO-04 group scoping, SEO-05 unguarded sitemap origin) are properties of the running process, not of the code text, and none of them were visible to a source-level assertion. The gate boots server.cjs on a free port with a deterministic APP_URL and sweeps the marketing pages, self-canonicals, noindex pages, the sitemap, robots.txt, robustness paths, security headers, and fail-closed auth. Its robots.txt reader is scripts/robots-groups.mjs, the same RFC 9309 parser the unit test uses — an earlier in-gate copy of that parser was wrong and reported five failures against a correct file, which is exactly the two-readers-disagree failure SEO-04 was about.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
-    "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
+    "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval). CSRD wave 2 verified against the primary text of Directive (EU) 2025/794 on EUR-Lex; the later Content Directive scope change is left open as COMP-04 rather than encoded."
   },
   "open": [
+    {
+      "id": "COMP-04",
+      "severity": "medium",
+      "issue": "The CSRD scope thresholds may be superseded again. Multiple secondary sources (EY, BDO, Taylor Wessing, Deloitte) report that a Content Directive entered into force on 18 March 2026 raising mandatory CSRD scope to more than 1,000 employees AND more than EUR450m turnover, with transposition due 19 March 2027, removing wave 3 and allowing Member States to exempt wave 1 companies below the revised thresholds for FY2025 and FY2026.",
+      "why_open": "Deliberately NOT encoded in compliance-deadlines.cjs. Transposition is national and Member States have exemption options, so the operative scope for any given Member State cannot be resolved from the Directive text alone, and no public surface states a CSRD date that would now be wrong. Encoding a half-verified threshold change into a compliance verdict would trade a known-stale date for a new, less-well-grounded one. The primary text was not verified on EUR-Lex during this run, unlike COMP-03 where it was.",
+      "required": "Confirm the instrument and its number on EUR-Lex, then decide with the customer which Member State(s) are supported. Until then the wave 1 (>500 employees) and wave 2 (>250 employees) criteria stand as the last verified state. Note the product currently cannot answer this question for a real tenant anyway, since company revenue/employees/region are not modelled and /api/companies/:id/compliance answers 501."
+    },
     {
       "id": "EDGE-01",
       "severity": "P1",

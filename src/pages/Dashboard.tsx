@@ -49,6 +49,9 @@ export default function Dashboard() {
   // Fetch real API data on component mount
   useEffect(() => {
     const fetchData = async () => {
+      // Which of the two parallel requests failed. The catch cannot otherwise
+      // tell a "no company yet" summary from a failing trend call.
+      let failedRequest: 'summary' | 'trend' | null = null;
       try {
         setLoading(true);
         setError(null);
@@ -72,9 +75,11 @@ export default function Dashboard() {
         }
 
         if (!summaryRes.ok) {
+          failedRequest = 'summary';
           throw new HttpError(summaryRes.status, `Failed to fetch emissions summary: ${summaryRes.statusText}`);
         }
         if (!trendRes.ok) {
+          failedRequest = 'trend';
           throw new HttpError(trendRes.status, `Failed to fetch trend data: ${trendRes.statusText}`);
         }
 
@@ -97,7 +102,18 @@ export default function Dashboard() {
         // Any other failure (network error, 5xx, unexpected response) is a real
         // error and gets surfaced with a retry affordance.
         const message = err instanceof Error ? err.message : 'Failed to load emissions data';
-        if (err instanceof HttpError && (err.status === 400 || err.status === 403)) {
+        // Only "no company yet" is an onboarding state, and only the summary
+        // request can say so. The old check fired on 400 OR 403 regardless of
+        // which request failed, so a 403 from the trend call — or any
+        // permission/expired-token 403 — dropped an existing account with real
+        // data onto "Welcome to EcoAuditor, your account is ready", a screen
+        // with no retry and no way back. Treat the rest as a real error, which
+        // has a retry affordance.
+        if (
+          err instanceof HttpError &&
+          err.status === 400 &&
+          failedRequest === 'summary'
+        ) {
           setNeedsOnboarding(true);
         } else {
           setError(message);
@@ -117,7 +133,11 @@ export default function Dashboard() {
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto mb-4"></div>
-            <p className="text-surface-600 dark:text-surface-400">Loading your emissions data...</p>
+            {/* role=status so the whole dashboard swapping in after the fetch
+                is announced rather than arriving silently. */}
+            <p role="status" className="text-surface-600 dark:text-surface-400">
+              Loading your emissions data...
+            </p>
           </div>
         </div>
       </div>
