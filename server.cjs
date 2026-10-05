@@ -14,6 +14,7 @@ const {
   buildFacilityEmissions,
   normalizeScope,
 } = require('./emissions-engine.cjs');
+const { allDeadlines } = require('./compliance-deadlines.cjs');
 const {
   buildSecurityHeaders,
   canUseDevAuth,
@@ -2982,22 +2983,22 @@ app.get('/api/companies/:id/compliance', apiAuthGuard, requirePlan('starter'), a
 });
 
 app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
-  // Derive status from the current date so past deadlines aren't reported as
-  // "upcoming" (e.g. EU CSRD 2025-01-01 was returned as upcoming in mid-2026).
+  // Dates come from the shared compliance-deadlines table. This route used to
+  // return a hardcoded SB 253 "2026-01-01", which on 2026-10-05 reported the
+  // deadline as overdue nine months before it was actually due — see
+  // compliance-deadlines.cjs.
   const now = Date.now();
-  const SOON_MS = 90 * 24 * 60 * 60 * 1000; // within 90 days = "due_soon"
-  const deadlines = [
-    { framework: 'SB 253', due_date: '2026-01-01', scope: 'Scope 1 and Scope 2' },
-    { framework: 'SB 253', due_date: '2027-01-01', scope: 'Scope 3' },
-    { framework: 'EU CSRD', due_date: '2025-01-01', scope: 'Sustainability report' },
-  ].map(function (d) {
-    const due = Date.parse(d.due_date + 'T00:00:00Z');
-    let status = 'upcoming';
-    if (due < now) status = 'overdue';
-    else if (due - now <= SOON_MS) status = 'due_soon';
-    return Object.assign({}, d, { status: status });
+  const deadlines = allDeadlines(now);
+  // Applicability is only knowable from a company profile (revenue/employees/
+  // region). Real tenant rows carry none of those yet, so the response says so
+  // instead of implying every framework applies to every company.
+  return res.json({
+    success: true,
+    data: deadlines,
+    applicability: 'unknown',
+    applicability_note:
+      'Applicability requires your company revenue, headcount, and operating region, which are not recorded yet.',
   });
-  return res.json({ success: true, data: deadlines });
 });
 
 app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {

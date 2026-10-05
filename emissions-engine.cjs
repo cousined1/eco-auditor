@@ -9,6 +9,7 @@
 // 4.75% gross-up also existed only on this side, so it was a second reason the
 // two paths disagreed. Scope 3 Cat 3 accounting for T&D is not built yet.
 const { factorFor, getSource, getCategory } = require('./emission-factors.cjs');
+const { deadlinesForFramework } = require('./compliance-deadlines.cjs');
 
 const CONFIDENCE_BY_CATEGORY = {
   stationary_combustion: 90,
@@ -364,28 +365,52 @@ function splitCsvRecords(line) {
   return records;
 }
 
-function getComplianceStatus(company = {}) {
+function getComplianceStatus(company = {}, options = {}) {
   const revenue = Number(company.revenue || 0);
   const employees = Number(company.employees || 0);
   const region = String(company.region || company.state || '').toUpperCase();
   const sb253Applicable = revenue >= 1_000_000_000 && (region === 'CA' || region === 'CALIFORNIA');
   const csrdApplicable = (region === 'EU' || region === 'EUROPE') && employees >= 500;
 
+  // Deadlines come from the shared table, and `next_deadline` is derived from
+  // the current date. It used to be a hardcoded "2026-01-01 Scope 1 and Scope 2
+  // reporting" string that was already in the past — reported to customers as
+  // the next deadline months after it had gone.
+  const now = options.now ?? Date.now();
+
+  function frameworkStatus(frameworkKey, name, applicable) {
+    const deadlines = deadlinesForFramework(frameworkKey, now);
+    const next = deadlines.find((d) => (d.days_left ?? -1) >= 0) || null;
+    if (!applicable || !next) {
+      return {
+        name: name,
+        applicable: applicable,
+        status: applicable ? 'in_scope' : 'not_applicable',
+        next_deadline: null,
+        next_deadline_status: null,
+        next_deadline_label: null,
+        deadline_status_basis: null,
+        days_left: null,
+      };
+    }
+    const label = `${next.status === 'overdue' ? 'Overdue since' : 'Due'} ${next.due_date} — ${name} ${next.scope}`;
+    return {
+      name: name,
+      applicable: applicable,
+      status: 'in_scope',
+      next_deadline: next.due_date,
+      next_deadline_status: next.status,
+      next_deadline_label: label,
+      deadline_status_basis: next.date_status,
+      days_left: next.days_left,
+    };
+  }
+
   return {
     company_id: company.id || null,
     frameworks: {
-      sb253: {
-        name: 'California SB 253',
-        applicable: sb253Applicable,
-        status: sb253Applicable ? 'in_scope' : 'not_applicable',
-        next_deadline: '2026-01-01 Scope 1 and Scope 2 reporting',
-      },
-      csrd: {
-        name: 'EU CSRD',
-        applicable: csrdApplicable,
-        status: csrdApplicable ? 'in_scope' : 'not_applicable',
-        next_deadline: '2025-01-01 CSRD reporting readiness',
-      },
+      sb253: frameworkStatus('SB 253', 'California SB 253', sb253Applicable),
+      csrd: frameworkStatus('EU CSRD', 'EU CSRD', csrdApplicable),
     },
   };
 }
