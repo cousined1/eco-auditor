@@ -14,9 +14,9 @@ interface EmissionsSummaryData {
   scope2_pct: number;
   scope3_pct: number;
   trend_vs_prior_period?: {
-    scope1: number;
-    scope2: number;
-    scope3: number;
+    scope1: number | null;
+    scope2: number | null;
+    scope3: number | null;
   } | null;
 }
 
@@ -53,8 +53,9 @@ export default function Dashboard() {
         setLoading(true);
         setError(null);
         setNeedsOnboarding(false);
+        setUpgrade(null);
 
-        const requestInit = buildApiRequestInit(insforge);
+        const requestInit = { ...buildApiRequestInit(insforge), signal: AbortSignal.timeout(15000) };
 
         // Fetch emissions summary and trend in parallel
         const [summaryRes, trendRes] = await Promise.all([
@@ -210,28 +211,28 @@ export default function Dashboard() {
   }
 
   // Transform real data to component format
-  const total = Math.round(emissions.total_co2e_tonnes);
+  const total = Math.round(emissions.total_co2e_tonnes * 100) / 100;
   const scope1 = {
-    value: Math.round(emissions.scope1_co2e_tonnes),
+    value: Math.round(emissions.scope1_co2e_tonnes * 100) / 100,
     label: 'Scope 1 — Direct',
     pct: Math.round(emissions.scope1_pct * 10) / 10,
-    trend: emissions.trend_vs_prior_period
+    trend: emissions.trend_vs_prior_period?.scope1 != null
       ? Math.round(emissions.trend_vs_prior_period.scope1 * 10) / 10
       : null,
   };
   const scope2 = {
-    value: Math.round(emissions.scope2_co2e_tonnes),
+    value: Math.round(emissions.scope2_co2e_tonnes * 100) / 100,
     label: 'Scope 2 — Electricity',
     pct: Math.round(emissions.scope2_pct * 10) / 10,
-    trend: emissions.trend_vs_prior_period
+    trend: emissions.trend_vs_prior_period?.scope2 != null
       ? Math.round(emissions.trend_vs_prior_period.scope2 * 10) / 10
       : null,
   };
   const scope3 = {
-    value: Math.round(emissions.scope3_co2e_tonnes),
+    value: Math.round(emissions.scope3_co2e_tonnes * 100) / 100,
     label: 'Scope 3 — Value Chain',
     pct: Math.round(emissions.scope3_pct * 10) / 10,
-    trend: emissions.trend_vs_prior_period
+    trend: emissions.trend_vs_prior_period?.scope3 != null
       ? Math.round(emissions.trend_vs_prior_period.scope3 * 10) / 10
       : null,
   };

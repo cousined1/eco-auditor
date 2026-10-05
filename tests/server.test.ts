@@ -115,105 +115,9 @@ describe('Rate Limiter', () => {
 });
 
 // ─── Range Header Validation ───
-// Note: This logic is inlined in server.cjs video handler.
-// TODO: Extract parseRange into shared module for server + test reuse.
-
-function parseRange(rangeHeader: string, fileSize: number): { start: number; end: number; contentLength: number } | { invalid: true } {
-  const parts = rangeHeader.replace(/bytes=/, '').split('-');
-  const start = parseInt(parts[0], 10);
-  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-  if (isNaN(start) || isNaN(end) || start < 0 || end < start || start >= fileSize) {
-    return { invalid: true };
-  }
-
-  return {
-    start,
-    end: Math.min(end, fileSize - 1),
-    contentLength: Math.min(end, fileSize - 1) - start + 1,
-  };
-}
-
-describe('Range Header Validation', () => {
-  const fileSize = 10000;
-
-  it('parses valid range', () => {
-    const result = parseRange('bytes=0-999', fileSize);
-    if ('invalid' in result) throw new Error('Should not be invalid');
-    expect(result.start).toBe(0);
-    expect(result.end).toBe(999);
-    expect(result.contentLength).toBe(1000);
-  });
-
-  it('parses open-ended range', () => {
-    const result = parseRange('bytes=500-', fileSize);
-    if ('invalid' in result) throw new Error('Should not be invalid');
-    expect(result.start).toBe(500);
-    expect(result.end).toBe(9999);
-  });
-
-  it('rejects NaN start', () => {
-    const result = parseRange('bytes=abc-999', fileSize);
-    expect(result).toEqual({ invalid: true });
-  });
-
-  it('rejects negative start', () => {
-    const result = parseRange('bytes=-1-999', fileSize);
-    expect(result).toEqual({ invalid: true });
-  });
-
-  it('rejects start > end', () => {
-    const result = parseRange('bytes=999-500', fileSize);
-    expect(result).toEqual({ invalid: true });
-  });
-
-  it('rejects start >= file size', () => {
-    const result = parseRange('bytes=10000-10001', fileSize);
-    expect(result).toEqual({ invalid: true });
-  });
-
-  it('rejects NaN end', () => {
-    const result = parseRange('bytes=0-xyz', fileSize);
-    expect(result).toEqual({ invalid: true });
-  });
-
-  it('clamps end to file size - 1', () => {
-    const result = parseRange('bytes=0-99999', fileSize);
-    if ('invalid' in result) throw new Error('Should not be invalid');
-    expect(result.end).toBe(9999);
-  });
-});
-
-// ─── Cache Headers Logic ───
-// Note: This logic is inlined in server.cjs static file handler.
-// TODO: Extract getCacheHeaders into shared module for server + test reuse.
-
-describe('Cache Headers Logic', () => {
-  function getCacheHeaders(filePath: string): string | null {
-    if (filePath.includes('/assets/') && (filePath.endsWith('.js') || filePath.endsWith('.css'))) {
-      return 'public, max-age=31536000, immutable';
-    } else if (filePath.endsWith('.html')) {
-      return 'no-cache';
-    }
-    return null;
-  }
-
-  it('sets immutable cache for hashed JS assets', () => {
-    expect(getCacheHeaders('/assets/index-D6gBU1wL.js')).toBe('public, max-age=31536000, immutable');
-  });
-
-  it('sets immutable cache for hashed CSS assets', () => {
-    expect(getCacheHeaders('/assets/index-CjmghmtH.css')).toBe('public, max-age=31536000, immutable');
-  });
-
-  it('sets no-cache for HTML files', () => {
-    expect(getCacheHeaders('/index.html')).toBe('no-cache');
-  });
-
-  it('returns null for other files', () => {
-    expect(getCacheHeaders('/favicon.ico')).toBeNull();
-  });
-});
+// RT-04: moved to tests/server-http-utils.test.ts, which imports the extracted
+// parseRange/getStaticCacheHeaders module (server-http-utils.cjs) that
+// server.cjs itself now uses.
 
 // ─── Subscription & Billing Endpoints (integration-style) ───
 // These verify that the server returns correct HTTP status codes
@@ -227,12 +131,17 @@ describe('Billing endpoint guards', () => {
     expect(resolvePlanPriceId({}, 'not-a-plan', 'monthly')).toBeNull();
   });
 
-  it('checkout rejects disallowed priceId', () => {
-    // CodeRabbit fix: priceId must be validated against server-side allowlist.
-    // The server now checks ALLOWED_PRICE_IDS before creating checkout sessions.
-    const allowedPrices = new Set(['price_starter_mo', 'price_growth_mo']);
-    const fakePrice = 'price_attack_inject';
-    expect(allowedPrices.has(fakePrice)).toBe(false);
+  it('checkout rejects disallowed priceId (RT-09 — real gate, integration)', () => {
+    // RT-09: the previous body built a test-local Set and asserted against it —
+    // zero server code involved. The real ALLOWED_PRICE_IDS gate on
+    // POST /api/checkout is now exercised end-to-end (400 for a priceId the
+    // server never configured, 500-not-200 for a configured one) in
+    // tests/audit-20260922-regressions.test.ts, describe "RT-09".
+    const checkoutRoute = serverSource.slice(serverSource.indexOf("app.post('/api/checkout'"));
+    expect(checkoutRoute.indexOf('ALLOWED_PRICE_IDS.has(priceId)')).toBeGreaterThan(-1);
+    expect(checkoutRoute.indexOf('ALLOWED_PRICE_IDS.has(priceId)')).toBeLessThan(
+      checkoutRoute.indexOf('ensureStripeCustomer')
+    );
   });
 });
 

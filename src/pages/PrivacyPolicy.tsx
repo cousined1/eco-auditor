@@ -62,7 +62,7 @@ export default function PrivacyPolicy() {
           <p>Contact information:</p>
           <ul>
             <li>Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></li>
-            <li>Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></li>
+            <li>Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></li>
           </ul>
         </LegalSection>
 
@@ -203,7 +203,7 @@ export default function PrivacyPolicy() {
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312 Privacy Team</p>
             <p className="text-sm text-surface-600 dark:text-surface-400 mt-1">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
           </div>
           <p>We will verify your identity before processing your request and respond within the timeframe required by applicable law, typically within 30 days. If more time is needed, we will notify you of the reason and the expected timeline.</p>
         </LegalSection>
@@ -239,7 +239,7 @@ export default function PrivacyPolicy() {
             <p className="font-medium text-surface-800 dark:text-surface-200">Developer312</p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
             <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15104011225" className="text-accent-text hover:underline">(510) 401-1225</a></p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
           </div>
         </LegalSection>
       </article>

@@ -70,7 +70,9 @@ export default function Security() {
             icon={<InfraIcon />}
             title="Infrastructure"
             items={[
-              'Hosted on Railway and InsForge',
+              // FEW-03: trust-facts.ts cloudHosting is unverified ('VERIFY' sentinel) —
+              // do not assert a hosting provider; generic wording until verified.
+              'Infrastructure providers host our application and data',
               'Security headers (CSP, HSTS) on all responses',
               'Rate limiting on API endpoints',
             ]}

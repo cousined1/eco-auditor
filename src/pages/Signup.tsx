@@ -1,8 +1,9 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
-import { buildOAuthRedirectTo, type SocialAuthProvider } from '../lib/socialAuth';
+import { type SocialAuthProvider } from '../lib/socialAuth';
 import { readIntentFromParams, destinationFor } from '../lib/authIntent';
+import { PLANS } from '../content/pricing';
 import {
   AuthError,
   AuthHeading,
@@ -27,7 +28,7 @@ const isPasswordValid = (value: string) =>
 
 export default function Signup() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,19 +36,26 @@ export default function Signup() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [needsVerification, setNeedsVerification] = useState(false);
+  const needsVerification = searchParams.get('verify') === '1';
+  const [code, setCode] = useState('');
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+  const intent = readIntentFromParams(searchParams);
+  const selectedPlan = intent ? PLANS[intent.plan as keyof typeof PLANS] : null;
+  const trialEligible = !intent || (intent.billing === 'monthly' && intent.plan !== 'pro');
+  const busy = submitting || pendingProvider !== null;
 
   useNoIndex();
   // An already-authenticated visitor arriving at /signup?plan=growth&billing=annual
   // was bounced to a bare /app, silently dropping the plan they had just picked.
   // Login preserves the intent; Signup now does too.
-  useRedirectIfAuthenticated(destinationFor(readIntentFromParams(searchParams)));
+  useRedirectIfAuthenticated(destinationFor(intent));
 
   // Only once the user has typed something — an empty field is not "wrong yet".
   const passwordInvalid = password.length > 0 && !isPasswordValid(password);
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setError(null);
 
     if (!isPasswordValid(password)) {
@@ -62,7 +70,6 @@ export default function Signup() {
         email: email.trim(),
         password,
         ...(name.trim() ? { name: name.trim() } : {}),
-        redirectTo: buildOAuthRedirectTo(window.location.origin, '/login'),
       });
 
       if (authError) {
@@ -73,18 +80,52 @@ export default function Signup() {
       // signUp returns an accessToken when auto-confirm is on; navigate straight to app.
       // Without a token, the user must verify their email first.
       if (data?.accessToken) {
-        const plan = searchParams.get('plan');
-        const billing = searchParams.get('billing') === 'annual' ? 'annual' : 'monthly';
-        if (plan === 'starter' || plan === 'growth' || plan === 'pro') {
-          navigate(`/app?checkout=${plan}_${billing}`, { replace: true });
-        } else {
-          navigate('/app', { replace: true });
-        }
+        navigate(destinationFor(intent), { replace: true });
       } else {
-        setNeedsVerification(true);
+        setPassword('');
+        const verificationParams = new URLSearchParams(searchParams);
+        verificationParams.set('verify', '1');
+        setSearchParams(verificationParams, { replace: true });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create account. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleVerification(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || !email.trim() || !/^\d{6}$/.test(code.trim())) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { data, error: verificationError } = await insforge.auth.verifyEmail({
+        email: email.trim(), otp: code.trim(),
+      });
+      if (verificationError || !data?.accessToken) {
+        setError(verificationError?.message || 'We could not verify your email. Check the code and try again.');
+        return;
+      }
+      navigate(destinationFor(intent), { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to verify your email. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function resendCode() {
+    if (busy || !email.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    setVerificationNotice(null);
+    try {
+      const { error: resendError } = await insforge.auth.resendVerificationEmail({ email: email.trim() });
+      if (resendError) setError(resendError.message || 'Unable to resend the code. Please try again.');
+      else setVerificationNotice('A new verification code has been sent.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to resend the code. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -114,10 +155,30 @@ export default function Signup() {
           </div>
           <h1 className="text-lg font-semibold text-surface-900 dark:text-white">Check your email</h1>
           <p className="mt-2 text-sm text-surface-500">
-            We sent a verification email to{' '}
-            <span className="font-medium text-surface-700 dark:text-surface-300">{email}</span>.
-            Click the link in the email to verify your account, then sign in.
+            Enter your email address and the six-digit code in the verification email to continue.
           </p>
+          {selectedPlan && intent && (
+            <p className="mt-3 text-sm text-surface-700 dark:text-surface-300">
+              Your selection: {selectedPlan.name}, billed {intent.billing === 'annual' ? 'annually' : 'monthly'}.
+            </p>
+          )}
+          <form onSubmit={(e) => void handleVerification(e)} className="mt-4 space-y-3 text-left">
+            <label htmlFor="verification-email" className="block text-sm font-medium">Email address</label>
+            <input id="verification-email" type="email" autoComplete="email" required value={email}
+              onChange={(e) => setEmail(e.target.value)} disabled={busy} className={authInputClass} />
+            <label htmlFor="signup-code" className="block text-sm font-medium">Verification code</label>
+            <input id="signup-code" type="text" inputMode="numeric" autoComplete="one-time-code"
+              pattern="[0-9]{6}" maxLength={6} required value={code}
+              onChange={(e) => setCode(e.target.value)} disabled={busy} className={authInputClass} />
+            <AuthError message={error} />
+            {verificationNotice && <p role="status" className="text-sm">{verificationNotice}</p>}
+            <button type="submit" disabled={busy || !email.trim() || !/^\d{6}$/.test(code.trim())} className="btn-primary w-full">
+              <SubmitLabel submitting={submitting} idle="Verify email and continue" busy="Please wait…" />
+            </button>
+            <button type="button" disabled={busy || !email.trim()} onClick={() => void resendCode()} className="btn-secondary w-full">
+              Resend verification code
+            </button>
+          </form>
           <Link
             to={`/login${searchParams.toString() ? '?' + searchParams.toString() : ''}`}
             className="btn-primary mt-6 inline-flex"
@@ -132,18 +193,26 @@ export default function Signup() {
   return (
     <AuthShell>
       <AuthHeading
-        title="Start your free trial"
+        title={trialEligible ? 'Start your free trial' : 'Create your account'}
         subtitle={
           // Arriving with ?plan= means the next hop is Stripe Checkout, which
           // collects a card — "No card required" must not appear on that path.
           // Also drops "up and running quickly" (claims.ts marks it unverified,
           // review overdue 2026-08-15).
           // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, E-8).
-          searchParams.get('plan')
-            ? '14-day free trial on monthly Starter and Growth plans · Cancel anytime before the trial ends. A payment method is required to start a trial from a selected plan.'
+          intent
+            ? trialEligible
+              ? '14-day free trial · A payment method is required at checkout · Cancel before the trial ends to avoid a charge.'
+              : 'Continue to secure checkout. Your selected plan is billed immediately; no free trial is included.'
             : '14-day free trial · No card required · Cancel anytime.'
         }
       />
+      {selectedPlan && intent && (
+        <p className="mb-4 text-center text-sm text-surface-700 dark:text-surface-300" role="status">
+          {selectedPlan.name} · ${intent.billing === 'annual' ? selectedPlan.annual.toLocaleString('en-US') : selectedPlan.monthly.toLocaleString('en-US')}
+          {intent.billing === 'annual' ? '/year, billed annually' : '/month, billed monthly'}
+        </p>
+      )}
 
       <div className="card space-y-3">
         <ConfigWarning action="sign-up" />
@@ -158,7 +227,7 @@ export default function Signup() {
               placeholder="Full name (optional)"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              disabled={submitting}
+              disabled={busy}
               className={authInputClass}
             />
           </div>
@@ -172,7 +241,7 @@ export default function Signup() {
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={submitting}
+              disabled={busy}
               className={authInputClass}
             />
           </div>
@@ -191,7 +260,7 @@ export default function Signup() {
             minLength={PASSWORD_MIN_LENGTH}
             value={password}
             onChange={setPassword}
-            disabled={submitting}
+            disabled={busy}
             invalid={passwordInvalid}
             {...(passwordInvalid ? { errorId: 'signup-password-error' } : {})}
           >
@@ -203,7 +272,7 @@ export default function Signup() {
           </PasswordInput>
           <button
             type="submit"
-            disabled={submitting || !email.trim() || !isPasswordValid(password)}
+            disabled={busy || !email.trim() || !isPasswordValid(password)}
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
             <SubmitLabel submitting={submitting} idle="Create account" busy="Creating account…" />

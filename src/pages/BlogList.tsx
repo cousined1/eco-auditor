@@ -44,7 +44,7 @@ export default function BlogList() {
     let cancelled = false;
     async function fetchPosts() {
       try {
-        const resp = await fetch('/api/blog-posts');
+        const resp = await fetch('/api/blog-posts', { signal: AbortSignal.timeout(15000) });
         if (cancelled) return;
         if (!resp.ok) {
           setError('Failed to load blog posts');

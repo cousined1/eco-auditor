@@ -56,7 +56,7 @@ async function fetchPriceConfig(): Promise<PriceConfig> {
   if (_priceCache) return _priceCache;
   if (_priceCachePromise) return _priceCachePromise;
 
-  _priceCachePromise = fetch('/api/config/prices')
+  _priceCachePromise = fetch('/api/config/prices', { signal: AbortSignal.timeout(15000) })
     .then(async (res) => {
       if (!res.ok) throw new Error('Failed to load price config');
       const data = (await res.json()) as PriceConfig;
@@ -131,6 +131,10 @@ export async function createCheckoutSession({ planId, billing, trial }: Checkout
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ priceId, planId, billing, trial }),
+      // RT-06: bound every client fetch so a black-holed connection cannot
+      // leave the UI pending forever; the existing catch maps the abort into
+      // the { ok: false, error } shape.
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!resp.ok) {
@@ -165,6 +169,9 @@ export async function verifyCheckoutSession(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ session_id: sessionId }),
+      // RT-06: a hung connection right after payment must not freeze the
+      // verify spinner indefinitely.
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!resp.ok) {
@@ -186,6 +193,7 @@ export async function createBillingPortalSession(): Promise<StripeResult<{ url: 
     const resp = await fetch('/api/portal', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000), // RT-06
     });
 
     if (!resp.ok) {
@@ -212,6 +220,7 @@ export async function changeSubscription(planId: string, billing: 'monthly' | 'a
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ planId, billing }),
+      signal: AbortSignal.timeout(15000), // RT-06
     });
 
     if (!resp.ok) {
@@ -233,6 +242,7 @@ export async function cancelSubscription(): Promise<StripeResult<{ success: bool
     const resp = await fetch('/api/subscription', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000), // RT-06
     });
 
     if (!resp.ok) {

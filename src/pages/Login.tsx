@@ -49,12 +49,14 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const busy = submitting || pendingProvider !== null;
 
   useNoIndex();
   useRedirectIfAuthenticated(safeRedirect);
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setError(null);
     setSubmitting(true);
 
@@ -111,7 +113,7 @@ export default function Login() {
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={submitting}
+              disabled={busy}
               className={authInputClass}
             />
           </div>
@@ -122,20 +124,20 @@ export default function Login() {
             autoComplete="current-password"
             value={password}
             onChange={setPassword}
-            disabled={submitting}
+            disabled={busy}
           >
             <div className="mt-1.5 text-right">
               {/* Was a mailto: to an off-brand domain — a locked-out paying
                   customer had to wait for a human, and email-driven manual
                   resets are a standard account-takeover channel. */}
-              <Link to="/forgot-password" className="text-xs text-accent-text hover:underline">
+              <Link to={`/forgot-password${searchParams.toString() ? '?' + searchParams.toString() : ''}`} className="text-xs text-accent-text hover:underline">
                 Forgot password?
               </Link>
             </div>
           </PasswordInput>
           <button
             type="submit"
-            disabled={submitting || !email.trim() || !password}
+            disabled={busy || !email.trim() || !password}
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
             <SubmitLabel submitting={submitting} idle="Sign in" busy="Signing in…" />
@@ -149,6 +151,10 @@ export default function Login() {
         />
 
         <AuthError message={error} />
+        <Link to={`/signup?${new URLSearchParams({ ...Object.fromEntries(searchParams), verify: '1' }).toString()}`}
+          className="block text-center text-xs text-accent-text hover:underline">
+          Need to verify your email?
+        </Link>
         <TermsNotice />
       </div>
 

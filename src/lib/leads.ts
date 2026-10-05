@@ -19,6 +19,9 @@ export async function submitLead(lead: LeadSubmission): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(lead),
+    // RT-06: a stalled /api/leads connection must reject into the caller's
+    // error UI instead of pending forever.
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {

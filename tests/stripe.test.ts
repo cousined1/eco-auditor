@@ -1,14 +1,21 @@
 /**
  * Stripe client-side SDK tests
- * Tests the StripeResult type union and client function contracts
+ * Tests the PRICE_IDS configuration and the client function contracts.
  *
  * Note: Since STRIPE_PK is checked at module import time via import.meta.env,
  * and Vitest's vi.stubEnv only works before module import, we test the
  * function contracts and PRICE_IDS configuration rather than mocking fetch.
- * The actual fetch calls are tested via E2E tests against the server.
+ *
+ * RT-03 (audit run AUDIT-RUN-20260919-001828-7455): the previous
+ * "handleWebhookEvent" suite asserted a table of literal no-ops (every
+ * WEBHOOK_HANDLERS entry in src/lib/stripe.ts discards its argument, so
+ * `.not.toThrow()` over them could never fail). It was removed; the REAL
+ * webhook route (server.cjs /api/webhook — signature verification, tampered
+ * signature 400, missing-secret 503, retryable-failure semantics, watermark
+ * ordering) is tested end-to-end in tests/webhook-route.test.ts.
  */
 import { describe, it, expect } from 'vitest';
-import { PRICE_IDS, handleWebhookEvent } from '../src/lib/stripe.ts';
+import { PRICE_IDS } from '../src/lib/stripe.ts';
 
 describe('PRICE_IDS configuration', () => {
   it('has all three plan tiers', () => {
@@ -31,75 +38,6 @@ describe('PRICE_IDS configuration', () => {
         expect(PRICE_IDS[tier][cycle].length).toBeGreaterThan(0);
       }
     }
-  });
-});
-
-describe('handleWebhookEvent', () => {
-  it('handles checkout.session.completed without error', () => {
-    expect(() => {
-      handleWebhookEvent({
-        id: 'evt_123',
-        type: 'checkout.session.completed',
-        created: Date.now(),
-        data: { object: { id: 'cs_123' } },
-      });
-    }).not.toThrow();
-  });
-
-  it('handles customer.subscription.updated without error', () => {
-    expect(() => {
-      handleWebhookEvent({
-        id: 'evt_456',
-        type: 'customer.subscription.updated',
-        created: Date.now(),
-        data: { object: { id: 'sub_123' } },
-      });
-    }).not.toThrow();
-  });
-
-  it('handles customer.subscription.deleted without error', () => {
-    expect(() => {
-      handleWebhookEvent({
-        id: 'evt_789',
-        type: 'customer.subscription.deleted',
-        created: Date.now(),
-        data: { object: { id: 'sub_123' } },
-      });
-    }).not.toThrow();
-  });
-
-  it('handles invoice.paid without error', () => {
-    expect(() => {
-      handleWebhookEvent({
-        id: 'evt_inv1',
-        type: 'invoice.paid',
-        created: Date.now(),
-        data: { object: { id: 'in_123' } },
-      });
-    }).not.toThrow();
-  });
-
-  it('handles invoice.payment_failed without error', () => {
-    expect(() => {
-      handleWebhookEvent({
-        id: 'evt_inv2',
-        type: 'invoice.payment_failed',
-        created: Date.now(),
-        data: { object: { id: 'in_456' } },
-      });
-    }).not.toThrow();
-  });
-
-  it('handles unknown event type gracefully', () => {
-    // Unknown types should be silently ignored (no handler = no-op)
-    expect(() => {
-      handleWebhookEvent({
-        id: 'evt_unknown',
-        type: 'unknown.event.type' as never,
-        created: Date.now(),
-        data: { object: {} },
-      });
-    }).not.toThrow();
   });
 });
 

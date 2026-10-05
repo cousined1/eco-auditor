@@ -36,7 +36,7 @@ export function CookieConsentBanner() {
                 We value your privacy
               </h2>
               <p className="text-sm text-surface-600 dark:text-surface-300">
-                We use cookies to keep you signed in and to understand how the site is used. We do not use cookies for personalized advertising and we do not sell your data.{" "}
+                We use cookies to keep you signed in and to understand how the site is used. Marketing cookies are off by default and are used only with your consent, and we do not sell your data.{" "}
                 <a href="/privacy" className="text-brand-600 hover:text-brand-700 underline">
                   Learn more
                 </a>

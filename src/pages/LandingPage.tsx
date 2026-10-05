@@ -215,10 +215,15 @@ export default function LandingPage() {
           <ValueCard
             icon={<DollarIcon />}
             title="Cost Avoidance"
-            description="See how much you're saving versus hiring consultants. Track estimated spend avoided, identify exposure from incomplete disclosures, and eliminate manual spreadsheet risk."
-            metric="Lower"
-            metricLabel="than a single consultant engagement"
+            description="Identify exposure from incomplete disclosures and eliminate manual spreadsheet risk."
+            metric="Visible"
+            metricLabel="estimated vs primary data, per report"
           />
+          {/* FEW-04: the "savings versus hiring consultants" comparison and the
+              "Track estimated spend avoided" metric were removed - claims.ts marks
+              consultant-cost-comparison status:'unverified' (pricing-only, review
+              overdue) and no cost-avoidance metric is implemented. Restore only
+              with a citable source recorded in claims.ts. */}
           <ValueCard
             icon={<ShieldIcon />}
             title="Contract Readiness"

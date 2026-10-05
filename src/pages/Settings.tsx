@@ -46,6 +46,7 @@ export default function Settings() {
         }
         const res = await fetch('/api/billing', {
           headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(15000),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
