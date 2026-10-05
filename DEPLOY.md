@@ -111,7 +111,9 @@ railway domain add eco-auditor.developer312.com
 
 ### 9. Cloudflare www Redirect Rule (Required before launch)
 
-The apex domain (`ecoauditor.io`) is served through Cloudflare, but `www.ecoauditor.io` currently returns a Cloudflare 526 error because the origin presents an invalid certificate for the `www` hostname. The apex also sends an HSTS header with `includeSubDomains`, so browsers that have previously visited the apex will refuse to bypass the broken `www` certificate. A redirect rule must be applied **at the Cloudflare edge** so `www` requests never reach the origin.
+The apex domain (`ecoauditor.io`) is served through Cloudflare. On 2026-10-05, the `www` root returned a 301 to the apex, but paths returned malformed destinations: `/health` redirected to `https://ecoauditor.iohealth`, and `/pricing?plan=growth&billing=annual` redirected to `https://ecoauditor.iopricing?plan=growth&billing=annual`. The missing slash breaks the destination hostname. A successful 301 status at `www` does not prove that the redirect works end to end. Apex `/health` returned 200 with DB status `ok` during the same check.
+
+If retaining the existing Page Rule matching `www.ecoauditor.io/*`, set its forwarding target to `https://ecoauditor.io/$1` with status 301. The slash before `$1` is required. Alternatively, replace the Page Rule with the Redirect Rule below; avoid overlapping rules with different targets. Keep SSL mode Full (strict). Enabling Always Use HTTPS does not correct a malformed HTTPS redirect.
 
 In the Cloudflare dashboard, select your domain and go to **Rules > Redirect Rules**. Create a single redirect rule:
 
@@ -128,6 +130,8 @@ In the Cloudflare dashboard, select your domain and go to **Rules > Redirect Rul
 Example: `https://www.ecoauditor.io/pricing?plan=growth` → `https://ecoauditor.io/pricing?plan=growth`.
 
 This is an infrastructure-only rule; it does not require any application code changes. Deploy it before submitting the domain to the HSTS preload list.
+
+Verify the actual `Location` headers for `/`, `/health`, and `/pricing?plan=growth&billing=annual`, then follow each redirect to the apex. The final hostname must remain `ecoauditor.io`, the path must retain its leading slash, and the plan/billing query must survive. Requests to `/pricing` may subsequently receive the application's normal redirect to `/pricing/`. Aggregate 301/404/403 counts alone cannot distinguish this defect from application routing, access controls, or scanner traffic.
 
 ## Monitoring
 
