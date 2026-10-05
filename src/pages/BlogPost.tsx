@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useTheme } from '../hooks/useTheme';
+import { formatPublishedDate } from '../lib/formatDate';
 interface BlogPost {
   id: string;
   slug: string;
@@ -20,59 +21,80 @@ interface BlogPost {
   published_at: string;
 }
 
-function formatDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  } catch {
-    return iso;
-  }
-}
-
 function estimateReadTime(html: string): string {
-  const bounded = html.length > 100_000 ? html.slice(0, 100_000) : html;
+  // Guard the null body: this runs during render, so a post whose body_html is
+  // missing threw a TypeError here and took the whole page into the
+  // ErrorBoundary — an empty article reads far better than a blank site.
+  const bounded = String(html || '').slice(0, 100_000);
   const text = bounded.replace(/<[^\n>]*>/g, ' ');
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   const mins = Math.max(1, Math.round(words / 200));
   return `${mins} min read`;
 }
 
+/** Post state, tagged with the slug it describes so it can be discarded. */
+type PostState = {
+  slug: string | null;
+  post: BlogPost | null;
+  loading: boolean;
+  error: string | null;
+};
+
 export default function BlogPostPage() {
   const { slug } = useParams<{ slug: string }>();
   const { theme, toggle } = useTheme();
-  const [post, setPost] = useState<BlogPost | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // One state object, tagged with the slug it belongs to. A param change on
+  // the same route (/blog/a -> /blog/b) REUSES this component instead of
+  // remounting it, so state describing the previous slug used to survive: the
+  // error and article blocks are independent conditions, so arriving at a
+  // second post after a 404 left "Post not found" rendered above an article
+  // that had loaded correctly, and `loading` never went back to true so that
+  // stale error was shown during the next fetch instead of "Loading...".
+  //
+  // Discarding it during render (rather than in an effect) is React's
+  // documented adjustment pattern: the component re-renders immediately with
+  // the reset state and never commits a frame showing the old slug's post.
+  const [state, setState] = useState<PostState>({ slug: null, post: null, loading: true, error: null });
+  const currentSlug = slug ?? null;
+  if (state.slug !== currentSlug) {
+    setState({ slug: currentSlug, post: null, loading: true, error: null });
+  }
+  const { post, loading, error } = state;
 
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
+
+    // Snapshot the shell's own description before this page overwrites it. The
+    // old cleanup restored document.title but not the meta description, so a
+    // post's description leaked onto every page navigated to afterwards.
+    const descEl = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+    const previousDescription = descEl ? descEl.content : null;
+
     async function fetchPost() {
       try {
         const resp = await fetch(`/api/blog-posts/${encodeURIComponent(slug ?? '')}`, { signal: AbortSignal.timeout(15000) });
         if (cancelled) return;
         if (!resp.ok) {
-          setError(resp.status === 404 ? 'Post not found' : 'Failed to load post');
-          setLoading(false);
+          setState((s) => (s.slug === slug ? { ...s, error: resp.status === 404 ? 'Post not found' : 'Failed to load post', loading: false } : s));
           return;
         }
         const json = await resp.json();
         const p = json.post as BlogPost;
-        setPost(p);
+        if (cancelled) return;
+        setState((s) => (s.slug === slug ? { ...s, post: p, loading: false } : s));
         document.title = p.meta_title || `${p.title} — Eco-Auditor Blog`;
-        const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-        if (desc) desc.content = p.meta_description || '';
-        setLoading(false);
+        if (descEl) descEl.content = p.meta_description || '';
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load post');
-        setLoading(false);
+        setState((s) => (s.slug === slug ? { ...s, error: err instanceof Error ? err.message : 'Failed to load post', loading: false } : s));
       }
     }
     void fetchPost();
     return () => {
       cancelled = true;
       document.title = 'Eco-Auditor Blog';
+      if (descEl && previousDescription !== null) descEl.content = previousDescription;
     };
   }, [slug]);
 
@@ -148,7 +170,7 @@ export default function BlogPostPage() {
                     All posts
                   </Link>
                   <div className="flex items-center gap-3 text-xs text-surface-500 mb-4">
-                    <time dateTime={post.published_at}>{formatDate(post.published_at)}</time>
+                    <time dateTime={post.published_at}>{formatPublishedDate(post.published_at)}</time>
                     <span aria-hidden="true">·</span>
                     <span>{estimateReadTime(post.body_html)}</span>
                     {post.primary_keyword && (

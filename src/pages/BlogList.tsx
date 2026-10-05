@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useTheme } from '../hooks/useTheme';
 import { getPrerenderBlogPosts, type PrerenderBlogPost } from '../lib/ssrData';
+import { formatPublishedDate as formatDate } from '../lib/formatDate';
 
 // PERF-006: the list endpoint ships a computed excerpt + read time instead of
 // full HTML bodies — the list never renders them (detail page has its own route).
@@ -12,16 +13,6 @@ import { getPrerenderBlogPosts, type PrerenderBlogPost } from '../lib/ssrData';
 // prerendered payload assignable without fabricating values to satisfy the
 // compiler — see PrerenderBlogPost in src/lib/ssrData.ts.
 type BlogPost = PrerenderBlogPost;
-
-function formatDate(iso: string): string {
-  // `new Date(badString)` does not throw — it yields an Invalid Date, and
-  // toLocaleDateString() on that returns the literal string "Invalid Date",
-  // which was then rendered under a post title. new Date(null) is the epoch,
-  // so a null published_at showed "January 1, 1970". Validate first.
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Undated';
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-}
 
 export default function BlogList() {
   const { theme, toggle } = useTheme();
