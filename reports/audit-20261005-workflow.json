@@ -135,6 +135,14 @@
       "tests": "tests/blog-post-seo.test.ts and tests/blog-head-real-shell.test.ts both assert a hostile title cannot break out, and that the block still parses as JSON with the original value intact."
     },
     {
+      "id": "DATA-02",
+      "severity": "high",
+      "issue": "parseEmissionCsv threw on the first row whose amount was blank or non-numeric, so a 500-row upload with one typo imported nothing at all. It also contradicted the ingest route, which already isolates bad scope, bad confidence and unknown facilities per row and skips only those rows — a blank amount was the single problem that voided an entire customer import.",
+      "impact": "The customer fixed line 12, resubmitted, discovered line 47, and repeated. For a paid plan whose differentiator is bulk CSV import of real utility and fuel data, this was the most likely day-one workflow blocker.",
+      "change": "Added parseEmissionCsvDetailed returning { rows, errors } and skipping only unparseable rows. Each surviving row carries _rowNumber, because dropped rows mean the array index is no longer the file line and every later diagnostic would name the wrong row of the upload. File-level problems still throw, since a missing column or unterminated quoted field makes the whole file unreadable; parseEmissionCsv is kept as a strict all-or-nothing wrapper so existing callers and boundary tests are unchanged. total_rows now counts parser-rejected rows, so the UI reports '498 of 500 rows imported' against the file the customer actually uploaded.",
+      "tests": "tests/csv-partial-import.test.ts — 7 cases covering partial success, exact line numbers, multiple bad rows, the blank-amount-zero guard, file-level throws, the strict wrapper, and a header-only file."
+    },
+    {
       "id": "PKG-01",
       "severity": "high",
       "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
@@ -160,7 +168,7 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "395 passed across 44 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +47 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "402 passed across 45 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +54 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
   },
@@ -191,7 +199,7 @@
     }
   ],
   "release": {
-    "status": "Ten commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
+    "status": "Twelve commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
     "migrations": "No schema migrations.",
     "rollback": "Revert the application commits; no schema rollback required."
   }
