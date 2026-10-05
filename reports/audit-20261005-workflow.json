@@ -86,6 +86,33 @@
       "tests": "tests/audit-20261005-server.test.ts pins the lock, the ordering of lock/count/insert/commit, and the rollback. Not exercised against a live database here: that requires the Docker-backed suites, which cannot start on this machine, so the concurrency behaviour itself is argued from the transaction shape rather than observed."
     },
     {
+      "id": "PROV-01",
+      "severity": "high",
+      "issue": "The public sample report — the product's primary proof artifact — contradicted the factor registry. It cited ipcc-ar6-gwp100, an id the registry had already removed, on an AR6 basis, while the calculator standardised on ipcc-ar5-gwp100 because EPA EFH 2025 and eGRID2023 both use AR5 GWPs. Every row carried a fabricated checksum (sha256:ab12, cd34, ef56, gh78, ij90 — four hex digits where SHA-256 is 64). It listed uk-defra-2024 as active when DEFRA is absent from the codebase, and exiobase-3-eeio-2021 as active with the 2022/2021 dates the registry comments describe as fabricated, when EXIOBASE is roadmap-only.",
+      "impact": "The core claim is 'every number traces back to a source'. A prospect or auditor downloading the register and checking the checksums would find they verify as nothing and that the GWP basis disagrees with the methodology page.",
+      "change": "Register reconciled to registry.ts: AR5 id and basis throughout, eGRID2023 publication year corrected, fabricated checksums cleared, DEFRA row removed, EXIOBASE renamed to exiobase-3.8 with roadmap-not-wired status, and three activity rows' decorated source ('epa-egrid-2023 (CAMX subregion)') normalised so it resolves again. survey-proxy-2026 registered as an explicit internal estimate.",
+      "tests": "tests/sample-report-provenance.test.ts — 7 cases covering id resolution, AR5 consistency, roadmap sources never marked active, checksum shape, and fixture/CSV agreement."
+    },
+    {
+      "id": "PROV-02",
+      "severity": "medium",
+      "issue": "report-generator.cjs validated the register with a hardcoded length of 5, so the count was an accident rather than an invariant and the validator could not detect an incomplete register.",
+      "change": "Replaced the count with referential integrity: every factor cited by an activity row must appear in the register. That immediately caught a real gap — the employee-commute proxy was cited by two rows and had never been registered, which the count-based check could not have found.",
+      "tests": "tests/sample-report-provenance.test.ts plus the existing audit-regressions suite."
+    },
+    {
+      "id": "TRUST-01",
+      "severity": "medium",
+      "issue": "The chat header read 'EcoAuditor Sales / Online now', implying a staffed live-chat queue. /api/chat is a rule-based state machine — string matches and regex over a fixed script, with no LLM call and no human in the loop.",
+      "change": "Now 'EcoAuditor Assistant' / 'Automated · replies instantly'."
+    },
+    {
+      "id": "TRUST-02",
+      "severity": "medium",
+      "issue": "Security.tsx and PrivacyPolicy.tsx described QuickBooks/Xero/OAuth integrations in the present tense, including a read-only data-protection assurance. No such integration exists anywhere in the codebase; pricing.ts, mockData.ts, LandingPage.tsx and llms.txt all mark them roadmap.",
+      "change": "Both now state the integrations are roadmap and not available today, keeping the read-only/OAuth commitment scoped to when they ship. A security page should not carry data-handling assurances about systems that do not exist."
+    },
+    {
       "id": "PKG-01",
       "severity": "high",
       "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
@@ -111,7 +138,7 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "366 passed across 40 files, plus 32 Docker-backed tests unexecutable locally. One failure appeared and was fixed during the run: the Dockerfile runtime-dependency test caught compliance-deadlines.cjs missing from the runtime stage.",
+    "local_tests": "377 passed across 42 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +29 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
   },
