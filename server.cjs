@@ -9,7 +9,7 @@ const {
   summarizeEntries,
   buildTrend,
   toDashboardSummary,
-  parseEmissionCsv,
+  parseEmissionCsvDetailed,
   getComplianceStatus,
   buildFacilityEmissions,
   normalizeScope,
@@ -2663,8 +2663,23 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     companyId = await requireCompanyAccess(req, res, req.query.company_id);
     if (!companyId) return;
     const csvText = req.body || '';
-    const rawRows = parseEmissionCsv(csvText);
+    // Per-row isolation. parseEmissionCsv threw on the FIRST bad amount, so a
+    // 500-row file with one typo imported nothing and the customer had to fix
+    // row 12, resubmit, discover row 47, and repeat. The detailed parser keeps
+    // the good rows and reports the bad ones by line, which is the same
+    // treatment this route already gave bad scope, bad confidence and unknown
+    // facilities.
+    const parsed = parseEmissionCsvDetailed(csvText);
+    const rawRows = parsed.rows;
+    const parseErrors = parsed.errors || [];
     if (rawRows.length === 0) {
+      if (parseErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `No importable rows. ${parseErrors.length === 1 ? parseErrors[0].message : parseErrors.length + ' rows have invalid amounts.'}`,
+          errors: parseErrors,
+        });
+      }
       return res.status(400).json({ success: false, error: 'CSV file is empty or has no data rows after the header.' });
     }
 
@@ -2703,12 +2718,15 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     const companyFacilities = await loadFacilities(companyId);
     const SCOPE_LABELS = { scope1: 'Scope 1', scope2: 'Scope 2', scope3: 'Scope 3' };
     const entries = [];
-    var importErrors = [];   // fatal per-row errors
+    var importErrors = parseErrors.map(function (e) { return e.message; }); // fatal per-row errors
     var importWarnings = []; // non-fatal per-row notes
 
     for (var i = 0; i < rawRows.length; i++) {
       var row = rawRows[i];
-      var rowNum = i + 2; // 1-indexed + header row
+      // 1-indexed + header row. Rows dropped by the parser are excluded from
+      // rawRows, so the index is not the file line — use the line the parser
+      // recorded or every diagnostic would name the wrong row of the upload.
+      var rowNum = row._rowNumber || (i + 2);
       var rowErrors = [];
       var rowWarnings = [];
       var facilityId = null;
@@ -2828,7 +2846,7 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       id: jobId,
       status: entries.length > 0 ? 'completed' : 'failed',
       imported: entries.length,
-      total_rows: rawRows.length,
+      total_rows: rawRows.length + parseErrors.length,
       errors: importErrors,
       warnings: importWarnings,
       company_id: companyId,
@@ -2842,7 +2860,7 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       success: true,
       job_id: jobId,
       imported: entries.length,
-      total_rows: rawRows.length,
+      total_rows: rawRows.length + parseErrors.length,
       errors: importErrors,
       warnings: importWarnings,
     });

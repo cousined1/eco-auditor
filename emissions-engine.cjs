@@ -299,25 +299,52 @@ function toDashboardSummary(summary, priorSummary) {
   };
 }
 
-function parseEmissionCsv(csv) {
-  const lines = splitCsvRecords(String(csv || '').trim());
-  if (lines.length < 2) return [];
+// Parses rows and isolates per-row amount problems instead of throwing on the
+// first bad cell.
+//
+// A 500-row file with a typo in row 12 previously imported NOTHING: the .map()
+// below threw and the caller had no rows to work with. That also defeated the
+// per-row isolation the ingest route implements for bad scope, bad confidence
+// and unknown facilities — those skip just their own row, while a blank amount
+// failed the whole customer import. The customer fixed row 12, resubmitted,
+// hit row 47, and repeated.
+//
+// File-level problems (a missing required column, an unterminated quoted
+// field) still throw: those make the whole file unreadable and there is no
+// sensible partial import.
+//
+// @returns {{rows: object[], errors: {row: number, message: string}[]}}
+function parseEmissionCsvDetailed(csvText) {
+  const records = splitCsvRecords(csvText).filter((r) => r.some((v) => String(v).trim() !== ''));
+  if (records.length === 0) return { rows: [], errors: [] };
+
+  const lines = records.map((r) => r.map((v) => String(v).trim()));
   const headers = lines[0].map(normalizeKey);
   const required = ['scope', 'category', 'source', 'amount', 'unit'];
   for (const key of required) {
     if (!headers.includes(key)) throw new Error(`CSV is missing required column: ${key}`);
   }
 
-  return lines.slice(1).map((values, index) => {
+  const rows = [];
+  const errors = [];
+  lines.slice(1).forEach((values, index) => {
     const row = {};
     headers.forEach((header, i) => { row[header] = values[i] || ''; });
     // REL-002: a blank cell made Number('') === 0 pass, importing a silent
-    // zero. Blank and non-numeric amounts both fail the row.
+    // zero. Blank and non-numeric amounts both fail the row — but only that row.
     const amount = Number(row.amount);
     if (String(row.amount).trim() === '' || !Number.isFinite(amount)) {
-      throw new Error(`CSV row ${index + 2} has an invalid amount.`);
+      errors.push({
+        row: index + 2,
+        message: `CSV row ${index + 2} has an invalid amount.`,
+      });
+      return;
     }
-    return {
+    rows.push({
+      // Source line in the uploaded file. Rows that fail parsing are dropped, so
+      // the consumer cannot recover this from the array index — without it every
+      // later diagnostic would point at the wrong line of the customer's CSV.
+      _rowNumber: index + 2,
       scope: row.scope,
       category: row.category,
       source: row.source,
@@ -328,8 +355,20 @@ function parseEmissionCsv(csv) {
       facility_name: row.facility_name || undefined,
       date: row.date || undefined,
       notes: row.notes || undefined,
-    };
+    });
   });
+
+  return { rows, errors };
+}
+
+/**
+ * Strict wrapper: throws if ANY row is malformed. Kept for callers that need
+ * all-or-nothing semantics (and for the existing boundary tests).
+ */
+function parseEmissionCsv(csvText) {
+  const { rows, errors } = parseEmissionCsvDetailed(csvText);
+  if (errors.length > 0) throw new Error(errors[0].message);
+  return rows;
 }
 
 function splitCsvRecords(line) {
@@ -443,6 +482,7 @@ module.exports = {
   buildTrend,
   toDashboardSummary,
   parseEmissionCsv,
+  parseEmissionCsvDetailed,
   getComplianceStatus,
   buildFacilityEmissions,
   // Exported so the server's Scope 3 plan gate normalises labels exactly the
