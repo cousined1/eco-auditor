@@ -1,9 +1,8 @@
 import { Link } from 'react-router-dom';
-import { useConsent } from '../lib/consent-context';
+import { CookiePreferencesButton } from './CookieConsentBanner';
 
 export default function Footer() {
   const year = new Date().getFullYear();
-  const { resetConsent } = useConsent();
 
   return (
     <footer aria-label="Site footer" className="border-t border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
@@ -60,13 +59,7 @@ export default function Footer() {
 
         <div className="mt-6 pt-6 border-t border-surface-200 dark:border-surface-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <p className="text-2xs text-surface-600 dark:text-surface-400">© {year} Eco-Auditor, a product operated by Developer312, a subsidiary of NIGHT LITE USA LLC. All rights reserved.</p>
-          <button
-            type="button"
-            onClick={resetConsent}
-            className="text-2xs text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200 transition-colors underline-offset-2 hover:underline"
-          >
-            Cookie preferences
-          </button>
+          <CookiePreferencesButton className="text-2xs text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200 transition-colors underline-offset-2 hover:underline" />
         </div>
 
         {/* Eco-Auditor Suite Interlinking */}

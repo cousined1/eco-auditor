@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { useFocusTrap } from './hooks/useFocusTrap';
-import { CookieConsentBanner } from './components/CookieConsentBanner';
+import { CookieConsentBanner, CookiePreferencesButton } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
 import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
@@ -540,6 +540,17 @@ function AppContent() {
               </Routes>
             </Suspense>
           </main>
+
+          {/* Withdrawal must be as easy as granting. The /app shell renders no
+              Footer, so the only "Cookie preferences" link lived on marketing
+              pages — meaning a signed-in customer, who spends all their time in
+              the app where analytics is actually collected, could not reach
+              consent settings without logging out. The Privacy Policy promises
+              withdrawal "at any time through the cookie preferences settings on
+              our site". */}
+          <div className="shrink-0 border-t border-surface-200 dark:border-surface-800 px-4 py-2">
+            <CookiePreferencesButton className="text-xs text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 transition-colors underline-offset-2 hover:underline" />
+          </div>
         </div>
       </div>
     );
