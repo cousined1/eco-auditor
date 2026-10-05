@@ -3313,6 +3313,209 @@ app.use('/api', function (_req, res) {
   res.status(404).json({ error: 'Not found' });
 });
 
+// ─── Blog post metadata (server-rendered) ───
+//
+// Every /blog/:slug URL used to fall through to the SPA fallback, which serves
+// static/index.html — the homepage shell. Verified live on 2026-10-05: all
+// seven published posts returned the homepage's <title>, meta description, OG
+// tags and FAQPage JSON-LD, plus:
+//
+//   <link rel="canonical" href="https://ecoauditor.io/" />
+//
+// That canonical is an explicit instruction to consolidate the post URL onto
+// the homepage. Combined with a sitemap listing no post URLs and a prerendered
+// /blog/ containing no post links, Google had three independent signals to drop
+// every article. Seven high-intent pages (SB 253, CBAM, Scope 3, software
+// selection) were being actively de-indexed.
+//
+// Rewrites the head for the requested post so crawlers and social scrapers see
+// the article's own metadata and a self-referencing canonical. The React app
+// still renders the body after hydration; only the served <head> changes.
+function escapeHtmlAttribute(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Same shape server-publish.cjs enforces on write, so a slug that could never
+// have been stored is rejected before it reaches the database.
+const SLUG_SAFE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+function replaceFirst(html, pattern, replacement) {
+  return html.replace(pattern, function () { return replacement; });
+}
+
+function renderBlogPostHead(shell, post, canonicalUrl) {
+  const title = post.meta_title || post.title || 'Eco-Auditor Blog';
+  const description = post.meta_description || post.excerpt || '';
+  const fullTitle = title.indexOf('Eco-Auditor') === -1 ? title + ' | Eco-Auditor' : title;
+  let html = shell;
+
+  html = replaceFirst(html, /<title>[\s\S]*?<\/title>/i, '<title>' + escapeHtmlAttribute(fullTitle) + '</title>');
+  html = replaceFirst(
+    html,
+    /<meta name="description" content="[^"]*"\s*\/?>/i,
+    '<meta name="description" content="' + escapeHtmlAttribute(description) + '" />'
+  );
+  // Self-referencing canonical — the single change that stops de-indexing.
+  html = replaceFirst(
+    html,
+    /<link rel="canonical" href="[^"]*"\s*\/?>/i,
+    '<link rel="canonical" href="' + escapeHtmlAttribute(canonicalUrl) + '" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta property="og:type" content="[^"]*"\s*\/?>/i,
+    '<meta property="og:type" content="article" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta property="og:url" content="[^"]*"\s*\/?>/i,
+    '<meta property="og:url" content="' + escapeHtmlAttribute(canonicalUrl) + '" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta property="og:title" content="[^"]*"\s*\/?>/i,
+    '<meta property="og:title" content="' + escapeHtmlAttribute(title) + '" />'
+  );
+  if (description) {
+    html = replaceFirst(
+      html,
+      /<meta property="og:description" content="[^"]*"\s*\/?>/i,
+      '<meta property="og:description" content="' + escapeHtmlAttribute(description) + '" />'
+    );
+  }
+  html = replaceFirst(
+    html,
+    /<meta name="twitter:url" content="[^"]*"\s*\/?>/i,
+    '<meta name="twitter:url" content="' + escapeHtmlAttribute(canonicalUrl) + '" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta name="twitter:title" content="[^"]*"\s*\/?>/i,
+    '<meta name="twitter:title" content="' + escapeHtmlAttribute(title) + '" />'
+  );
+  if (description) {
+    html = replaceFirst(
+      html,
+      /<meta name="twitter:description" content="[^"]*"\s*\/?>/i,
+      '<meta name="twitter:description" content="' + escapeHtmlAttribute(description) + '" />'
+    );
+  }
+
+  // The homepage FAQPage block describes Eco-Auditor the product, not this
+  // article. Swap it for a BlogPosting node so structured data describes the
+  // page actually being served.
+  const articleLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: description || undefined,
+    url: canonicalUrl,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+    datePublished: post.published_at || undefined,
+    dateModified: post.published_at || undefined,
+    publisher: { '@type': 'Organization', name: 'Eco-Auditor', url: 'https://ecoauditor.io' },
+    isPartOf: { '@type': 'Blog', name: 'Eco-Auditor Blog', url: 'https://ecoauditor.io/blog/' },
+  };
+  // JSON.stringify does not escape `<`, `>` or `/`. A post title containing
+  // "</script>" would therefore close this block early and the remainder would
+  // be parsed as live markup — a stored XSS in the served <head> of every
+  // request for that post. Escaping them as JSON unicode escapes keeps the
+  // payload valid JSON while making it inert as HTML.
+  const jsonLd = JSON.stringify(articleLd, null, 2)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .split('\n')
+    .join('\n    ');
+  html = replaceFirst(
+    html,
+    /<script type="application\/ld\+json">[\s\S]*?<\/script>/i,
+    '<script type="application/ld+json">\n    ' + jsonLd + '\n    </script>'
+  );
+
+  return html;
+}
+
+app.get('/blog/:slug', async function (req, res, next) {
+  if (!pgPool) return next();
+  const slug = String(req.params.slug || '').trim();
+  if (!SLUG_SAFE_PATTERN.test(slug)) return next();
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT slug, title, meta_title, meta_description, published_at FROM blog_posts WHERE slug = $1 LIMIT 1',
+      [slug]
+    );
+    if (rows.length === 0) return next();
+
+    const shellPath = path.join(__dirname, 'static', 'index.html');
+    if (!fs.existsSync(shellPath)) return next();
+    const canonicalUrl = APP_BASE_URL + '/blog/' + encodeURIComponent(rows[0].slug);
+    const html = renderBlogPostHead(fs.readFileSync(shellPath, 'utf8'), rows[0], canonicalUrl);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  } catch (err) {
+    log('error', 'Blog post head render failed', { error: String(err), slug: req.params.slug });
+    return next();
+  }
+});
+
+// Sitemap: the static file cannot list post URLs because posts live in the
+// database and are published without a rebuild. Serve it dynamically so every
+// published article is discoverable.
+app.get('/sitemap.xml', async function (_req, res) {
+  let postUrls = [];
+  if (pgPool) {
+    try {
+      const { rows } = await pgPool.query(
+        'SELECT slug, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 200'
+      );
+      postUrls = rows
+        .map(function (row) {
+          const lastmod = row.published_at ? String(row.published_at).slice(0, 10) : null;
+          return '  <url>\n    <loc>' + APP_BASE_URL + '/blog/' + encodeURIComponent(row.slug) + '/</loc>' +
+            (lastmod ? '\n    <lastmod>' + lastmod + '</lastmod>' : '') +
+            '\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>';
+        });
+    } catch (err) {
+      log('warn', 'sitemap: could not read blog_posts', { error: String(err) });
+    }
+  }
+
+  // Only the marketing pages; /app/* and /auth/* are auth-only and blocked by
+  // robots.txt, so they must never appear here.
+  const staticUrls = [
+    ['/', '2026-05-21', 'weekly', '1.0'],
+    ['/pricing/', '2026-06-15', 'weekly', '0.9'],
+    ['/methodology/', '2026-06-15', 'monthly', '0.8'],
+    ['/blog/', '2026-09-05', 'weekly', '0.8'],
+    ['/sample-report/', '2026-06-15', 'monthly', '0.7'],
+    ['/security/', '2026-06-15', 'monthly', '0.6'],
+    ['/demo/', '2026-07-15', 'monthly', '0.6'],
+    ['/contact/', '2026-06-15', 'monthly', '0.5'],
+    ['/privacy/', '2026-06-15', 'monthly', '0.3'],
+    ['/terms/', '2026-05-21', 'monthly', '0.3'],
+    ['/dpa/', '2026-05-21', 'monthly', '0.3'],
+  ].map(function (u) {
+    return '  <url>\n    <loc>' + APP_BASE_URL + u[0] + '</loc>\n    <lastmod>' + u[1] +
+      '</lastmod>\n    <changefreq>' + u[2] + '</changefreq>\n    <priority>' + u[3] + '</priority>\n  </url>';
+  });
+
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    '  <!-- Public marketing pages. App routes are auth-only and blocked by robots.txt. -->\n' +
+    staticUrls.concat(postUrls).join('\n') +
+    '\n</urlset>\n';
+
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+});
+
 // ─── SPA fallback ───
 // Only serve the SPA shell for known client-side routes. Everything else
 // should return a real 404 so crawlers don't index an infinite duplicate-
