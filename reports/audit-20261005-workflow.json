@@ -160,6 +160,14 @@
       "tests": "tests/route-ordering.test.ts compares indexOf positions directly, asserts the route is registered exactly once, and pins that express.static is still mounted."
     },
     {
+      "id": "SEO-04",
+      "severity": "medium",
+      "issue": "public/robots.txt had `User-agent: *` carrying nothing but `Allow: /`. The auth-only disallows sat at the bottom of the file, after the Applebot-Extended block. In robots.txt, directives after a `User-agent:` line belong to that group and the group ends at the next `User-agent:` line, so those disallows attached to Applebot alone.",
+      "impact": "Verified against the live file on 2026-10-05: Googlebot matches the wildcard group and was therefore explicitly permitted to crawl /app/, /auth/, /login, /signup and /forgot-password — exactly the surfaces the file claimed to protect. A naive substring check would have passed, since the paths are present in the text.",
+      "change": "The auth-only disallows moved inside the wildcard group; the named AI agents keep their own groups, which are allowed to differ from the wildcard. Sitemap declaration moved to the end where it belongs.",
+      "tests": "tests/robots-txt.test.ts parses the file the way a crawler does (RFC 9309 group semantics) instead of substring-matching, and embeds the previous wildcard group as a fixture so the test cannot pass vacuously."
+    },
+    {
       "id": "PKG-01",
       "severity": "high",
       "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
@@ -185,7 +193,7 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "418 passed across 48 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +70 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "426 passed across 49 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +78 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
   },
@@ -216,7 +224,7 @@
     }
   ],
   "release": {
-    "status": "Sixteen commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
+    "status": "Seventeen commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
     "migrations": "No schema migrations.",
     "rollback": "Revert the application commits; no schema rollback required."
   }
