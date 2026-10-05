@@ -363,6 +363,14 @@
       "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
       "impact": "The container would crash-loop with MODULE_NOT_FOUND and every route would 502, while a local build and the rest of the suite stayed green.",
       "change": "Added to the runtime COPY line. Caught by tests/dockerfile-runtime-deps.test.ts before release rather than in production."
+    },
+    {
+      "id": "PLAN-01",
+      "severity": "medium",
+      "issue": "plan-limits.json states the rule \"Every limit here MUST have a server-side check — if you add one with no enforcement, you are selling something you do not deliver\" — but nothing tested it. It was the only file in the repo with zero test references. Separately, server-billing.test.ts pinned the plan limits as hardcoded literals (1 / 5 / 10) rather than reading the file, so the suite held a second copy of the numbers that plan-limits.json exists to prevent.",
+      "impact": "A limit could be added to the pricing page and the server-side plan data with no enforcement anywhere, and the suite would stay green — the exact failure the file warns about. Editing a limit would instead break server-billing.test.ts with a failure that names neither file.",
+      "change": "Added tests/plan-limits-enforcement.test.ts (22 tests) deriving the oracle from plan-limits.json itself: every limit key must have an enforcement-map entry, every declared limit must have a gate contract, limits must never shrink as the tier rises, the server gates must agree with the file across every boundary value, a denial must report the file limit and point at a plan that actually grants the feature, each enforcement-map route must genuinely call its gate (comment-stripped, to avoid matching the prose that quotes it), and the advertised pricing labels must match the enforced numbers. All three limits were already correctly enforced; no product code changed.",
+      "verified_by": "Mutation-tested: advertising a limit with no enforcement entry (3 failures), adding a limit plus an enforcement entry but no gate contract (3), unwiring canAddFacility from its route (1), mishandling a null unlimited limit (3), hardcoding 99 facilities in the server (4), and committing the CSV quota before rows persist (1) were each detected. Baseline 22/22."
     }
   ],
   "resolved_without_change": [
@@ -377,13 +385,17 @@
     {
       "id": "PREVIOUS-P2-REGISTER",
       "conclusion": "Still not derivable. Searching the working tree and the full git history across every branch for P2-4 through P2-7 returns nothing; the only P2-6 reference is the label this project applied to the signup plan-handoff fix. docs/audits/ecoauditor-mvp-audit.md has a P2-1..P2-3 register, but it is a different (product/UX) register whose P2-6 does not exist. Reconciling the historical IDs needs the originating findings document."
+    },
+    {
+      "id": "VERIFIED-PLAN-LIMITS",
+      "conclusion": "The three limits in plan-limits.json — facilities, csvImportsPerMonth and scope3 — are all genuinely enforced server-side and were left unchanged. canAddFacility/canImportCsv/canUseScope3 are called on the exact routes the enforcement map names (POST /api/companies/:id/facilities, POST /api/ingest/csv, POST /api/calculate). The facility cap is checked inside a transaction holding SELECT ... FOR UPDATE on the company row, so concurrent creates cannot all pass. A CSV import spends quota in the same transaction that persists the rows, so a failed save does not burn a monthly import, and the quota is only spent when entries.length > 0. A null limit is short-circuited before any comparison, so unlimited is never evaluated as count >= 0. src/content/pricing.ts and src/data/mockData.ts both derive their labels from this file, so the advertised and enforced limits cannot drift."
     }
   ],
   "verification": {
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "588 passed across 58 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +240 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "610 passed across 59 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +240 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "runtime_smoke": "PASS: scripts/smoke.mjs — 99 checks (98 pass; the blog-index check fails locally by design because this machine has no DATABASE_URL at build time — see SEO-06) against a real booted server. Three defects in this report (SEO-03 route shadowing, SEO-04 group scoping, SEO-05 unguarded sitemap origin) are properties of the running process, not of the code text, and none of them were visible to a source-level assertion. The gate boots server.cjs on a free port with a deterministic APP_URL and sweeps the marketing pages, self-canonicals, noindex pages, the sitemap, robots.txt, robustness paths, security headers, and fail-closed auth. Its robots.txt reader is scripts/robots-groups.mjs, the same RFC 9309 parser the unit test uses — an earlier in-gate copy of that parser was wrong and reported five failures against a correct file, which is exactly the two-readers-disagree failure SEO-04 was about.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval). CSRD wave 2 verified against the primary text of Directive (EU) 2025/794 on EUR-Lex; the later Content Directive scope change is left open as COMP-04 rather than encoded."
