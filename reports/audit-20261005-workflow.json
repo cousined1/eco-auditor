@@ -113,6 +113,28 @@
       "change": "Both now state the integrations are roadmap and not available today, keeping the read-only/OAuth commitment scoped to when they ship. A security page should not carry data-handling assurances about systems that do not exist."
     },
     {
+      "id": "SEO-01",
+      "severity": "high",
+      "issue": "Every /blog/:slug URL fell through to the SPA fallback and served static/index.html. Verified live 2026-10-05: all seven published posts returned the homepage's title, meta description, OG tags and FAQPage JSON-LD, plus <link rel=\"canonical\" href=\"https://ecoauditor.io/\" />.",
+      "impact": "A canonical aimed at the homepage explicitly instructs Google to consolidate the post URL away. Combined with a sitemap listing zero post URLs and a prerendered /blog/ containing zero post links, Google had three independent signals to drop every article. Seven high-intent pages (SB 253, CBAM, Scope 3, ESG software selection) were being actively de-indexed.",
+      "change": "Added a /blog/:slug route that rewrites the served head per post: own title, description, self-referencing canonical, og:type=article, OG/Twitter tags, and a BlogPosting JSON-LD node in place of the homepage FAQPage. Slugs are shape-checked before the query and failures fall through to existing SPA behaviour. The app still renders the body after hydration; only the head changes.",
+      "tests": "tests/blog-post-seo.test.ts (12 cases, including a hostile-title injection attempt) and tests/blog-head-real-shell.test.ts (6 cases running the rewrite against the actual built static/index.html, skipped when no build is present)."
+    },
+    {
+      "id": "SEO-02",
+      "severity": "high",
+      "issue": "public/sitemap.xml is a static file listing 11 marketing URLs and no blog posts. Posts live in the database and are published without a rebuild, so post URLs could never appear.",
+      "change": "Added a dynamic /sitemap.xml that appends published post URLs from blog_posts (lastmod from published_at). Degrades to the marketing page list if the table is missing, and never advertises auth-only /app/* or /auth/* routes.",
+      "tests": "tests/blog-post-seo.test.ts pins the query, the auth-route exclusion, the content type and the fallback."
+    },
+    {
+      "id": "XSS-01",
+      "severity": "high",
+      "issue": "Introduced by this run's own SEO-01 change and caught by the escaping test before release: JSON.stringify does not escape <, > or /. A post title containing '</script>' terminates the JSON-LD block early, so the remainder parses as live markup in the served head of every request for that post.",
+      "change": "JSON-LD is emitted with <, > and & escaped as JSON unicode sequences, keeping the payload valid JSON while inert as HTML.",
+      "tests": "tests/blog-post-seo.test.ts and tests/blog-head-real-shell.test.ts both assert a hostile title cannot break out, and that the block still parses as JSON with the original value intact."
+    },
+    {
       "id": "PKG-01",
       "severity": "high",
       "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
@@ -138,7 +160,7 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "377 passed across 42 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +29 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "395 passed across 44 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +47 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
   },
@@ -159,10 +181,17 @@
       "severity": "low",
       "issue": "authGuard validates only the user id, but every billing route passes req.user.email into a NOT NULL insert. A session payload without an email would make checkout, portal, subscription change and verify fail permanently for that account.",
       "required": "Confirm whether InsForge can omit the claim; if so, coalesce before insert. Unverified — depends on InsForge's session payload shape."
+    },
+    {
+      "id": "BLOG-DEFRA-CLAIM",
+      "severity": "medium",
+      "issue": "The live post sb-253-compliance-guide-smb carries the FAQ answer \"Use EPA Center for Corporate Climate Leadership factors for US operations, eGRID for electricity, and DEFRA for international activities. Eco-Auditor includes all of these in its pre-loaded factor library.\" DEFRA is absent from emission-factors.json and from the registry — confirmed by grep returning 0 matches — so a published article tells prospects the product ships a factor library it does not have.",
+      "required": "Republish that post's FAQ with the DEFRA clause removed. Not actionable from the repo: blog_posts is written only through POST /api/publish, which needs SITE_DEPLOY_TOKEN. Also worth correcting while republishing: the same FAQ says SB 253 Phase 1 applies above $2B revenue when the threshold is $1B, and that reporting \"begins in 2026\" without the deferral to 2026-11-10 (see COMP-01).",
+      "note": "Found while auditing the live site, not present in the working tree."
     }
   ],
   "release": {
-    "status": "Six commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
+    "status": "Ten commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
     "migrations": "No schema migrations.",
     "rollback": "Revert the application commits; no schema rollback required."
   }
