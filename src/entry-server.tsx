@@ -15,16 +15,30 @@ import { renderToString } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
 import { ThemeProvider } from './hooks/useTheme';
 import { ConsentProvider } from './lib/consent-context';
+import { setPrerenderBlogPosts, type PrerenderBlogPost } from './lib/ssrData';
 import App from './App';
 
-export function render(url: string): string {
-  return renderToString(
-    <StaticRouter location={url}>
-      <ThemeProvider>
-        <ConsentProvider>
-          <App />
-        </ConsentProvider>
-      </ThemeProvider>
-    </StaticRouter>,
-  );
+export interface RenderOptions {
+  /** Build-time blog posts, so /blog prerenders with real links. */
+  blogPosts?: PrerenderBlogPost[] | null;
+}
+
+export function render(url: string, options: RenderOptions = {}): string {
+  // Must be set before renderToString: renderToString never runs effects, so
+  // BlogList's fetch could not populate the static HTML by itself.
+  setPrerenderBlogPosts(options.blogPosts ?? null);
+  try {
+    return renderToString(
+      <StaticRouter location={url}>
+        <ThemeProvider>
+          <ConsentProvider>
+            <App />
+          </ConsentProvider>
+        </ThemeProvider>
+      </StaticRouter>,
+    );
+  } finally {
+    // Leave the module clean so a later render() cannot inherit stale posts.
+    setPrerenderBlogPosts(null);
+  }
 }

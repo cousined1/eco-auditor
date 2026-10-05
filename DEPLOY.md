@@ -17,7 +17,11 @@ Set these in Railway's service variables (Dashboard → Variables tab):
 # Required
 PORT=3000                          # Railway injects this; DO NOT hardcode
 NODE_ENV=production                # Production mode
-DATABASE_URL=postgres://...        # InsForge Postgres connection string; boot fails in production without it
+DATABASE_URL=postgres://...        # InsForge Postgres connection string; boot fails in production without it.
+                                   # MUST also be present at BUILD time: scripts/prerender.mjs reads the
+                                   # blog_posts table to prerender /blog/ with real post links. Without
+                                   # it the build still succeeds but /blog/ ships as "Loading posts…"
+                                   # with zero <a href="/blog/…"> links, which npm run smoke fails on.
 VITE_INSFORGE_BASE_URL=https://your-app.up.railway.app   # InsForge backend URL
 VITE_INSFORGE_ANON_KEY=your-anon-key                       # InsForge anonymous key
 

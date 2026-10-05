@@ -202,7 +202,7 @@ export default function SampleReport() {
             <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9-9 0 0 0-9-9" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Sample report (PDF)</h3>
-              <p className="text-2xs text-surface-500">Executive summary · Fictional data · ~3 KB</p>
+              <p className="text-2xs text-surface-500">Executive summary · Fictional data · Under 1 KB</p>
             </div>
             <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
           </a>

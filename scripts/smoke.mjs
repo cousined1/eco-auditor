@@ -103,6 +103,28 @@ const ROBUSTNESS_PATHS = [
   '/sitemap.xml', '/robots.txt', '/manifest.webmanifest',
 ];
 
+/**
+ * UC-01: /blog prerendered as "Loading posts…" with zero /blog/<slug> links,
+ * because renderToString never runs effects. The marketing-page byte-length
+ * check passed anyway — the hero markup is long enough to look healthy — so
+ * this asserts the thing that actually matters: post links in the served HTML.
+ *
+ * Needs DATABASE_URL at build time. When the build had no posts to inject the
+ * gate FAILS rather than skipping: an empty blog index is the defect, and
+ * silently passing here would restore it unnoticed.
+ */
+async function checkBlogIndexHasLinks() {
+  const blogHtml = (await get('/blog/')).text;
+  const slugs = [...blogHtml.matchAll(/href="\/blog\/([^"/]+)"/g)].map((m) => m[1]);
+  const loading = blogHtml.includes('Loading posts');
+  check(
+    '/blog/ serves post links, not a loading state',
+    slugs.length > 0 && !loading,
+    `${slugs.length} post link(s); loading-state text present: ${loading}` +
+      (slugs.length === 0 ? ' — was DATABASE_URL set during the build?' : ''),
+  );
+}
+
 let port = 0;
 
 async function boot() {
@@ -185,6 +207,8 @@ async function run() {
     }
 
     console.log('\nSitemap (SEO-03 regression: must not be the shadowed static file)');
+    await checkBlogIndexHasLinks();
+
     const sitemap = await get('/sitemap.xml');
     check('/sitemap.xml is XML', /application\/xml/.test(sitemap.headers.get('content-type') || ''));
     check('/sitemap.xml parses as a urlset', sitemap.text.includes('<urlset'));
