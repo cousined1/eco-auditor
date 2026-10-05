@@ -371,6 +371,87 @@
       "impact": "A limit could be added to the pricing page and the server-side plan data with no enforcement anywhere, and the suite would stay green — the exact failure the file warns about. Editing a limit would instead break server-billing.test.ts with a failure that names neither file.",
       "change": "Added tests/plan-limits-enforcement.test.ts (22 tests) deriving the oracle from plan-limits.json itself: every limit key must have an enforcement-map entry, every declared limit must have a gate contract, limits must never shrink as the tier rises, the server gates must agree with the file across every boundary value, a denial must report the file limit and point at a plan that actually grants the feature, each enforcement-map route must genuinely call its gate (comment-stripped, to avoid matching the prose that quotes it), and the advertised pricing labels must match the enforced numbers. All three limits were already correctly enforced; no product code changed.",
       "verified_by": "Mutation-tested: advertising a limit with no enforcement entry (3 failures), adding a limit plus an enforcement entry but no gate contract (3), unwiring canAddFacility from its route (1), mishandling a null unlimited limit (3), hardcoding 99 facilities in the server (4), and committing the CSV quota before rows persist (1) were each detected. Baseline 22/22."
+    },
+    {
+      "id": "BLOG-01",
+      "severity": "medium",
+      "issue": "src/pages/BlogPost.tsx reset nothing when the route param changed. React Router reuses the element for /blog/a -> /blog/b rather than remounting it, so error/post/loading all described the previous slug.",
+      "impact": "Arriving at a second post after a 404 left error set. The error and article blocks are independent conditions, so both rendered: the reader saw \"Post not found\" above an article that had loaded correctly. loading also never returned to true, so that stale error was shown during the next fetch instead of \"Loading…\".",
+      "change": "Collapsed the three state variables into one object tagged with the slug it describes, discarded during render via the documented adjustment pattern (the effect form trips react-hooks/set-state-in-effect). tests/blog-post-page.test.tsx drives a real useNavigate param change — re-rendering with new initialEntries would have passed on the old code, because MemoryRouter ignores initialEntries after mount."
+    },
+    {
+      "id": "BLOG-02",
+      "severity": "medium",
+      "issue": "formatDate existed in both BlogPost.tsx and BlogList.tsx and only the BlogList copy was ever fixed by TRUTH-01. new Date(badString) does not throw — it yields an Invalid Date, and toLocaleDateString() returns the literal string \"Invalid Date\", so the try/catch the BlogPost copy wrapped around it could never fire.",
+      "impact": "The same post rendered \"Undated\" on the blog index and \"Invalid Date\" (or \"January 1, 1970\", since new Date(null) is the epoch) under its own title on the post page.",
+      "change": "Extracted src/lib/formatDate.ts as the single copy; both pages import it, and a test asserts neither page declares its own."
+    },
+    {
+      "id": "BLOG-03",
+      "severity": "low",
+      "issue": "BlogPost overwrote <meta name=\"description\"> but its effect cleanup restored only document.title.",
+      "impact": "A post's meta description stayed on every page navigated to afterwards.",
+      "change": "The effect now snapshots the shell description before overwriting and restores it on cleanup."
+    },
+    {
+      "id": "BLOG-04",
+      "severity": "low",
+      "issue": "estimateReadTime read html.length during render, with no guard for a null body_html.",
+      "impact": "A post whose body_html was null threw a TypeError during render and took the whole page into the ErrorBoundary.",
+      "change": "Bounded from String(html || \"\").slice(0, 100_000)."
+    },
+    {
+      "id": "EB-01",
+      "severity": "medium",
+      "issue": "The ErrorBoundary fallback offered exactly one control, \"Reload page\" -> window.location.reload(). The boundary wraps AppContent, CookieConsentBanner and TrackPageViews, so tripping it unmounts Header and Footer with the tree.",
+      "impact": "When the crash is deterministic for the URL (a malformed record, a lazy() chunk a deploy replaced), reloading reproduced the identical screen — and every support affordance in the product was unmounted, while the copy told the customer to \"contact support\".",
+      "change": "The fallback now offers the same affordances the footer does: home, /contact, and the support mailto, whose address is read from Footer.tsx so the two cannot drift. Verified by mutation (2 failures when removed)."
+    },
+    {
+      "id": "EB-02",
+      "severity": "low",
+      "issue": "The fallback had no landmark, no role and no focus move. App.tsx focuses #main-content on every navigation, but TrackPageViews is a CHILD of the boundary, so the error unmounts the mechanism that would have announced it.",
+      "impact": "A screen-reader user was told nothing happened and focus fell back to <body>.",
+      "change": "The fallback is role=\"alert\" aria-live=\"assertive\", carries the #main-content target with tabIndex=-1, and focuses itself when the error is caught. Verified by mutation (6 failures removing role/landmark, 1 removing the focus move)."
+    },
+    {
+      "id": "PW-01",
+      "severity": "medium",
+      "issue": "ForgotPassword disabled \"Set new password\" with the same isPasswordValid() test its handler used, so the handler policy message was unreachable. The field carried no invalid/errorId/children, unlike the confirm field immediately below it.",
+      "impact": "A locked-out customer typing 3 characters got a permanently greyed button, no explanation and no visible rule — the placeholder stating it vanishes once the field has a value. Native minLength cannot compensate: it blocks submission, and submission is already impossible, so the browser never raises its own bubble either.",
+      "change": "Applied the treatment Signup already received: the rule renders inline via PasswordInput's invalid/errorId affordances, only once something has been typed. Verified by mutation (1 failure when removed). This is distinct from AUTH-08, which was the step-reset handler not clearing the password fields."
+    },
+    {
+      "id": "CALC-01",
+      "severity": "high",
+      "issue": "EmissionForm computed its unit list and its CO2e preview without a `source &&` guard, while the isFormValid check on the next line did require a source. getSource deliberately falls back from the source key to the CATEGORY key so a Scope 3 CSV row naming an arbitrary vendor still prices -- but for the four calculator-visible categories whose key is also one of their own source keys, that fallback fires for an EMPTY source too.",
+      "impact": "Choosing Scope 3, picking a category, leaving Source on \"Select source\", typing an amount and choosing a unit showed a confident compliance estimate for a source that was never chosen -- measured against the real catalog: purchased_goods 100 USD = 25.0 kg, business_travel = 26.0, employee_commuting = 22.0, waste = 105.0 -- while \"Add Entry\" stayed disabled with no explanation for why.",
+      "change": "The form now guards both calls with source &&, so the preview and the submit precondition agree. The library fallback is deliberately unchanged: it is what lets imported rows naming an arbitrary vendor (or a blank source cell) still price, and removing it would reject rows the product accepts today. A test pins both halves.",
+      "verified_by": "Mutation: removing the guard fails 1 test. The four affected categories were confirmed empirically against the shared module, not by reading."
+    },
+    {
+      "id": "CALC-02",
+      "severity": "medium",
+      "issue": "labelForSource falls back to the raw stored string, so a source of \"\" renders a blank Source cell and confirms `Delete emission entry \"\"?` on an irreversible delete. A CSV Scope 3 row with an empty source cell imports successfully via the category fallback, so this is reachable data.",
+      "impact": "The customer could not tell which row they were deleting, and the audit artifact contained an unattributed emission line.",
+      "change": "An empty source now renders \"Unspecified source\". Known labels and unknown raw keys are unchanged. This extends the CJU-02 delete-label hardening, which fixed the raw-catalog-key case and left the empty one behind.",
+      "verified_by": "Mutation: restoring the blank fallback fails 2 tests. Confirmed empirically that labelForSource(\"waste\",\"\") returned \"\"."
+    },
+    {
+      "id": "CALC-03",
+      "severity": "low",
+      "issue": "EmissionForm announced failures via role=\"alert\" but produced nothing on a successful save.",
+      "impact": "A screen-reader user pressing \"Add Entry\" got silence, where every other async result region in the app speaks (ReportGenerator, DataIntake, Settings, Dashboard, carbon-calculator/index.tsx).",
+      "change": "Added a role=\"status\" confirmation, cleared at the start of each submit.",
+      "verified_by": "Mutation: removing it fails 1 test."
+    },
+    {
+      "id": "CALC-04",
+      "severity": "low",
+      "issue": "The donut labelled slices with toFixed(0) while the scope card directly beneath it used toFixed(1), over the same denominator.",
+      "impact": "Any scope below 0.5% of total showed \"Scope 3 0%\" on the donut and \"0.3% of total\" on the card simultaneously -- two contradicting readouts of one number on the compliance dashboard. Routine for an SMB with a large electricity inventory and a small purchased-goods or waste line.",
+      "change": "Both now round to one decimal.",
+      "verified_by": "Mutation: reintroducing the split precision fails 1 test."
     }
   ],
   "resolved_without_change": [
@@ -389,13 +470,29 @@
     {
       "id": "VERIFIED-PLAN-LIMITS",
       "conclusion": "The three limits in plan-limits.json — facilities, csvImportsPerMonth and scope3 — are all genuinely enforced server-side and were left unchanged. canAddFacility/canImportCsv/canUseScope3 are called on the exact routes the enforcement map names (POST /api/companies/:id/facilities, POST /api/ingest/csv, POST /api/calculate). The facility cap is checked inside a transaction holding SELECT ... FOR UPDATE on the company row, so concurrent creates cannot all pass. A CSV import spends quota in the same transaction that persists the rows, so a failed save does not burn a monthly import, and the quota is only spent when entries.length > 0. A null limit is short-circuited before any comparison, so unlimited is never evaluated as count >= 0. src/content/pricing.ts and src/data/mockData.ts both derive their labels from this file, so the advertised and enforced limits cannot drift."
+    },
+    {
+      "id": "VERIFIED-ERROR-BOUNDARY-ROUTING",
+      "conclusion": "The error boundary does catch what it must, and cannot leak a stack trace to production. React Router 7 only inserts its own inner boundary in data-router mode (chunk-HHGH3NKS.js gates it on dataRouterState) and main.tsx uses declarative BrowserRouter + Routes, so the app's own ErrorBoundary is what catches route render errors and rejected lazy() chunks. No errorElement or useRouteError exists anywhere in src/. The DEV stack-trace block is correctly gated behind import.meta.env.DEV, which is false under vite build. useTheme, which sits above the boundary and would blank the whole site if it threw, already guards both localStorage calls. Left unchanged apart from EB-01/EB-02."
+    },
+    {
+      "id": "VERIFIED-PASSWORD-POLICY",
+      "conclusion": "The client password rule (8+ chars, at least one letter, one digit) is strictly stronger than the backend auth.password.min_length = 6, so it cannot cause a false accept; the inline text matches the isPasswordValid predicate exactly, so it cannot cause a false reject either. Paste is not blocked, the show/hide control is a real <button type=\"button\"> with aria-pressed and aria-controls, and it does not move focus. /forgot-password hard-loads correctly — it is prerendered by scripts/prerender.mjs, so it is absent from neither PRERENDERED_ROUTES nor spaRoots only because express.static already serves it (pinned by tests/routes-prerender.test.ts)."
+    },
+    {
+      "id": "VERIFIED-CALC-ENGINE",
+      "conclusion": "The emissions maths is sound and was left unchanged. The server stores CSV results as co2e_kg = tonnes * 1000, so there is no kg/tonnes mismatch between the dashboard and the generated PDF. ReportGenerator delegates all maths to the server, whose 0.001 tonnes-per-kg passthrough for rows already in kg agrees exactly with the client entryKgCO2e. entryKgCO2e always returns a finite number because the calculateEmissions(...) ?? 0 tail covers a null factor, so the dashboard cannot render NaN. Catalog hygiene was checked and is clean: no empty-units sources, no negative factors, no duplicate category or source keys, and no two unit names within a source that collide after normalisation (so no duplicate React key in the option lists). Three zero factors are semantically correct and produce a legitimate 0.0 kg."
+    },
+    {
+      "id": "VERIFIED-CALC-EDGE-CASES",
+      "conclusion": "Three plausible-looking defects were checked and are not defects. (1) EmissionList uses `if (!id) return \"-\"` for facilityName while EmissionsDashboard uses `== null`, but facility_id is BIGINT GENERATED ALWAYS AS IDENTITY starting at 1, so no row can have id 0 -- unreachable. (2) `if (!company) return;` in index.tsx would silently resolve the save promise and make the customer believe a non-existent entry was saved, but index.tsx renders <Onboarding> instead of the form whenever company is null, so the form is never mounted in that state. (3) The concurrent-delete race on deletingId can permit a redundant second DELETE, but the delete is idempotent and loadEntries refreshes the list, so no row is double-deleted and no work is lost."
     }
   ],
   "verification": {
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "610 passed across 59 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +240 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "631 passed across 61 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +240 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "runtime_smoke": "PASS: scripts/smoke.mjs — 99 checks (98 pass; the blog-index check fails locally by design because this machine has no DATABASE_URL at build time — see SEO-06) against a real booted server. Three defects in this report (SEO-03 route shadowing, SEO-04 group scoping, SEO-05 unguarded sitemap origin) are properties of the running process, not of the code text, and none of them were visible to a source-level assertion. The gate boots server.cjs on a free port with a deterministic APP_URL and sweeps the marketing pages, self-canonicals, noindex pages, the sitemap, robots.txt, robustness paths, security headers, and fail-closed auth. Its robots.txt reader is scripts/robots-groups.mjs, the same RFC 9309 parser the unit test uses — an earlier in-gate copy of that parser was wrong and reported five failures against a correct file, which is exactly the two-readers-disagree failure SEO-04 was about.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval). CSRD wave 2 verified against the primary text of Directive (EU) 2025/794 on EUR-Lex; the later Content Directive scope change is left open as COMP-04 rather than encoded."

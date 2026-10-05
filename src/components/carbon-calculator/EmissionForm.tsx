@@ -31,18 +31,30 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
   const [facilityId, setFacilityId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const categories = categoriesForScope(scope);
   const sources = sourcesForCategory(category);
   // Only the units this source is actually defined for. Offering every unit for
   // every source is what made the selector decorative: the factor was applied
   // regardless, so 1000 therms of gas was priced with the per-MMBtu factor.
-  const units = unitsForSource(category, source);
+  //
+  // The `source &&` guard matters: getSource falls back from the source key to
+  // the CATEGORY key so a Scope 3 CSV row naming an arbitrary vendor still
+  // prices. For the four Scope 3 categories whose key is also one of their own
+  // source keys, that fallback fires for an EMPTY source too — so leaving
+  // Source on "Select source" offered a unit list and a confident preview
+  // (waste: 100 USD -> 105.0 kg CO2e) that isFormValid below then refused to
+  // save. The customer saw a compliance number for a source they never chose.
+  // The row-oriented fallback is still correct for imports; a form must not
+  // use it as a default.
+  const units = source ? unitsForSource(category, source) : [];
   const parsedAmount = parseFloat(amount);
   const isAmountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
 
   // null means the category/source/unit triple has no factor — never zero.
-  const preview = isAmountValid && unit ? calculateEmissions(category, source, parsedAmount, unit) : null;
+  const preview =
+    source && isAmountValid && unit ? calculateEmissions(category, source, parsedAmount, unit) : null;
   const isFormValid = Boolean(category && source && unit && isAmountValid && preview !== null);
 
   // Changing the source can invalidate the chosen unit (gallons is meaningless
@@ -66,6 +78,7 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
     }
     setSubmitting(true);
     setError(null);
+    setSaved(false);
     try {
       await onSubmit({
         scope,
@@ -81,6 +94,11 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
       setAmount('');
       setUnit('');
       setFacilityId(null);
+      // The failure path already announces via role="alert"; the success path
+      // produced nothing, so a screen-reader user pressing "Add Entry" got
+      // silence where every other async result region in this app speaks
+      // (ReportGenerator, DataIntake, Settings, Dashboard, index.tsx).
+      setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add emission entry');
     } finally {
@@ -218,6 +236,9 @@ export default function EmissionForm({ facilities, onSubmit }: Props) {
 
       {error && (
         <p className="text-xs text-risk-high" role="alert">{error}</p>
+      )}
+      {saved && !error && (
+        <p className="text-xs text-brand-700 dark:text-brand-300" role="status">Emission entry saved.</p>
       )}
 
       {/* Preview + Submit */}

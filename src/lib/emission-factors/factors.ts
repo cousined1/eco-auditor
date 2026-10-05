@@ -146,8 +146,19 @@ export function labelForCategory(categoryKey: string): string {
   return getCategory(categoryKey)?.label ?? categoryKey;
 }
 
-/** Display label for a stored source value; falls back to the raw string. */
+/**
+ * Display label for a stored source value; falls back to the raw string.
+ *
+ * An empty source needs naming too. A CSV Scope 3 row with a blank source cell
+ * imports successfully (the category-key fallback prices it), so the row lands
+ * in the inventory with source === ''. Falling back to the raw string then
+ * renders a blank Source cell and asks the customer to confirm
+ * `Delete emission entry ""?` on an irreversible delete. The fix that named
+ * raw catalog keys such as "natural_gas" left the empty case behind.
+ */
 export function labelForSource(categoryKey: string, sourceKey: string): string {
   const sources = SOURCE_BY_KEY.get(normalizeKey(categoryKey));
-  return sources?.get(normalizeKey(sourceKey))?.label ?? sourceKey;
+  const label = sources?.get(normalizeKey(sourceKey))?.label;
+  if (label) return label;
+  return sourceKey ? sourceKey : 'Unspecified source';
 }
