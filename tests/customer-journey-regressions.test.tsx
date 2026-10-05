@@ -30,10 +30,13 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CarbonCalculator from '../src/components/carbon-calculator/index';
 import ReportGenerator from '../src/components/carbon-calculator/ReportGenerator';
 import Dashboard from '../src/pages/Dashboard';
+import { downloadBlob } from '../src/lib/api';
 
 const databaseFrom = vi.hoisted(() => vi.fn());
 vi.mock('../src/lib/insforge', () => ({
@@ -322,6 +325,42 @@ describe('CJU-06 the report status region is a live region', () => {
     const status = container.querySelector('[role="status"]')!;
     expect(status.getAttribute('role')).toBe('status');
     expect(status.className).toContain('text-risk-high');
+  });
+});
+
+/**
+ * SET-01 — the same revoke-before-download defect existed independently in the
+ * account data export. Both call sites now share one helper, so this tests the
+ * helper itself rather than either caller.
+ */
+describe('SET-01 downloadBlob is the single safe download path', () => {
+  it('defers the revoke and still frees the URL', () => {
+    const { revokeObjectURL, click } = stubBlobAndUrl();
+
+    downloadBlob(new Blob(['{}']), 'export.json');
+
+    expect(click).toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(11_000);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:report');
+  });
+
+  it('is used by the GDPR data export rather than a second hand-rolled copy', () => {
+    const source = readFileSync(resolve(__dirname, '..', 'src', 'pages', 'Settings.tsx'), 'utf8');
+    expect(source).toContain('downloadBlob(');
+    // The raw anchor dance must not reappear in either caller.
+    expect(source).not.toMatch(/createObjectURL/);
+    expect(source).not.toMatch(/revokeObjectURL/);
+  });
+
+  it('is used by the report generator too', () => {
+    const source = readFileSync(
+      resolve(__dirname, '..', 'src', 'components', 'carbon-calculator', 'ReportGenerator.tsx'),
+      'utf8'
+    );
+    expect(source).toContain('downloadBlob(');
+    expect(source).not.toMatch(/createObjectURL|revokeObjectURL/);
   });
 });
 

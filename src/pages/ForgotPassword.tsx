@@ -114,9 +114,19 @@ export default function ForgotPassword() {
   if (step === 'reset') {
     return (
       <AuthShell>
+        {/* Reaching this step without an email is legitimate — the user may be
+            arriving in a new tab with a code in hand, and the form asks for the
+            address separately. It is NOT legitimate to leave an empty address in
+            the subtitle: it rendered "If an account exists for , we've emailed a
+            reset code." on exactly that path, which is the path the "I already
+            have a code" button exists to serve. */}
         <AuthHeading
           title="Enter your code"
-          subtitle={`If an account exists for ${email}, we've emailed a reset code. Enter it below with your new password.`}
+          subtitle={
+            email.trim()
+              ? `If an account exists for ${email.trim()}, we've emailed a reset code. Enter it below with your new password.`
+              : "Enter your new password below, along with the 6-digit code we emailed you."
+          }
         />
 
         <div className="card space-y-3">
@@ -195,7 +205,7 @@ export default function ForgotPassword() {
 
           <button
             type="button"
-            onClick={() => { setStep('request'); setError(null); setCode(''); }}
+            onClick={() => { setStep('request'); setError(null); setCode(''); setPassword(''); setConfirm(''); }}
             className="w-full text-center text-xs text-accent-text hover:underline"
           >
             Use a different email, or send another code

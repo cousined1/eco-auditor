@@ -2,7 +2,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
 import { type SocialAuthProvider } from '../lib/socialAuth';
-import { readIntentFromParams, destinationFor } from '../lib/authIntent';
+import { readIntentFromParams, safeRedirectPath } from '../lib/authIntent';
 import { PLANS } from '../content/pricing';
 import {
   AuthError,
@@ -44,11 +44,19 @@ export default function Signup() {
   const trialEligible = !intent || (intent.billing === 'monthly' && intent.plan !== 'pro');
   const busy = submitting || pendingProvider !== null;
 
+  // App.tsx sends anonymous visitors on a protected route to
+  // /login?redirect=<path+search>, and Login forwards every param to /signup.
+  // Signup ignored ?redirect= and always landed on /app — or on
+  // destinationFor(intent) — so a deep link lost the page the visitor was
+  // actually trying to open. Resolved through the same helper Login uses, so
+  // the two cannot drift on the same-origin checks.
+  const safeRedirect = safeRedirectPath(searchParams.get('redirect'), intent);
+
   useNoIndex();
   // An already-authenticated visitor arriving at /signup?plan=growth&billing=annual
   // was bounced to a bare /app, silently dropping the plan they had just picked.
   // Login preserves the intent; Signup now does too.
-  useRedirectIfAuthenticated(destinationFor(intent));
+  useRedirectIfAuthenticated(safeRedirect);
 
   // Only once the user has typed something — an empty field is not "wrong yet".
   const passwordInvalid = password.length > 0 && !isPasswordValid(password);
@@ -80,7 +88,7 @@ export default function Signup() {
       // signUp returns an accessToken when auto-confirm is on; navigate straight to app.
       // Without a token, the user must verify their email first.
       if (data?.accessToken) {
-        navigate(destinationFor(intent), { replace: true });
+        navigate(safeRedirect, { replace: true });
       } else {
         setPassword('');
         const verificationParams = new URLSearchParams(searchParams);
@@ -107,7 +115,7 @@ export default function Signup() {
         setError(verificationError?.message || 'We could not verify your email. Check the code and try again.');
         return;
       }
-      navigate(destinationFor(intent), { replace: true });
+      navigate(safeRedirect, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to verify your email. Please try again.');
     } finally {

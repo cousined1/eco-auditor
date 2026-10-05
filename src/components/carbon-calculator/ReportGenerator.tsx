@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { insforge } from '@/lib/insforge';
-import { buildApiRequestInit, getUpgradeRequired } from '@/lib/api';
+import { buildApiRequestInit, downloadBlob, getUpgradeRequired } from '@/lib/api';
 import type { Company, EmissionEntry } from './utils';
 
 interface Props {
@@ -60,20 +60,10 @@ export default function ReportGenerator({ company, entries }: Props) {
       const dlRes = await fetch(data.download_url, { ...init, signal: AbortSignal.timeout(15000) });
       if (!dlRes.ok) throw new Error(`Report download failed (${dlRes.status})`);
       const blob = await dlRes.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ecoauditor-report-${data.report_id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-
-      // Revoking synchronously here releases the blob before the browser has
-      // finished reading it. Chrome tolerates that; Firefox and Safari resolve
-      // the download asynchronously and the click yields no file at all — while
-      // the card still reported success, with nothing to retry. Defer past the
-      // download turn instead; the object URL is freed either way.
-      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      // Shared with the account data export: revoking the object URL in the
+      // same turn as the click releases the blob before Firefox and Safari
+      // resolve the download, producing no file while the card reports success.
+      downloadBlob(blob, `ecoauditor-report-${data.report_id}.pdf`);
 
       setStatus({ tone: 'ok', message: 'Report generated and downloaded.' });
     } catch (err) {

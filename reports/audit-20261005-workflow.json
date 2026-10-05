@@ -92,8 +92,55 @@
       "severity": "high",
       "issue": "ReportGenerator.tsx called URL.revokeObjectURL synchronously immediately after link.click(). Releasing the object URL in the same turn as the click frees the blob before the browser has read it.",
       "impact": "Chrome tolerates this; Firefox and Safari resolve the download asynchronously and the click produces no file at all. Line 58 then unconditionally set 'Report generated and downloaded.' — so on those browsers the product's headline paid action reported success while delivering nothing, with no error state and no retry. In a product whose output is the customer's audit artifact, a silently missing PDF is worse than a visible failure.",
-      "change": "The revoke is deferred with window.setTimeout(..., 10_000), past the point where the download turn has resolved, so the object URL is still freed rather than leaked.",
+      "change": "The download now goes through one shared helper, src/lib/api.ts downloadBlob(), which defers the revoke with window.setTimeout(..., 10_000) past the point where the download turn has resolved, so the object URL is still freed rather than leaked.",
       "tests": "tests/customer-journey-regressions.test.tsx CJU-01 — stubs URL.createObjectURL/revokeObjectURL and anchor click, then asserts the revoke has NOT fired once the handler settles, and separately that advancing past the delay DOES fire it so deferring cannot silently become leaking. Verified non-vacuous by reverting the fix: both cases fail against the old synchronous revoke."
+    },
+    {
+      "id": "SET-01",
+      "severity": "high",
+      "issue": "The same revoke-before-download defect existed a second time, independently, in Settings.tsx handleExportData — the GDPR self-serve data export. Two copies of the same anchor-and-revoke dance, both wrong in the same way.",
+      "impact": "Materially worse than CJU-01 because this is a statutory right: a customer exercising their GDPR Article 15 data-access right clicked 'Export my data', and on Firefox or Safari no file was produced, while the banner immediately confirmed 'Your data export has been downloaded as a machine-readable JSON file.' A customer who cannot obtain their own data cannot exercise their rights, and the confirmation actively misleads them.",
+      "change": "Rather than fix the second copy independently, both now call one shared downloadBlob() in src/lib/api.ts, so a third blob download cannot reintroduce it. A guard test asserts neither caller contains createObjectURL or revokeObjectURL again. Settings' data-notice, data-error, billing-error and billing-loading regions also gained role=status / role=alert, matching the convention already used in DataIntake and the calculator.",
+      "tests": "tests/customer-journey-regressions.test.tsx SET-01 — three cases covering the helper's timing behaviour directly, plus regression guards that both callers use it and neither has re-introduced the raw dance."
+    },
+    {
+      "id": "AUTH-01",
+      "severity": "high",
+      "issue": "AuthCallback read `searchParams.get('error')` to detect an OAuth failure, but the InsForge SDK deletes that param before React Router ever sees it. Its Auth constructor calls detectAuthCallback(), which runs cleanUrlParams('error') before its first await — synchronously, at createClient() evaluation during module import, and src/App.tsx statically imports src/lib/insforge, so the strip always wins the race.",
+      "impact": "Two failures. First, the branch was dead code: a visitor who denied consent or hit an IdP fault got the generic 'We could not finish signing you in' instead of the reason, even though error_description — which the SDK does NOT strip — was sitting in the URL being ignored. Second and worse, with `error` gone the effect fell through to getCurrentUser(), which in browser mode answers from any session in local storage. So a failed OAuth round trip on a browser holding a stale session navigated to /app as if sign-in had succeeded, and the user was never told anything had failed.",
+      "change": "error_description is now read in its own right and drives the short-circuit alongside error, so the effect cannot reach getCurrentUser() on a failed callback. The rendered message prefers the provider's description. `error` is still read, so the code is correct if a future SDK stops stripping it.",
+      "tests": "tests/auth-flow-regressions.test.ts — a source guard asserts the short-circuit keys off error_description as well as error, and that the provider-error early-return precedes the navigation. Verified non-vacuous by reverting the short-circuit: the guard fails."
+    },
+    {
+      "id": "AUTH-02",
+      "severity": "medium",
+      "issue": "The OAuth-failure recovery link on AuthCallback was a bare <Link to=\"/login\">, and that path never called takeAuthIntent(). The retry then actively destroyed the intent: startProviderSignIn calls saveAuthIntent(intent ?? null), and with no intent on the URL that removes the sessionStorage key.",
+      "impact": "A prospect who picked Growth/annual, failed one Google attempt, and retried from this link landed on a bare /app after signing in — the selected plan and the checkout were silently dropped. A lost sale presented to the customer as a successful login.",
+      "change": "Added peekAuthIntent(), a non-destructive read, because takeAuthIntent() consumes by design so a completed purchase cannot be replayed and cannot be used by a screen that only wants to forward the intent. The recovery link now carries ?plan=&billing= so the retry resumes the checkout.",
+      "tests": "tests/auth-flow-regressions.test.ts — asserts peekAuthIntent() is idempotent across repeated reads while takeAuthIntent() still consumes exactly once, that a corrupted or unknown stored intent reads as null, and that AuthCallback's retry link carries the plan."
+    },
+    {
+      "id": "AUTH-03",
+      "severity": "medium",
+      "issue": "Signup never read `?redirect=`, while Login forwarded it. App.tsx sends anonymous visitors on a protected route to /login?redirect=<path+search> (and does the same on mid-session expiry), and Login copies all search params onto /signup — where destinationFor(intent) ignored them entirely.",
+      "impact": "An anonymous visitor deep-linked to a protected route who chose 'Sign up' instead of 'Sign in' was dumped on /app after signup and again after email verification, never reaching the page they were trying to open.",
+      "change": "Extracted Login's same-origin redirect validation into safeRedirectPath() in src/lib/authIntent.ts and routed Signup through it, so there is one reader for the open-redirect rule rather than two that can drift. Login's behaviour is unchanged.",
+      "tests": "tests/auth-flow-regressions.test.ts — safeRedirectPath is exercised directly against the real bypass shapes (protocol-relative //host, backslash /\\host, cross-origin absolute) and the same-origin pass-through; Signup is guarded to resolve through the helper and to carry no second copy of the validation."
+    },
+    {
+      "id": "AUTH-05",
+      "severity": "low",
+      "issue": "ForgotPassword's 'I already have a code' button set the reset step without setting `email`, but the step's subtitle interpolated `email`, which initialises to ''.",
+      "impact": "Rendered literally 'If an account exists for , we've emailed a reset code.' — on exactly the path the button exists to serve, since that path is for users arriving in a new tab already holding a code.",
+      "tests": "tests/auth-flow-regressions.test.ts guards that the interpolation is behind an email.trim() check and that the old unguarded template is gone."
+    },
+    {
+      "id": "AUTH-08",
+      "severity": "low",
+      "issue": "The 'Use a different email, or send another code' handler cleared the code but left password and confirm in component state.",
+      "impact": "After a failed reset the previous new password survived the step swap, so re-requesting a code and stepping forward again showed a stale password that belonged to a code the customer no longer held — inviting a second failed attempt.",
+      "change": "The handler now clears password and confirm as well as the code.",
+      "tests": "tests/auth-flow-regressions.test.ts asserts the reset-step handler clears all three fields."
     },
     {
       "id": "CJU-02",
@@ -272,7 +319,7 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "464 passed across 51 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +116 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "486 passed across 52 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +138 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "runtime_smoke": "PASS: scripts/smoke.mjs — 94/94 checks against a real booted server. Three defects in this report (SEO-03 route shadowing, SEO-04 group scoping, SEO-05 unguarded sitemap origin) are properties of the running process, not of the code text, and none of them were visible to a source-level assertion. The gate boots server.cjs on a free port with a deterministic APP_URL and sweeps the marketing pages, self-canonicals, noindex pages, the sitemap, robots.txt, robustness paths, security headers, and fail-closed auth. Its robots.txt reader is scripts/robots-groups.mjs, the same RFC 9309 parser the unit test uses — an earlier in-gate copy of that parser was wrong and reported five failures against a correct file, which is exactly the two-readers-disagree failure SEO-04 was about.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval). CSRD wave 2 verified against the primary text of Directive (EU) 2025/794 on EUR-Lex; the later Content Directive scope change is left open as COMP-04 rather than encoded."

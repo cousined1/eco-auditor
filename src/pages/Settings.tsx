@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PLANS } from '../data/mockData';
 import { cancelSubscription, changeSubscription, createBillingPortalSession, getAuthToken } from '../lib/stripe';
-import { deleteMyData, exportMyData } from '../lib/api';
+import { deleteMyData, downloadBlob, exportMyData } from '../lib/api';
 import { insforge } from '../lib/insforge';
 
 interface BillingState {
@@ -113,16 +113,9 @@ export default function Settings() {
     setDataNotice(null);
     const result = await exportMyData(insforge);
     if (result.ok) {
-      // Download the JSON in the browser: the request needs the bearer token,
-      // so we cannot just navigate to the endpoint.
-      const url = URL.createObjectURL(result.data.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = result.data.filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      // The request needs the bearer token, so we cannot just navigate to the
+      // endpoint — fetch the blob, then hand it to the shared downloader.
+      downloadBlob(result.data.blob, result.data.filename);
       setDataNotice('Your data export has been downloaded as a machine-readable JSON file.');
     } else {
       setDataError(result.error);
@@ -166,13 +159,13 @@ export default function Settings() {
 
       <div className="space-y-4">
           {billingLoading && (
-            <div className="card">
+            <div role="status" className="card">
               <div className="text-sm text-surface-500">Loading billing...</div>
             </div>
           )}
 
           {billingError && !billingLoading && (
-            <div className="card border-risk-high/30 bg-red-50/50 dark:bg-red-950/20">
+            <div role="alert" className="card border-risk-high/30 bg-red-50/50 dark:bg-red-950/20">
               <div className="text-sm text-risk-high">{billingError}</div>
             </div>
           )}
@@ -303,12 +296,12 @@ export default function Settings() {
           </button>
         </div>
         {dataNotice && (
-          <div className="mt-3 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
+          <div role="status" className="mt-3 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
             <div className="text-xs text-brand-700 dark:text-brand-300">{dataNotice}</div>
           </div>
         )}
         {dataError && (
-          <div className="mt-3 p-3 rounded-lg border border-risk-high/20 bg-risk-high/10">
+          <div role="alert" className="mt-3 p-3 rounded-lg border border-risk-high/20 bg-risk-high/10">
             <div className="text-xs text-risk-high">{dataError}</div>
           </div>
         )}
