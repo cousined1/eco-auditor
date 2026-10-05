@@ -1,0 +1,141 @@
+{
+  "date": "2026-10-05",
+  "repository": "cousined1/eco-auditor",
+  "branch": "fix/full-audit-20261005",
+  "audited_live_sha": "13743299071fc3bdd2f6c9e5039a2042be9ca653",
+  "requested_scope": "Full audit and remediation of all errors in code and in the customer workflow.",
+  "scope": [
+    "Regulatory deadline correctness across API, engine and public copy",
+    "Server billing, entitlement reconciliation, checkout and tenant boundaries",
+    "Customer workflow: calculator entry save, checkout handoff and retry, upload intake",
+    "Accessibility of the authenticated application shell",
+    "Dependency and runtime-packaging posture"
+  ],
+  "fixed": [
+    {
+      "id": "BILL-01",
+      "severity": "critical",
+      "issue": "POST /api/checkout/verify used the wall clock as its ordering watermark, so the guard in syncSubscriptionRecord — which only accepts a write newer than the stored subscription_event_at — could never reject a replayed session. Revisiting an older confirmation link overwrote the customer's live subscription with the old, canceled one and still answered verified:true.",
+      "impact": "Buy Growth, cancel, buy Pro, then open the old confirmation link: a paying Pro customer is 402'd off the plan they pay for, with recovery deferred to the next genuine Stripe event (up to a billing cycle). The client makes it reachable without deliberate abuse, because success_url always carries session_id and App auto-fires verify on any /app load with that param.",
+      "change": "Watermark the sync with session.created (the purchase's own ordering key), falling back to the wall clock only when absent. A stale session is now skipped by the same guard that stops out-of-order webhooks and is reported as ok:true/stale_event, so the response still carries the correct current billing state.",
+      "tests": "tests/audit-20261005-server.test.ts pins the watermark decision and that the cross-account ownership check is unchanged."
+    },
+    {
+      "id": "COMP-01",
+      "severity": "high",
+      "issue": "The compliance dates lived in three disagreeing copies: /api/compliance/deadlines said SB 253 was due 2026-01-01, getComplianceStatus hardcoded a '2026-01-01 Scope 1 and Scope 2 reporting' next_deadline, and the public methodology page said August 10, 2026.",
+      "impact": "On 2026-10-05 the API reported the SB 253 first-year deadline as overdue by roughly nine months while it was in fact about five weeks away. In a product sold on compliance, telling a customer they are late when they are not is a trust-destroying error.",
+      "change": "Added compliance-deadlines.cjs as the single source of truth. SB 253 Scope 1/2 is 2026-11-10 (CARB deferred it from August 10 in the proposed Modified Regulations) carried explicitly as date_status 'proposed', because the deferral still depends on the comment period and OAL approval. Status and days_left derive from the current date; getComplianceStatus returns no deadline at all for a framework that does not apply; the public copy states the deferral and tells readers to confirm with CARB.",
+      "tests": "tests/compliance-deadlines.test.ts — 7 cases including the live regression window, past-date detection across four 2026 dates, UTC day-boundary behaviour, and non-applicable frameworks."
+    },
+    {
+      "id": "COMP-02",
+      "severity": "medium",
+      "issue": "getComplianceStatus carried the deadline text as a static string with no date awareness, and /api/compliance/deadlines returned the same static entries to every company with no applicability signal.",
+      "change": "Both read the shared table. The endpoint now returns days_left, a date_status and an explicit applicability:'unknown' with a note, rather than implying every framework applies to every tenant."
+    },
+    {
+      "id": "DATA-01",
+      "severity": "high",
+      "issue": "A successful emission-entry INSERT followed by a failed list re-read was reported as 'Failed to add emission entry'. The form keeps its values on a thrown error, so pressing 'Add Entry' again wrote a second row for the same activity.",
+      "impact": "Silently inflated the dashboard totals, the report aggregates and the PDF for an audit artifact, with no warning.",
+      "change": "A refresh failure is now caught separately and surfaced as its own notice that warns against re-adding; the form clears because the write genuinely succeeded. Insert failures are re-thrown as real Errors so the customer sees the actual reason (RLS denial, quota, constraint) instead of a generic string.",
+      "tests": "tests/emission-entry-save.test.ts drives the real form — including that a refresh-only failure still clears the form and warns, and that a genuine insert failure retains the values."
+    },
+    {
+      "id": "BILL-02",
+      "severity": "medium",
+      "issue": "stripe.checkout.sessions.create had no idempotency key, so two concurrent /api/checkout calls (double-click, or a retry after a network timeout) both passed the check-then-act 'no active subscription' guard and both created a live billable session.",
+      "change": "Added a deterministic user+price+window idempotency key so a retry returns the same session."
+    },
+    {
+      "id": "BILL-03",
+      "severity": "low",
+      "issue": "reports.period is an unconstrained TEXT column and the report-generate route validated nothing, unlike the summary route, so any authenticated account could persist a ~100 KB string per request under the global rate limit.",
+      "change": "Shares SUMMARY_PERIOD_PATTERN and rejects before the insert."
+    },
+    {
+      "id": "UX-01",
+      "severity": "high",
+      "issue": "/app was the only customer-facing route shell without id='main-content', so the route-change focus move was a silent no-op and keyboard/screen-reader users had no named main landmark on any paid page.",
+      "change": "The authenticated shell now defines the same focus target the other eight route shells use."
+    },
+    {
+      "id": "UX-02",
+      "severity": "medium",
+      "issue": "A failed checkout erased its intent from the URL before the POST resolved and offered no retry, so a reload or any later navigation discarded a purchase the customer had already chosen.",
+      "change": "The intent is stripped only on success (where the browser leaves for Stripe); failure keeps it and the error banner now offers a working 'Retry checkout' button that rebuilds the identical request."
+    },
+    {
+      "id": "UX-03",
+      "severity": "low",
+      "issue": "The destructive delete named the raw catalog key ('natural_gas') while the row read 'Natural gas', so the customer could not verify which irreversible action they were approving.",
+      "change": "Confirm text and the button's accessible name both use the row label."
+    },
+    {
+      "id": "UX-04",
+      "severity": "low",
+      "issue": "DataIntake had no re-entry guard on the hidden file input, so overlapping upload loops raced and the slower one overwrote the newer results; results were also keyed by file name alone, colliding across folders.",
+      "change": "Guarded re-entry, disabled the input during upload, and keyed outcomes by name plus position."
+    },
+    {
+      "id": "PKG-01",
+      "severity": "high",
+      "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
+      "impact": "The container would crash-loop with MODULE_NOT_FOUND and every route would 502, while a local build and the rest of the suite stayed green.",
+      "change": "Added to the runtime COPY line. Caught by tests/dockerfile-runtime-deps.test.ts before release rather than in production."
+    }
+  ],
+  "resolved_without_change": [
+    {
+      "id": "DEPENDENCY-REMAINDER",
+      "conclusion": "Not fixable as reported, and not a production exposure. The advisory GHSA-vfj7-8cjw-p6xm affects braces <=3.0.3 and 3.0.3 is the highest version ever published, so every available release is affected and there is no patched version to move to. It reaches the tree only through tailwindcss@3.4.19 (chokidar 3.6.0, micromatch 4.0.8), and `npm ls braces --omit=dev` is empty — it is absent from the production dependency tree entirely. npm's only suggested fix is tailwindcss 4.x, which AGENTS.md explicitly forbids. Closing this requires either an upstream braces release or relaxing the Tailwind constraint; it is not a code defect."
+    },
+    {
+      "id": "LOCAL-DB-SUITES",
+      "conclusion": "The three Docker-backed suites (32 tests) cannot start on this machine because Docker is absent; they are not skipped in CI. .github/workflows/security.yml runs `npm run build && npm test` on ubuntu-latest, which ships Docker, so they execute there. This is a local environment limitation, not a repository defect."
+    },
+    {
+      "id": "PREVIOUS-P2-REGISTER",
+      "conclusion": "Still not derivable. Searching the working tree and the full git history across every branch for P2-4 through P2-7 returns nothing; the only P2-6 reference is the label this project applied to the signup plan-handoff fix. docs/audits/ecoauditor-mvp-audit.md has a P2-1..P2-3 register, but it is a different (product/UX) register whose P2-6 does not exist. Reconciling the historical IDs needs the originating findings document."
+    }
+  ],
+  "verification": {
+    "build": "PASS: TypeScript, Vite and 14 prerendered routes",
+    "lint": "PASS: eslint .",
+    "typecheck": "PASS: tsc -b",
+    "local_tests": "366 passed across 40 files, plus 32 Docker-backed tests unexecutable locally. One failure appeared and was fixed during the run: the Dockerfile runtime-dependency test caught compliance-deadlines.cjs missing from the runtime stage.",
+    "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
+    "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
+  },
+  "open": [
+    {
+      "id": "EDGE-01",
+      "severity": "P1",
+      "issue": "www redirects omit the slash before the path: /health redirects to https://ecoauditor.iohealth and /pricing?plan=growth to https://ecoauditor.iopricing?plan=growth.",
+      "required": "Correct the Cloudflare redirect target to retain http.request.uri.path and preserve the query string. The redirect is issued before the origin request, so no application deploy can fix it; it needs the Cloudflare dashboard."
+    },
+    {
+      "id": "PR35",
+      "issue": "Draft PR 35 carries 137-finding remediation whose rollout depends on documented schema/content prerequisites. Current calculator and onboarding use direct browser writes that ownership RLS does not subject to server billing/quota guards.",
+      "required": "Complete the documented schema/content/server rollout against an authenticated backend before revoking browser writes; do not deploy that image ahead of its schema. InsForge CLI is logged out and unlinked, so authenticated backend access is required."
+    },
+    {
+      "id": "FACTORY-01",
+      "severity": "medium",
+      "issue": "The facility quota check is a count-then-insert across two statements with no row lock, while the CSV quota deliberately uses SELECT ... FOR UPDATE. Parallel requests can exceed a starter plan's 1-facility cap.",
+      "required": "Apply the same transactional lock the CSV reservation already uses. Deliberately left unfixed this round: it changes write-path locking semantics and needs its own database-backed regression test, which cannot run here without Docker."
+    },
+    {
+      "id": "STRIPE-EMAIL",
+      "severity": "low",
+      "issue": "authGuard validates only the user id, but every billing route passes req.user.email into a NOT NULL insert. A session payload without an email would make checkout, portal, subscription change and verify fail permanently for that account.",
+      "required": "Confirm whether InsForge can omit the claim; if so, coalesce before insert. Unverified — depends on InsForge's session payload shape."
+    }
+  ],
+  "release": {
+    "status": "Four commits on fix/full-audit-20261005, not pushed and not deployed. A PR targeting main would need CI, including the three Docker-backed database suites.",
+    "migrations": "No schema migrations.",
+    "rollback": "Revert the application commits; no schema rollback required."
+  }
+}
