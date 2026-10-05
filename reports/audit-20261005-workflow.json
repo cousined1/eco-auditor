@@ -168,6 +168,28 @@
       "tests": "tests/robots-txt.test.ts parses the file the way a crawler does (RFC 9309 group semantics) instead of substring-matching, and embeds the previous wildcard group as a fixture so the test cannot pass vacuously."
     },
     {
+      "id": "VERIFIED-CLEAN",
+      "note": "Confirmed by probing a running server rather than by reading code. No changes were needed for any of these; recorded so the result is not re-litigated.",
+      "checks": [
+        "Route sweep over 20 paths including unknown pages and /app/*: no 500s. The 301s on bare marketing paths are express.static directory redirects, one hop before a 200.",
+        "Every marketing page serves its own <title> and self-referencing canonical; /login, /signup and /forgot-password correctly carry none (they are noindex).",
+        "Adversarial blog slugs (' OR 1=1--, ../../etc/passwd, %00, newline injection, <script>, a/b/c, UPPER-Case) all fall through to the SPA with no crash and no injection.",
+        "Unauthenticated requests to every data-bearing endpoint are refused; none returns 2xx. apiAuthGuard returns 503 when the auth backend is unconfigured, dev auth requires ALLOW_DEV_AUTH plus an exact DEV_AUTH_SECRET match, and req.user is assigned only after a validated session.",
+        "Security headers ship live including Strict-Transport-Security with preload. Rate limiting is applied to all /api/ paths with the Stripe webhook exempt for a documented reason, and resolveClientIp validates Cloudflare X-Forwarded-For against the published egress ranges.",
+        "Password reset avoids being an account-existence oracle (404 deliberately swallowed) and handles the 'I already have a code' path without an email in state.",
+        "Plan gates are genuinely enforced: the CSV import quota counts from public.csv_import_events under a row lock, and Scope 3 is gated on both /api/calculate and /api/ingest/csv.",
+        "Blog XSS is handled on both write and read: sanitizeBlogHtml runs at publish and again on the detail route, and the list route ships excerpts rather than body_html.",
+        "SampleReport.tsx already labels the ledger, factor register and evidence index as roadmap, and the Pro 'unlimited companies' claim was already corrected to one company per plan."
+      ]
+    },
+    {
+      "id": "RESIDUAL-BLOG-INDEX",
+      "severity": "low",
+      "issue": "The prerendered /blog/index.html contains 838 visible characters and zero post links, because the post list is fetched client-side and a static prerender cannot reach the database.",
+      "assessment": "Left as a residual deliberately. After SEO-01/02/03 the seven post URLs are in the sitemap and each serves its own title, description, canonical and BlogPosting JSON-LD, which is the primary discovery path. Rendering the index server-side would mean injecting links into a React shell that then hydrates over them, for a page that is already reachable and linked.",
+      "follow_up": "Worth doing before any content-marketing push, not before release."
+    },
+    {
       "id": "PKG-01",
       "severity": "high",
       "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
@@ -193,7 +215,7 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "426 passed across 49 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +78 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "433 passed across 50 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +85 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
   },
@@ -224,7 +246,7 @@
     }
   ],
   "release": {
-    "status": "Seventeen commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
+    "status": "Eighteen commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
     "migrations": "No schema migrations.",
     "rollback": "Revert the application commits; no schema rollback required."
   }
