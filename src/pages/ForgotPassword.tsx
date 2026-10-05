@@ -41,6 +41,16 @@ export default function ForgotPassword() {
   useNoIndex();
 
   const mismatch = confirm.length > 0 && password !== confirm;
+  // Same treatment Signup already received. The submit button is disabled by the
+  // same isPasswordValid() test that guards the reset handler, so a policy
+  // message inside the handler could never fire: a locked-out customer typing a
+  // 3-character password got a permanently greyed-out "Set new password"
+  // button, no explanation, and no visible rule — the placeholder stating it
+  // disappears as soon as the field has a value. Native minLength cannot help
+  // either, because it only blocks submission and submission is already
+  // impossible, so the browser never raises its own validation bubble.
+  // Only once something has been typed — an empty field is not "wrong yet".
+  const passwordInvalid = password.length > 0 && !isPasswordValid(password);
 
   async function handleRequest(e: React.FormEvent) {
     e.preventDefault();
@@ -174,7 +184,15 @@ export default function ForgotPassword() {
               value={password}
               onChange={setPassword}
               disabled={submitting}
-            />
+              invalid={passwordInvalid}
+              {...(passwordInvalid ? { errorId: 'reset-password-error' } : {})}
+            >
+              {passwordInvalid && (
+                <p id="reset-password-error" className="text-xs text-risk-high mt-1" role="alert">
+                  Password must be at least 8 characters and include at least one letter and one number.
+                </p>
+              )}
+            </PasswordInput>
             <PasswordInput
               id="confirm-password"
               label="Confirm new password"
