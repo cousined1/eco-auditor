@@ -79,6 +79,13 @@
       "change": "Guarded re-entry, disabled the input during upload, and keyed outcomes by name plus position."
     },
     {
+      "id": "FACTORY-01",
+      "severity": "medium",
+      "issue": "The facility quota was a count-then-insert across two statements with no row lock, while the CSV quota deliberately used SELECT ... FOR UPDATE. Five parallel POST /api/companies/:id/facilities all read existing.length === 0 and all inserted, putting five facilities on a starter plan whose limit is one.",
+      "change": "The cap check and the insert now run in one transaction that takes SELECT id FROM public.companies WHERE id = $1 FOR UPDATE, mirroring reserveCsvImportQuota. Rejection rolls back instead of leaving the transaction open, and the no-pool sample path keeps the original shape.",
+      "tests": "tests/audit-20261005-server.test.ts pins the lock, the ordering of lock/count/insert/commit, and the rollback. Not exercised against a live database here: that requires the Docker-backed suites, which cannot start on this machine, so the concurrency behaviour itself is argued from the transaction shape rather than observed."
+    },
+    {
       "id": "PKG-01",
       "severity": "high",
       "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
@@ -121,12 +128,6 @@
       "required": "Complete the documented schema/content/server rollout against an authenticated backend before revoking browser writes; do not deploy that image ahead of its schema. InsForge CLI is logged out and unlinked, so authenticated backend access is required."
     },
     {
-      "id": "FACTORY-01",
-      "severity": "medium",
-      "issue": "The facility quota check is a count-then-insert across two statements with no row lock, while the CSV quota deliberately uses SELECT ... FOR UPDATE. Parallel requests can exceed a starter plan's 1-facility cap.",
-      "required": "Apply the same transactional lock the CSV reservation already uses. Deliberately left unfixed this round: it changes write-path locking semantics and needs its own database-backed regression test, which cannot run here without Docker."
-    },
-    {
       "id": "STRIPE-EMAIL",
       "severity": "low",
       "issue": "authGuard validates only the user id, but every billing route passes req.user.email into a NOT NULL insert. A session payload without an email would make checkout, portal, subscription change and verify fail permanently for that account.",
@@ -134,7 +135,7 @@
     }
   ],
   "release": {
-    "status": "Four commits on fix/full-audit-20261005, not pushed and not deployed. A PR targeting main would need CI, including the three Docker-backed database suites.",
+    "status": "Five commits on fix/full-audit-20261005, not pushed and not deployed. A PR targeting main would need CI, including the three Docker-backed database suites.",
     "migrations": "No schema migrations.",
     "rollback": "Revert the application commits; no schema rollback required."
   }

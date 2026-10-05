@@ -94,6 +94,39 @@ describe('BILL-03 report period is validated', () => {
   });
 });
 
+describe('FACTORY-01 facility quota check is atomic', () => {
+  const facilityRoute = routeBody("app.post('/api/companies/:id/facilities'");
+
+  it('holds a row lock on the company while checking the cap', () => {
+    expect(facilityRoute).toMatch(/SELECT id FROM public\.companies WHERE id = \$1 FOR UPDATE/);
+    expect(facilityRoute).toContain('BEGIN');
+    expect(facilityRoute).toContain('COMMIT');
+  });
+
+  it('counts facilities inside the same transaction as the insert', () => {
+    // Both statements must live in the locked transaction, so concurrent
+    // creates serialize instead of all reading the same count.
+    const lockAt = facilityRoute.indexOf('FOR UPDATE');
+    const countAt = facilityRoute.indexOf('FROM public.facilities WHERE company_id');
+    const insertAt = facilityRoute.indexOf('INSERT INTO public.facilities');
+    const commitAt = facilityRoute.indexOf('COMMIT');
+    expect(lockAt).toBeGreaterThan(-1);
+    expect(countAt).toBeGreaterThan(lockAt);
+    expect(insertAt).toBeGreaterThan(countAt);
+    expect(commitAt).toBeGreaterThan(insertAt);
+  });
+
+  it('rolls back rather than leaving the transaction open on rejection', () => {
+    expect(facilityRoute).toMatch(/ROLLBACK/);
+    expect(facilityRoute).toContain('client.release()');
+  });
+
+  it('still enforces the cap and returns the upgrade prompt', () => {
+    expect(facilityRoute).toContain('canAddFacility');
+    expect(facilityRoute).toContain('upgrade_required');
+  });
+});
+
 describe('shared ordering guard still forbids resurrecting a cancellation', () => {
   it('keeps the same-second tie-break that blocks an active-over-canceled overwrite', () => {
     // Untouched by this work, but it is the guard BILL-01 now relies on, so it

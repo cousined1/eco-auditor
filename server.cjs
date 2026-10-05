@@ -2932,13 +2932,63 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
   }
 
   try {
-    // Facility cap. requirePlan has already attached req.billing. This has to
-    // sit inside the try — loadFacilities throws when the data store is
-    // unavailable, and Express 4 does not catch async rejections, so an
-    // uncaught one would hang the request instead of erroring cleanly.
     const plan = (req.billing && req.billing.plan) || 'starter';
+
+    // Facility cap. requirePlan has already attached req.billing.
+    //
+    // The cap check and the insert must be ONE transaction holding a row lock
+    // on the company. Reading the count and then inserting as two separate
+    // statements let parallel requests all observe the same count and all pass
+    // the check — five concurrent POSTs put five facilities on a starter plan
+    // whose limit is one. reserveCsvImportQuota already locks for exactly this
+    // reason; this mirrors it.
+    let facilityCheck;
+    if (pgPool) {
+      const client = await pgPool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SET LOCAL row_security = off');
+        const locked = await client.query(
+          'SELECT id FROM public.companies WHERE id = $1 FOR UPDATE',
+          [companyId]
+        );
+        if (locked.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, error: 'Company not found' });
+        }
+        const { rows } = await client.query(
+          'SELECT COUNT(*)::int AS used FROM public.facilities WHERE company_id = $1',
+          [companyId]
+        );
+        facilityCheck = canAddFacility(plan, rows.length ? rows[0].used : 0);
+        if (!facilityCheck.allowed) {
+          await client.query('ROLLBACK');
+          return res.status(402).json({
+            success: false,
+            code: 'upgrade_required',
+            requiredPlan: facilityCheck.requiredPlan,
+            error: `Your ${plan} plan includes ${facilityCheck.limit} ${facilityCheck.limit === 1 ? 'facility' : 'facilities'}. Upgrade to ${facilityCheck.requiredPlan} to add more.`,
+          });
+        }
+        const inserted = await client.query(
+          `INSERT INTO public.facilities (company_id, name, type, city)
+           VALUES ($1, $2, $3, $4) RETURNING id, company_id, name, type, city`,
+          [companyId, facilityName, facilityType, facilityCity]
+        );
+        await client.query('COMMIT');
+        emissionsSummaryCache.clear();
+        return res.status(201).json({ success: true, data: inserted.rows[0] });
+      } catch (txErr) {
+        try { await client.query('ROLLBACK'); } catch { /* connection already broken */ }
+        throw txErr;
+      } finally {
+        client.release();
+      }
+    }
+
+    // No pool: sample/dev mode keeps the original count-then-insert shape.
     const existing = await loadFacilities(companyId);
-    const facilityCheck = canAddFacility(plan, existing.length);
+    facilityCheck = canAddFacility(plan, existing.length);
     if (!facilityCheck.allowed) {
       return res.status(402).json({
         success: false,
@@ -2946,16 +2996,6 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
         requiredPlan: facilityCheck.requiredPlan,
         error: `Your ${plan} plan includes ${facilityCheck.limit} ${facilityCheck.limit === 1 ? 'facility' : 'facilities'}. Upgrade to ${facilityCheck.requiredPlan} to add more.`,
       });
-    }
-
-    if (pgPool) {
-      const result = await queryWithRlsBypass(
-        `INSERT INTO public.facilities (company_id, name, type, city)
-         VALUES ($1, $2, $3, $4) RETURNING id, company_id, name, type, city`,
-        [companyId, facilityName, facilityType, facilityCity]
-      );
-      emissionsSummaryCache.clear();
-      return res.status(201).json({ success: true, data: result.rows[0] });
     }
     if (allowSampleData()) {
       const facility = { id: crypto.randomUUID(), company_id: companyId, name: facilityName, type: facilityType, city: facilityCity };
