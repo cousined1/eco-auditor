@@ -3328,6 +3328,59 @@ app.get('/api/video', function (req, res) {
   }
 });
 
+// ─── Sitemap ───
+// Registered BEFORE express.static, which serves static/sitemap.xml (mirrored
+// from public/ at build time). Registered after, this route was shadowed and
+// never ran — caught by booting the server and diffing the response, which
+// returned the static file's lastmod values.
+app.get('/sitemap.xml', async function (_req, res) {
+  let postUrls = [];
+  if (pgPool) {
+    try {
+      const { rows } = await pgPool.query(
+        'SELECT slug, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 200'
+      );
+      postUrls = rows.map(function (row) {
+        const lastmod = row.published_at ? String(row.published_at).slice(0, 10) : null;
+        return '  <url>\n    <loc>' + APP_BASE_URL + '/blog/' + encodeURIComponent(row.slug) + '/</loc>' +
+          (lastmod ? '\n    <lastmod>' + lastmod + '</lastmod>' : '') +
+          '\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>';
+      });
+    } catch (err) {
+      log('warn', 'sitemap: could not read blog_posts', { error: String(err) });
+    }
+  }
+
+  // Only the marketing pages; /app/* and /auth/* are auth-only and blocked by
+  // robots.txt, so they must never appear here.
+  const staticUrls = [
+    ['/', '2026-05-21', 'weekly', '1.0'],
+    ['/pricing/', '2026-06-15', 'weekly', '0.9'],
+    ['/methodology/', '2026-06-15', 'monthly', '0.8'],
+    ['/blog/', '2026-09-05', 'weekly', '0.8'],
+    ['/sample-report/', '2026-06-15', 'monthly', '0.7'],
+    ['/security/', '2026-06-15', 'monthly', '0.6'],
+    ['/demo/', '2026-07-15', 'monthly', '0.6'],
+    ['/contact/', '2026-06-15', 'monthly', '0.5'],
+    ['/privacy/', '2026-06-15', 'monthly', '0.3'],
+    ['/terms/', '2026-05-21', 'monthly', '0.3'],
+    ['/dpa/', '2026-05-21', 'monthly', '0.3'],
+  ].map(function (u) {
+    return '  <url>\n    <loc>' + APP_BASE_URL + u[0] + '</loc>\n    <lastmod>' + u[1] +
+      '</lastmod>\n    <changefreq>' + u[2] + '</changefreq>\n    <priority>' + u[3] + '</priority>\n  </url>';
+  });
+
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    '  <!-- Public marketing pages. App routes are auth-only and blocked by robots.txt. -->\n' +
+    staticUrls.concat(postUrls).join('\n') +
+    '\n</urlset>\n';
+
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+});
+
 // ─── Static files with cache headers ───
 app.use(express.static(path.join(__dirname, 'static'), {
   setHeaders: function (res, filePath) {
@@ -3530,58 +3583,6 @@ app.get('/blog/:slug', async function (req, res, next) {
     log('error', 'Blog post head render failed', { error: String(err), slug: req.params.slug });
     return next();
   }
-});
-
-// Sitemap: the static file cannot list post URLs because posts live in the
-// database and are published without a rebuild. Serve it dynamically so every
-// published article is discoverable.
-app.get('/sitemap.xml', async function (_req, res) {
-  let postUrls = [];
-  if (pgPool) {
-    try {
-      const { rows } = await pgPool.query(
-        'SELECT slug, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 200'
-      );
-      postUrls = rows
-        .map(function (row) {
-          const lastmod = row.published_at ? String(row.published_at).slice(0, 10) : null;
-          return '  <url>\n    <loc>' + APP_BASE_URL + '/blog/' + encodeURIComponent(row.slug) + '/</loc>' +
-            (lastmod ? '\n    <lastmod>' + lastmod + '</lastmod>' : '') +
-            '\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>';
-        });
-    } catch (err) {
-      log('warn', 'sitemap: could not read blog_posts', { error: String(err) });
-    }
-  }
-
-  // Only the marketing pages; /app/* and /auth/* are auth-only and blocked by
-  // robots.txt, so they must never appear here.
-  const staticUrls = [
-    ['/', '2026-05-21', 'weekly', '1.0'],
-    ['/pricing/', '2026-06-15', 'weekly', '0.9'],
-    ['/methodology/', '2026-06-15', 'monthly', '0.8'],
-    ['/blog/', '2026-09-05', 'weekly', '0.8'],
-    ['/sample-report/', '2026-06-15', 'monthly', '0.7'],
-    ['/security/', '2026-06-15', 'monthly', '0.6'],
-    ['/demo/', '2026-07-15', 'monthly', '0.6'],
-    ['/contact/', '2026-06-15', 'monthly', '0.5'],
-    ['/privacy/', '2026-06-15', 'monthly', '0.3'],
-    ['/terms/', '2026-05-21', 'monthly', '0.3'],
-    ['/dpa/', '2026-05-21', 'monthly', '0.3'],
-  ].map(function (u) {
-    return '  <url>\n    <loc>' + APP_BASE_URL + u[0] + '</loc>\n    <lastmod>' + u[1] +
-      '</lastmod>\n    <changefreq>' + u[2] + '</changefreq>\n    <priority>' + u[3] + '</priority>\n  </url>';
-  });
-
-  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    '  <!-- Public marketing pages. App routes are auth-only and blocked by robots.txt. -->\n' +
-    staticUrls.concat(postUrls).join('\n') +
-    '\n</urlset>\n';
-
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-  return res.send(xml);
 });
 
 // ─── SPA fallback ───
