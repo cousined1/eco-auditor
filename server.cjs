@@ -53,11 +53,23 @@ const requestIdStore = new AsyncLocalStorage();
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
 // ─── Public base URL ───
-// Every Stripe redirect (checkout success/cancel, billing portal return) is
-// built from this. If it is wrong, a customer who has just paid is bounced to a
-// dead URL and /api/checkout/verify — the reconciliation that rescues a late
-// webhook — never runs. Production boot refuses to start without it rather than
-// silently shipping localhost redirects to real buyers.
+// Built from two independent consumers, which fail very differently if this is
+// wrong:
+//
+//   - Stripe redirects (checkout success/cancel, billing portal return). Wrong
+//     ⇒ a customer who has just paid is bounced to a dead URL and
+//     /api/checkout/verify — the reconciliation that rescues a late webhook —
+//     never runs. This is the consumer that earns the hard boot-time throw in
+//     startServer().
+//   - /sitemap.xml and the /blog/:slug canonical. Wrong ⇒ the sitemap advertises
+//     http://localhost:3000/… to crawlers and the blog canonical points at
+//     localhost. That is an SEO-03 regression with no customer-visible symptom,
+//     so it is guarded by a loud boot log rather than a throw — see startServer().
+//
+// The hard throw is deliberately coupled to STRIPE_SECRET_KEY, not unconditional:
+// an unconditional throw would crash-loop any production-mode preview deploy that
+// has no Stripe key, which is a normal pattern. So the sitemap consumer needs its
+// own signal rather than leaning on the billing one.
 // See ecoauditor-mvp-readiness-audit-2026-08-20.md ("Config gaps").
 const APP_BASE_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -3651,6 +3663,20 @@ let server;
 async function startServer() {
   if (process.env.NODE_ENV === 'production' && INSFORGE_BASE_URL && !process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required when InsForge authentication is configured');
+  }
+
+  // The sitemap and /blog/:slug canonical read APP_BASE_URL but, unlike the
+  // Stripe redirects, have no hard guard: a production deploy with no
+  // STRIPE_SECRET_KEY (a preview box, or a deploy taken while billing is being
+  // rotated out) sails past the check below and quietly serves
+  // <loc>http://localhost:3000/</loc> to every crawler. Nothing fails; the only
+  // symptom is search visibility quietly collapsing weeks later. Log it loudly
+  // so it is visible at deploy time instead. Not a throw — see the note on
+  // APP_BASE_URL about why preview deploys must be allowed to boot.
+  if (process.env.NODE_ENV === 'production' && !process.env.APP_URL) {
+    log('error', 'APP_URL is not set in production: /sitemap.xml and the /blog/:slug canonical will advertise http://localhost:3000', {
+      hint: 'set APP_URL=https://ecoauditor.io (no trailing slash)',
+    });
   }
 
   // Half-configured billing is worse than no billing: the site stays up and

@@ -135,3 +135,58 @@ describe('shared ordering guard still forbids resurrecting a cancellation', () =
     expect(serverSource).toContain('subscription_event_at < $9::timestamptz');
   });
 });
+
+/**
+ * SEO-05 — the sitemap's origin was unguarded.
+ *
+ * APP_BASE_URL falls back to http://localhost:3000. The hard boot-time throw
+ * that guards it is coupled to STRIPE_SECRET_KEY, because an unconditional
+ * throw would crash-loop a production-mode preview deploy with no Stripe key.
+ * That coupling was fine when APP_BASE_URL only fed Stripe redirects.
+ *
+ * SEO-03 then made it feed /sitemap.xml and the /blog/:slug canonical, so a
+ * production deploy without billing (a preview box, or a deploy taken while
+ * Stripe is being rotated out) booted clean and served
+ * <loc>http://localhost:3000/</loc> to every crawler. No error, no symptom,
+ * and search visibility collapses weeks later with nothing to trace it to.
+ *
+ * Found by the new runtime smoke gate, which boots the real server: the static
+ * mirror had the correct origin, so a source-level test reading public/ never
+ * saw it.
+ */
+describe('SEO-05 the sitemap origin cannot go unguarded', () => {
+  const sitemapRoute = routeBody("app.get('/sitemap.xml'");
+  const startServer = serverSource.slice(serverSource.indexOf('async function startServer()'));
+
+  it('builds every sitemap <loc> from APP_BASE_URL, not a hardcoded origin', () => {
+    expect(sitemapRoute).toContain('APP_BASE_URL');
+    expect(sitemapRoute).not.toMatch(/<loc>https?:\/\/(?!\$\{)/);
+  });
+
+  it('logs loudly at boot when production has no APP_URL, independent of Stripe', () => {
+    // The check must NOT be nested inside the STRIPE_SECRET_KEY guard — that
+    // nesting is the defect.
+    const unconditional = /if \(process\.env\.NODE_ENV === 'production' && !process\.env\.APP_URL\) \{/;
+    expect(startServer).toMatch(unconditional);
+
+    const stripeGuardAt = startServer.indexOf('STRIPE_SECRET_KEY) {');
+    const appUrlGuardAt = startServer.indexOf('!process.env.APP_URL');
+    expect(appUrlGuardAt).toBeGreaterThan(-1);
+    // Appears before the Stripe block opens, so it cannot be nested inside it.
+    expect(appUrlGuardAt).toBeLessThan(stripeGuardAt);
+    expect(startServer).toContain('/sitemap.xml and the /blog/:slug canonical');
+  });
+
+  it('does not turn the SEO guard into a throw', () => {
+    // A throw here would crash-loop any production-mode preview deploy without
+    // APP_URL. The SEO failure is silent but non-urgent; a boot loop is neither.
+    const guardAt = startServer.indexOf('!process.env.APP_URL');
+    const guardBlock = startServer.slice(guardAt, guardAt + 400);
+    expect(guardBlock).toContain("log('error'");
+    expect(guardBlock.slice(0, guardBlock.indexOf("log('error'"))).not.toContain('throw');
+  });
+
+  it('keeps the Stripe throw for the redirects that really do strand customers', () => {
+    expect(startServer).toContain('APP_URL is required when STRIPE_SECRET_KEY is set');
+  });
+});

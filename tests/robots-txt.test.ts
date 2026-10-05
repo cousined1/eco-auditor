@@ -16,56 +16,16 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parseRobots, robotsGroup, isDisallowed } from '../scripts/robots-groups.mjs';
 
 const raw = readFileSync(resolve(__dirname, '..', 'public', 'robots.txt'), 'utf8');
 
-/**
- * Minimal RFC 9309 group parser: consecutive `User-agent:` lines open a group
- * (a group may list several agents); any other directive belongs to the group
- * currently open; `Sitemap:` is not a group directive.
- */
-type Group = { agents: string[]; rules: string[] };
-
-function parseRobots(text: string): { groups: Group[]; sitemaps: string[] } {
-  const groups: Group[] = [];
-  const sitemaps: string[] = [];
-  let current: Group | null = null;
-  let expectingAgents = false;
-
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.replace(/#.*$/, '').trim();
-    if (!line) continue;
-    const idx = line.indexOf(':');
-    if (idx === -1) continue;
-    const field = line.slice(0, idx).trim().toLowerCase();
-    const value = line.slice(idx + 1).trim();
-
-    if (field === 'sitemap') {
-      sitemaps.push(value);
-      continue;
-    }
-    if (field === 'user-agent') {
-      if (current && !expectingAgents) {
-        current = null;
-      }
-      if (!current) {
-        current = { agents: [], rules: [] };
-        groups.push(current);
-      }
-      current.agents.push(value.toLowerCase());
-      expectingAgents = true;
-      continue;
-    }
-    if (field === 'allow' || field === 'disallow') {
-      if (current) current.rules.push(`${field}:${value}`);
-      expectingAgents = false;
-    }
-  }
-  return { groups, sitemaps };
-}
-
 const { groups, sitemaps } = parseRobots(raw);
 const wildcard = groups.find((g) => g.agents.includes('*'));
+
+/** Rule strings, kept in the `field:value` form the assertions below read well. */
+const rulesOf = (g: { allows: string[]; disallows: string[] } | undefined): string[] =>
+  !g ? [] : [...g.allows.map((v) => `allow:${v}`), ...g.disallows.map((v) => `disallow:${v}`)];
 
 describe('robots.txt protects the auth-only surfaces from the wildcard agent', () => {
   it('parses at least one group and finds the wildcard', () => {
@@ -74,20 +34,20 @@ describe('robots.txt protects the auth-only surfaces from the wildcard agent', (
   });
 
   it('disallows /app/ for the wildcard group, not only for a named bot', () => {
-    expect(wildcard!.rules).toContain('disallow:/app/');
-    expect(wildcard!.rules).toContain('disallow:/auth/');
+    expect(rulesOf(wildcard)).toContain('disallow:/app/');
+    expect(rulesOf(wildcard)).toContain('disallow:/auth/');
   });
 
   it('disallows the credential surfaces for the wildcard group', () => {
     for (const path of ['/login', '/signup', '/forgot-password']) {
-      expect(wildcard!.rules, `${path} is crawlable by Googlebot`).toContain(`disallow:${path}`);
+      expect(rulesOf(wildcard), `${path} is crawlable by Googlebot`).toContain(`disallow:${path}`);
     }
   });
 
   it('keeps public marketing surfaces crawlable', () => {
-    expect(wildcard!.rules).toContain('allow:/');
+    expect(rulesOf(wildcard)).toContain('allow:/');
     for (const path of ['/llms.txt', '/methodology', '/pricing', '/blog/']) {
-      expect(wildcard!.rules, `${path} should stay crawlable`).toContain(`allow:${path}`);
+      expect(rulesOf(wildcard), `${path} should stay crawlable`).toContain(`allow:${path}`);
     }
   });
 
@@ -95,7 +55,7 @@ describe('robots.txt protects the auth-only surfaces from the wildcard agent', (
     for (const agent of ['gptbot', 'claudebot', 'perplexitybot', 'google-extended', 'applebot-extended']) {
       const group = groups.find((g) => g.agents.includes(agent));
       expect(group, `missing group for ${agent}`).toBeDefined();
-      expect(group!.rules).toContain('disallow:/app/');
+      expect(rulesOf(group)).toContain('disallow:/app/');
     }
   });
 
@@ -126,10 +86,65 @@ describe('robots.txt protects the auth-only surfaces from the wildcard agent', (
     ].join('\n');
     const oldWildcard = parseRobots(previous).groups.find((g) => g.agents.includes('*'));
 
-    expect(oldWildcard!.rules).toEqual(['allow:/']);
-    expect(oldWildcard!.rules).not.toContain('disallow:/app/');
+    expect(rulesOf(oldWildcard)).toEqual(['allow:/']);
+    expect(rulesOf(oldWildcard)).not.toContain('disallow:/app/');
     // A substring check would have passed on that file, which is why this
     // parses groups instead.
     expect(previous).toContain('Disallow: /app/');
+  });
+});
+
+/**
+ * The parser is shared with the runtime smoke gate (scripts/smoke.mjs), so its
+ * own edge cases are pinned here. Two of these are regressions against real
+ * failures during the 2026-10-05 audit, not hypotheticals.
+ */
+describe('parseRobots (shared with scripts/smoke.mjs)', () => {
+  it('ignores directives mentioned inside comments', () => {
+    // This is the exact trap the smoke gate fell into. public/robots.txt opens
+    // with a comment explaining group semantics, and that comment contains the
+    // literal `User-agent:`. A parser that splits on the raw string reads the
+    // comment as the first group and finds no directives in it — which is why
+    // a correct file reported five failures.
+    const body = [
+      '# Directives after a `User-agent:` line belong to THAT group.',
+      '',
+      'User-agent: *',
+      'Disallow: /app/',
+    ].join('\n');
+
+    const group = robotsGroup(body, '*');
+    expect(group).not.toBeNull();
+    expect(group!.disallows).toEqual(['/app/']);
+  });
+
+  it('treats consecutive User-agent lines as one group, not two', () => {
+    const body = ['User-agent: GPTBot', 'User-agent: ClaudeBot', 'Disallow: /app/'].join('\n');
+    const { groups } = parseRobots(body);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].agents).toEqual(['gptbot', 'claudebot']);
+    expect(isDisallowed(body, 'ClaudeBot', '/app/')).toBe(true);
+  });
+
+  it('does not carry rules across a group boundary', () => {
+    const body = ['User-agent: *', 'Disallow: /app/', 'User-agent: GPTBot', 'Allow: /'].join('\n');
+
+    expect(isDisallowed(body, '*', '/app/')).toBe(true);
+    // The wildcard's disallow must not leak into the GPTBot group.
+    expect(isDisallowed(body, 'GPTBot', '/app/')).toBe(false);
+  });
+
+  it('reports a missing group as not disallowed rather than throwing', () => {
+    const body = ['User-agent: GPTBot', 'Disallow: /app/'].join('\n');
+
+    expect(robotsGroup(body, '*')).toBeNull();
+    expect(isDisallowed(body, '*', '/app/')).toBe(false);
+  });
+
+  it('is not fooled by the shipped file: wildcard blocks the auth surfaces', () => {
+    for (const p of ['/app/', '/auth/', '/login', '/signup', '/forgot-password']) {
+      expect(isDisallowed(raw, '*', p), `${p} is crawlable by Googlebot`).toBe(true);
+    }
   });
 });

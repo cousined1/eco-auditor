@@ -168,6 +168,14 @@
       "tests": "tests/robots-txt.test.ts parses the file the way a crawler does (RFC 9309 group semantics) instead of substring-matching, and embeds the previous wildcard group as a fixture so the test cannot pass vacuously."
     },
     {
+      "id": "SEO-05",
+      "severity": "medium",
+      "issue": "APP_BASE_URL falls back to http://localhost:3000 when APP_URL is unset. The hard boot-time throw that guards it was coupled to STRIPE_SECRET_KEY — deliberately, because an unconditional throw would crash-loop any production-mode preview deploy that has no Stripe key. That coupling was sound while APP_BASE_URL fed only Stripe redirects. SEO-03 then made it feed /sitemap.xml and the /blog/:slug canonical, so a production deploy without billing (a preview box, or a deploy taken while Stripe is being rotated out) passed the guard and served localhost URLs.",
+      "impact": "Latent, not live: production currently sets APP_URL, and the Stripe-coupled throw keeps it set, so the shipped sitemap is correct. The exposure is the silent-failure shape — the server boots clean, logs nothing, and every <loc> in the sitemap reads <loc>http://localhost:3000/…</loc>. Crawlers get an unreachable origin, search visibility collapses over weeks, and nothing in the logs connects it to a missing env var. Found by the new runtime smoke gate, which booted the server with no APP_URL: the static mirror had the right origin, so every source-level test reading public/ saw a healthy file.",
+      "change": "startServer() now logs at error level whenever NODE_ENV=production and APP_URL is unset, independent of Stripe, naming the two affected surfaces. It is a log and not a throw, to preserve the reason the throw was scoped: a boot loop in preview deploys is a worse failure than a wrong sitemap. The comment on APP_BASE_URL was rewritten to describe its two consumers and their different failure modes, replacing a claim of coverage that was broader than the code.",
+      "tests": "tests/audit-20261005-server.test.ts SEO-05 block pins four things: the sitemap builds every <loc> from APP_BASE_URL with no hardcoded host; the guard is not nested inside the STRIPE_SECRET_KEY block (asserted by index position); it logs rather than throws; and the original Stripe throw still stands for the redirects that genuinely strand a paying customer. The smoke gate additionally asserts no sitemap <loc> contains localhost."
+    },
+    {
       "id": "VERIFIED-CLEAN",
       "note": "Confirmed by probing a running server rather than by reading code. No changes were needed for any of these; recorded so the result is not re-litigated.",
       "checks": [
@@ -215,7 +223,8 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "433 passed across 50 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +85 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "442 passed across 50 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +94 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "runtime_smoke": "PASS: scripts/smoke.mjs — 94/94 checks against a real booted server. Three defects in this report (SEO-03 route shadowing, SEO-04 group scoping, SEO-05 unguarded sitemap origin) are properties of the running process, not of the code text, and none of them were visible to a source-level assertion. The gate boots server.cjs on a free port with a deterministic APP_URL and sweeps the marketing pages, self-canonicals, noindex pages, the sitemap, robots.txt, robustness paths, security headers, and fail-closed auth. Its robots.txt reader is scripts/robots-groups.mjs, the same RFC 9309 parser the unit test uses — an earlier in-gate copy of that parser was wrong and reported five failures against a correct file, which is exactly the two-readers-disagree failure SEO-04 was about.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval)."
   },

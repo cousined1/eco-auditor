@@ -18,6 +18,7 @@
     "db:migrate:check": "node scripts/check-migrations.mjs",
     "db:migrate:new": "npx @insforge/cli db migrations new",
     "security:audit": "node scripts/audit-production.mjs",
+    "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
