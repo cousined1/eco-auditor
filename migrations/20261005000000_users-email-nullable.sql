@@ -1,0 +1,24 @@
+-- STRIPE-EMAIL: public.users.email must not be NOT NULL.
+--
+-- authGuard validates only `user.id` on the InsForge session payload, but all
+-- five billing routes (checkout, verify, portal, subscription change, cancel)
+-- pass req.user.email through ensureStripeCustomer into
+--
+--   INSERT INTO users (insforge_user_id, stripe_customer_id, email) ...
+--
+-- node-postgres converts an undefined bind parameter to NULL, so if the
+-- session payload ever omits email the INSERT raises a not-null violation and
+-- every billing route 500s — a paying customer is unable to subscribe, change
+-- plan, open the billing portal or cancel, with an opaque database error in
+-- the log that names neither the cause nor the user.
+--
+-- The column mirrors an optional upstream field, so requiring it here was the
+-- defect: a Stripe customer object does not need an email to exist, and Stripe
+-- accepts a customer without one. Constraining a mirrored field harder than
+-- its source guarantees a failure rather than preventing one.
+--
+-- Existing rows are unaffected; only the constraint is relaxed. The gap is now
+-- logged by ensureStripeCustomer instead of crashing, so a missing email is
+-- diagnosable rather than fatal.
+
+ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL;

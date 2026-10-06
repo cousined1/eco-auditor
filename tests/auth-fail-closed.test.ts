@@ -59,10 +59,18 @@ describe('apiAuthGuard fails closed', () => {
   it('assigns req.user only after a validated session', () => {
     expect(authGuard).toMatch(/if \(!userRes\.ok\)[\s\S]*?return res\.status\(401\)/);
     expect(authGuard).toMatch(/if \(!user \|\| !user\.id\)[\s\S]*?return res\.status\(401\)/);
-    const assignAt = authGuard.indexOf('req.user = user');
+    // Match the assignment in any form rather than pinning one literal. The
+    // assignment is now `req.user = { ...user, email }` so the email is
+    // normalised once before the billing routes read it, but the invariant this
+    // test exists for is ordering, not spelling.
+    const assignMatch = /req\.user\s*=/.exec(authGuard);
+    const assignAt = assignMatch ? assignMatch.index : -1;
     const first401 = authGuard.indexOf('res.status(401)');
     expect(first401, 'a 401 path exists').toBeGreaterThan(-1);
     expect(assignAt, 'req.user assigned before any validation').toBeGreaterThan(first401);
+    // The raw-payload form must not return: it would hand the billing routes an
+    // un-normalised email, which is a NOT NULL violation waiting to happen.
+    expect(authGuard, 'req.user is assigned the un-normalised payload again').not.toContain('req.user = user;');
   });
 
   it('turns a verification failure into a 5xx rather than an open door', () => {

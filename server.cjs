@@ -36,6 +36,7 @@ const {
   canUseScope3,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
+  normalizeAuthEmail,
 } = require('./server-billing.cjs');
 const {
   buildReportText,
@@ -1232,7 +1233,21 @@ async function authGuard(req, res, next) {
     if (!user || !user.id) {
       return res.status(401).json({ error: 'Invalid user payload' });
     }
-    req.user = user;
+    // Normalise the email once, here, where the payload shape is actually
+    // known. Every billing route passes req.user.email to
+    // ensureStripeCustomer, and node-postgres turns an undefined bind into
+    // NULL — which used to be a not-null violation on public.users.email and a
+    // 500 on checkout, verify, portal, plan change and cancel alike. The guard
+    // only ever validated `id`, so a session payload without an email walked
+    // straight into that. A blank or absent email now becomes null, which the
+    // column accepts (see migrations/20261005000000_users-email-nullable.sql)
+    // and Stripe does not require. Shared with the unit test via
+    // normalizeAuthEmail in server-billing.cjs.
+    const email = normalizeAuthEmail(user.email);
+    if (email === null) {
+      log('warn', 'authGuard: InsForge session carried no usable email', { userId: user.id });
+    }
+    req.user = { ...user, email };
     next();
   } catch (err) {
     log('error', 'authGuard error', { error: String(err) });
@@ -1374,8 +1389,11 @@ async function ensureStripeCustomer(insforgeUserId, email) {
     return rows[0].stripe_customer_id;
   }
 
+  // Stripe does not require an email on a customer, so omit the key entirely
+  // rather than sending null — a customer created here must stay usable even
+  // when the InsForge session carried no address.
   const customer = await stripe.customers.create({
-    email: email,
+    ...(email ? { email } : {}),
     metadata: { insforge_user_id: insforgeUserId },
   });
 
