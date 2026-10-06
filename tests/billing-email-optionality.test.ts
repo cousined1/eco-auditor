@@ -71,6 +71,17 @@ describe('the users.email constraint matches what the auth layer guarantees', ()
     expect(sql).toMatch(/ALTER\s+COLUMN\s+email\s+DROP\s+NOT\s+NULL/i);
   });
 
+  it('the migration cannot abort a schema run if users is absent', () => {
+    // psql runs every migration with ON_ERROR_STOP=1, so one bad statement
+    // fails the whole schema application and all three DB-backed suites. This
+    // migration has never executed against a live Postgres, so it must be
+    // incapable of erroring regardless of table order.
+    const sql = read(MIGRATION);
+    expect(sql).toMatch(/DO\s+\$\$/);
+    expect(sql).toMatch(/information_schema\.columns/);
+    expect(sql).toMatch(/IF\s+EXISTS/);
+  });
+
   it('no other migration re-imposes NOT NULL on users.email after it', () => {
     const later = readdirSync(resolve(root, 'migrations'))
       .filter((f) => f.endsWith('.sql'))

@@ -20,5 +20,25 @@
 -- Existing rows are unaffected; only the constraint is relaxed. The gap is now
 -- logged by ensureStripeCustomer instead of crashing, so a missing email is
 -- diagnosable rather than fatal.
+--
+-- Written as a guarded DO block rather than a bare ALTER. The e2e harness feeds
+-- every migration to psql with ON_ERROR_STOP=1, so a single failing statement
+-- aborts the whole schema run and takes all three DB-backed suites with it.
+-- DROP NOT NULL is already idempotent; the guard additionally makes the file a
+-- no-op on any database where public.users does not yet exist, so applying the
+-- migrations out of order cannot break a deploy.
 
-ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'users'
+      AND column_name = 'email'
+      AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL;
+  END IF;
+END
+$$;
