@@ -452,6 +452,21 @@
       "impact": "Any scope below 0.5% of total showed \"Scope 3 0%\" on the donut and \"0.3% of total\" on the card simultaneously -- two contradicting readouts of one number on the compliance dashboard. Routine for an SMB with a large electricity inventory and a small purchased-goods or waste line.",
       "change": "Both now round to one decimal.",
       "verified_by": "Mutation: reintroducing the split precision fails 1 test."
+    },
+    {
+      "id": "BLOG-DEFRA-CLAIM",
+      "severity": "high",
+      "issue": "The seeded blog posts claimed an emission factor library and a feature set the product does not have. The SB 253 guide said \"Pre-loaded with EPA, eGRID, DEFRA, and GHG Protocol factors, updated quarterly\"; the Scope 3 guide and the software-comparison post repeated it. DEFRA appears nowhere in src/lib/emission-factors — not in the catalog, not in the registry — and the registry's verified:true entries are only EPA GHG Emission Factors Hub 2025, eGRID2023 and IPCC AR5 GWP-100, so factorLabel() would have rendered the \"(verify before publication)\" sentinel for it. There is no factor-refresh mechanism anywhere in the codebase, so \"updated quarterly\" was invented. The same post also advertised \"Supply chain surveys: send a single link to your suppliers\", while \"Supplier request hub\" is listed in the roadmap array of EVERY plan, which src/content/pricing.ts defines as \"unshipped features planned for this tier\".",
+      "impact": "Published articles on ecoauditor.io told prospects the product ships a factor library it does not have, refreshes it on a schedule it does not follow, and offers supplier-survey collection that is explicitly unshipped. All three are checkable by a prospect who reads the pricing page or asks for a demo.",
+      "change": "Corrected the seed in server.cjs. The factor-library claims now name only EPA GHG Emission Factors Hub 2025, eGRID2023 and IPCC AR5 GWP-100, each recorded with publisher, edition and data year. The FAQ now states plainly that DEFRA is a common choice for UK and international work, is on the roadmap, and is not in the library today. The supplier-survey bullet was replaced with the Scope 3 estimation that does ship. Generic buyer advice recommending DEFRA as a published source was left intact — that is correct advice about the world, not about this product.",
+      "verified_by": "tests/blog-claim-consistency.test.ts (15 tests) parses the seeded posts and pins the claims. Mutation: restoring the DEFRA/quarterly claim (3 failures), the $2 billion threshold (2), the unshipped supplier-survey feature (2), the DEFRA claim in the comparison post (2), and stating the deferral as settled fact (1). The test initially passed on content I had not found -- it surfaced two further instances in the other two posts."
+    },
+    {
+      "id": "SB253-THRESHOLD",
+      "severity": "high",
+      "issue": "The SB 253 guide put Phase 1 at \"companies with revenue over $2 billion\" while its own opening paragraph said \"$1 billion\". Six independent sources confirm $1 billion for SB 253: CARB's program page, CARB's March 2026 workshop slides, and briefings from Morgan Lewis, Goodwin, Mayer Brown and Baker Tilly. The $500 million figure belongs to SB 261, the separate climate-related financial-risk law. The post also omitted that CARB set the first-year deadline at August 10, 2026 and has proposed deferring it to November 10, 2026 pending Office of Administrative Law approval.",
+      "impact": "A reader could size their own compliance obligations wrongly, and an SMB would not know the filing date had moved.",
+      "change": "Phase 1 now reads $1 billion, consistent with the opening paragraph. The post states the August 10 date, the proposed November 10 deferral and that it still has to clear the Office of Administrative Law, that limited assurance is not required for the 2026 filings, and that Scope 3 reporting begins in 2027. The FAQ deadline answer was corrected to match. An explicit note disambiguates SB 253 ($1B) from SB 261 ($500M), which are constantly confused. Phase 2's \"$1B+\" threshold was verified as correct and left alone rather than replaced with a differently-sourced number."
     }
   ],
   "resolved_without_change": [
@@ -492,7 +507,7 @@
     "build": "PASS: TypeScript, Vite and 14 prerendered routes",
     "lint": "PASS: eslint .",
     "typecheck": "PASS: tsc -b",
-    "local_tests": "642 passed across 62 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +240 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "local_tests": "657 passed across 63 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +240 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
     "runtime_smoke": "PASS: scripts/smoke.mjs — 99 checks (98 pass; the blog-index check fails locally by design because this machine has no DATABASE_URL at build time — see SEO-06) against a real booted server. Three defects in this report (SEO-03 route shadowing, SEO-04 group scoping, SEO-05 unguarded sitemap origin) are properties of the running process, not of the code text, and none of them were visible to a source-level assertion. The gate boots server.cjs on a free port with a deterministic APP_URL and sweeps the marketing pages, self-canonicals, noindex pages, the sitemap, robots.txt, robustness paths, security headers, and fail-closed auth. Its robots.txt reader is scripts/robots-groups.mjs, the same RFC 9309 parser the unit test uses — an earlier in-gate copy of that parser was wrong and reported five failures against a correct file, which is exactly the two-readers-disagree failure SEO-04 was about.",
     "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
     "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval). CSRD wave 2 verified against the primary text of Directive (EU) 2025/794 on EUR-Lex; the later Content Directive scope change is left open as COMP-04 rather than encoded."
@@ -525,9 +540,9 @@
     {
       "id": "BLOG-DEFRA-CLAIM",
       "severity": "medium",
-      "issue": "The live post sb-253-compliance-guide-smb carries the FAQ answer \"Use EPA Center for Corporate Climate Leadership factors for US operations, eGRID for electricity, and DEFRA for international activities. Eco-Auditor includes all of these in its pre-loaded factor library.\" DEFRA is absent from emission-factors.json and from the registry — confirmed by grep returning 0 matches — so a published article tells prospects the product ships a factor library it does not have.",
-      "required": "Republish that post's FAQ with the DEFRA clause removed. Not actionable from the repo: blog_posts is written only through POST /api/publish, which needs SITE_DEPLOY_TOKEN. Also worth correcting while republishing: the same FAQ says SB 253 Phase 1 applies above $2B revenue when the threshold is $1B, and that reporting \"begins in 2026\" without the deferral to 2026-11-10 (see COMP-01).",
-      "note": "Found while auditing the live site, not present in the working tree."
+      "issue": "RESIDUAL of the now-fixed seed content. The four seeded posts were corrected in server.cjs (see the fixed entry), but ecoauditor.io still serves the old rows from its database.",
+      "required": "Republish the corrected posts through POST /api/publish with SITE_DEPLOY_TOKEN so the live site stops telling prospects we ship DEFRA factors and supplier surveys. The seed only runs when blog_posts is empty, so a redeploy alone will NOT update the existing rows.",
+      "note": "Originally recorded as \"not present in the working tree\" -- that was wrong. The content is the inline seed in server.cjs, which runs whenever blog_posts is empty and is therefore what any fresh deploy publishes. The source is fixed and pinned; only this publish step remains."
     }
   ],
   "release": {
