@@ -533,7 +533,16 @@
       "id": "EDGE-01",
       "severity": "P1",
       "issue": "www redirects omit the slash before the path: /health returns Location https://ecoauditor.iohealth and /pricing?plan=growth returns https://ecoauditor.iopricing?plan=growth. Re-verified live 2026-10-05 with curl; the query string survives, so only the separator is missing and the host fuses into a different registrable name.",
-      "required": "Correct the Cloudflare redirect target to retain http.request.uri.path and preserve the query string. The redirect is issued before the origin request, so no application deploy can fix it. No Cloudflare connector is connected in this session (the only connected App is matrix), so it must be applied in the Cloudflare dashboard. docs/EDGE-01-cloudflare-redirect.md has the confirmed before/after, the expression for both Single Redirects and Bulk Redirects, and copy-paste verification commands."
+      "required": "Correct the Cloudflare redirect target to retain http.request.uri.path and preserve the query string. The redirect is issued before the origin request, so no application deploy can fix it. No Cloudflare connector is connected in this session (the only connected App is matrix), so it must be applied in the Cloudflare dashboard. docs/EDGE-01-cloudflare-redirect.md has the confirmed before/after, the expression for both Single Redirects and Bulk Redirects, and copy-paste verification commands.",
+      "reverified": "2026-10-06 (UTC): still live. curl -D- https://www.ecoauditor.io/health returns \"HTTP/1.1 301 Moved Permanently\" with \"Location: https://ecoauditor.iohealth\"; the apex returns 200 for the same path. The response carries Report-To: cf-nel, confirming Cloudflare emits it before the origin.",
+      "connector_check": "Re-checked this session rather than assuming: mcp list returns zero connected servers and a tool search for cloudflare/dns/redirect/zone returns no matches. There is no Cloudflare connector, so the dashboard change cannot be made from here.",
+      "remediation_options": [
+        "Preferred: Rules -> Redirect Rules -> Single Redirects. Fix the www rule so it concatenates with a path separator (dynamic target https://ecoauditor.io${path}, or static target https://ecoauditor.io with \"Preserve query string\" and \"Subpath matching\" left enabled).",
+        "Alternative if the rule is a Bulk Redirect: replace it with a Single Redirect, since Bulk Redirects on a whole subdomain are where the missing \"/\" usually originates.",
+        "Alternative if the rule is a Transform Rule or a Page Rule doing a dynamic redirect: the target concatenation is the same bug in a different rule type.",
+        "Until then no deploy can help: the 301 is emitted before the request reaches server.cjs, so an app-side redirect would only add a competing hop."
+      ],
+      "customer_impact_now": "Any shared or bookmarked www.ecoauditor.io link that carries a path resolves to a host that does not exist. The bare apex host is unaffected, and canonical tags plus robots already point at the apex, so this is a broken-link problem rather than an SEO one."
     },
     {
       "id": "PR35",
