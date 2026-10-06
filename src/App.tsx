@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { useFocusTrap } from './hooks/useFocusTrap';
-import { CookieConsentBanner } from './components/CookieConsentBanner';
+import { CookieConsentBanner, CookiePreferencesButton } from './components/CookieConsentBanner';
 import { useGTM } from './lib/gtm';
 import { insforge } from './lib/insforge';
 import { isSessionValid, installUnauthorizedInterceptor } from './lib/session';
@@ -177,6 +177,10 @@ function AppContent() {
   const [authStatus, setAuthStatus] = useState<'loading' | 'authed' | 'anon'>('loading');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [checkoutBanner, setCheckoutBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  // The purchase intent survives a failed checkout so the banner can offer a
+  // real retry instead of stranding the customer on an empty dashboard.
+  const [pendingCheckout, setPendingCheckout] = useState<{ plan: string; billing: 'monthly' | 'annual' } | null>(null);
+  const [retryingCheckout, setRetryingCheckout] = useState(false);
 
   // Close the mobile nav on navigation. Render-time state adjustment
   // (https://react.dev/learn/you-might-not-need-an-effect) instead of an effect.
@@ -277,6 +281,18 @@ function AppContent() {
     };
   }, [isAppPage, authStatus, navigate]);
 
+  // Starts (or retries) the Stripe checkout for a purchase intent. Shared by the
+  // ?checkout= trigger and the "Retry checkout" banner button so both paths
+  // build an identical request.
+  async function startCheckout(planId: string, billing: 'monthly' | 'annual') {
+    return createCheckoutSession({
+      priceId: `${planId}_${billing}`,
+      planId,
+      billing,
+      trial: billing === 'monthly',
+    });
+  }
+
   useEffect(() => {
     if (authStatus !== 'authed') return;
     const params = new URLSearchParams(locationInfo.search);
@@ -324,14 +340,20 @@ function AppContent() {
       const intent = readIntentFromCheckout(checkout);
       if (intent) {
         const { plan: planId, billing } = intent;
-        params.delete('checkout');
-        replaced = true;
+        // Strip the trigger only once checkout actually succeeds — on success
+        // the browser leaves for Stripe, so the param is irrelevant, and on
+        // failure keeping it means a refresh re-attempts instead of silently
+        // dropping a purchase the customer already chose.
         void (async () => {
-          const result = await createCheckoutSession({ priceId: `${planId}_${billing}`, planId, billing, trial: billing === 'monthly' });
+          const result = await startCheckout(planId, billing);
           if (result.ok) {
             window.location.assign(result.data.url);
           } else {
-            setCheckoutBanner({ message: result.error || 'Could not start checkout. Please try again.', type: 'error' });
+            setPendingCheckout(intent);
+            setCheckoutBanner({
+              message: result.error || 'Could not start checkout. Please try again.',
+              type: 'error',
+            });
           }
         })();
       }
@@ -341,6 +363,22 @@ function AppContent() {
       navigate({ pathname: locationInfo.pathname, search: params.toString() }, { replace: true });
     }
   }, [authStatus, locationInfo.pathname, locationInfo.search, navigate]);
+
+  async function handleRetryCheckout() {
+    if (!pendingCheckout || retryingCheckout) return;
+    setRetryingCheckout(true);
+    const intent = pendingCheckout;
+    const result = await startCheckout(intent.plan, intent.billing);
+    setRetryingCheckout(false);
+    if (result.ok) {
+      window.location.assign(result.data.url);
+      return;
+    }
+    setCheckoutBanner({
+      message: result.error || 'Could not start checkout. Please try again.',
+      type: 'error',
+    });
+  }
 
   async function handleLogout() {
     // signOut hits /api/auth/logout to kill the server session. Log (don't
@@ -459,6 +497,16 @@ function AppContent() {
                 >
                   {checkoutBanner.message}
                 </span>
+                {pendingCheckout && checkoutBanner?.type === 'error' && (
+                    <button
+                      type="button"
+                      onClick={() => void handleRetryCheckout()}
+                      disabled={retryingCheckout}
+                      className="text-xs font-medium px-3 py-1 rounded-md border border-risk-high/30 text-risk-high hover:bg-risk-high/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {retryingCheckout ? 'Retrying…' : 'Retry checkout'}
+                    </button>
+                  )}
                 <button
                   type="button"
                   onClick={() => setCheckoutBanner(null)}
@@ -471,7 +519,11 @@ function AppContent() {
             </div>
           )}
 
-          <main className="flex-1 overflow-y-auto">
+          {/* The route-change effect focuses #main-content on navigation. Every
+              other shell in the app defines it; /app did not, so the focus move
+              was a silent no-op and keyboard/screen-reader users had no named
+              main landmark on the paid pages. */}
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto focus:outline-none">
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/app" element={<Dashboard />} />
@@ -488,6 +540,17 @@ function AppContent() {
               </Routes>
             </Suspense>
           </main>
+
+          {/* Withdrawal must be as easy as granting. The /app shell renders no
+              Footer, so the only "Cookie preferences" link lived on marketing
+              pages — meaning a signed-in customer, who spends all their time in
+              the app where analytics is actually collected, could not reach
+              consent settings without logging out. The Privacy Policy promises
+              withdrawal "at any time through the cookie preferences settings on
+              our site". */}
+          <div className="shrink-0 border-t border-surface-200 dark:border-surface-800 px-4 py-2">
+            <CookiePreferencesButton className="text-xs text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 transition-colors underline-offset-2 hover:underline" />
+          </div>
         </div>
       </div>
     );

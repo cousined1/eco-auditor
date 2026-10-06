@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { insforge } from '@/lib/insforge';
-import { buildApiRequestInit, getUpgradeRequired } from '@/lib/api';
+import { buildApiRequestInit, downloadBlob, getUpgradeRequired } from '@/lib/api';
 import type { Company, EmissionEntry } from './utils';
 
 interface Props {
@@ -8,9 +8,23 @@ interface Props {
   entries: EmissionEntry[];
 }
 
+/**
+ * Status carries an explicit tone instead of encoding severity in the message.
+ * The styling used to be `status.startsWith('Error') ? risk : low`, so the plan
+ * gate — "Reports require an active plan" — took the success branch and rendered
+ * a blocked action in the same green as a completed download.
+ */
+type Status = { tone: 'error' | 'warn' | 'ok'; message: string } | null;
+
+const TONE_CLASS: Record<NonNullable<Status>['tone'], string> = {
+  error: 'text-risk-high',
+  warn: 'text-risk-medium',
+  ok: 'text-risk-low',
+};
+
 export default function ReportGenerator({ company, entries }: Props) {
   const [generating, setGenerating] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<Status>(null);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -30,7 +44,7 @@ export default function ReportGenerator({ company, entries }: Props) {
 
       const upgrade = await getUpgradeRequired(genRes);
       if (upgrade) {
-        setStatus('Reports require an active plan — visit Pricing to upgrade.');
+        setStatus({ tone: 'warn', message: 'Reports require an active plan — visit Pricing to upgrade.' });
         return;
       }
       if (!genRes.ok) {
@@ -46,18 +60,17 @@ export default function ReportGenerator({ company, entries }: Props) {
       const dlRes = await fetch(data.download_url, { ...init, signal: AbortSignal.timeout(15000) });
       if (!dlRes.ok) throw new Error(`Report download failed (${dlRes.status})`);
       const blob = await dlRes.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ecoauditor-report-${data.report_id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      // Shared with the account data export: revoking the object URL in the
+      // same turn as the click releases the blob before Firefox and Safari
+      // resolve the download, producing no file while the card reports success.
+      downloadBlob(blob, `ecoauditor-report-${data.report_id}.pdf`);
 
-      setStatus('Report generated and downloaded.');
+      setStatus({ tone: 'ok', message: 'Report generated and downloaded.' });
     } catch (err) {
-      setStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setStatus({
+        tone: 'error',
+        message: err instanceof Error ? err.message : 'Report generation failed',
+      });
     } finally {
       setGenerating(false);
     }
@@ -73,8 +86,9 @@ export default function ReportGenerator({ company, entries }: Props) {
           Create a PDF summary of {entries.length} emission entries for {company.name}.
         </p>
         {status && (
-          <p className={`text-xs mt-1 ${status.startsWith('Error') ? 'text-risk-high' : 'text-risk-low'}`}>
-            {status}
+          // role=status so the result is announced when the async work resolves.
+          <p role="status" className={`text-xs mt-1 ${TONE_CLASS[status.tone]}`}>
+            {status.message}
           </p>
         )}
       </div>

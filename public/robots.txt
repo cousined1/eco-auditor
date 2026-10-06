@@ -1,5 +1,33 @@
+# robots.txt — group semantics matter.
+#
+# Directives after a `User-agent:` line belong to THAT group, and a group ends
+# at the next `User-agent:` line. The auth-only disallows used to sit at the
+# bottom of this file, after the Applebot-Extended block — so they attached to
+# Applebot only. `User-agent: *` carried nothing but `Allow: /`, meaning
+# Googlebot (which matches the wildcard group) was explicitly permitted to crawl
+# /app/, /login, /signup and /forgot-password. Verified against the live file on
+# 2026-10-05.
+#
+# The wildcard disallows must live inside the wildcard group. Keep the named AI
+# agents in their own groups, which may differ from the wildcard.
+
 User-agent: *
 Allow: /
+
+# Auth-only surfaces: no public content, no reason to spend crawl budget.
+Disallow: /app/
+Disallow: /auth/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+
+# Public marketing and content surfaces, kept explicit for clarity.
+Allow: /llms.txt
+Allow: /methodology
+Allow: /sample-report
+Allow: /security
+Allow: /pricing
+Allow: /blog/
 
 # Explicit AI and Search Agents permissions
 User-agent: GPTBot
@@ -32,19 +60,4 @@ Allow: /llms.txt
 Disallow: /app/
 Disallow: /auth/
 
-# Sitemap reference
 Sitemap: https://ecoauditor.io/sitemap.xml
-
-# Disallow auth-only app paths
-Disallow: /app/
-Disallow: /login
-Disallow: /signup
-Disallow: /forgot-password
-Disallow: /auth/
-
-# Allow AI crawlers to access llms.txt and marketing content
-Allow: /llms.txt
-Allow: /methodology
-Allow: /sample-report
-Allow: /security
-Allow: /pricing

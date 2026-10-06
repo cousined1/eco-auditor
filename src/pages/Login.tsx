@@ -2,7 +2,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { insforge } from '../lib/insforge';
 import { type SocialAuthProvider } from '../lib/socialAuth';
-import { readIntentFromParams, destinationFor } from '../lib/authIntent';
+import { readIntentFromParams, safeRedirectPath } from '../lib/authIntent';
 import {
   AuthError,
   AuthHeading,
@@ -29,20 +29,9 @@ export default function Login() {
   // /login?plan=growth resumed checkout after "Continue with Google" but
   // dropped the sale after an email sign-in on the very same URL.
   const intent = readIntentFromParams(searchParams);
-  // Only same-origin paths: prevent protocol-relative (//evil.com), backslash (/\evil.com), and cross-origin bypasses
-  const safeRedirect = (() => {
-    if (!redirect || !redirect.startsWith('/') || redirect.startsWith('//') || redirect.startsWith('/\\')) {
-      return destinationFor(intent);
-    }
-    try {
-      const parsed = new URL(redirect, window.location.origin);
-      return parsed.origin === window.location.origin && parsed.pathname.startsWith('/')
-        ? redirect
-        : destinationFor(intent);
-    } catch {
-      return destinationFor(intent);
-    }
-  })();
+  // Only same-origin paths: prevent protocol-relative (//evil.com), backslash (/\evil.com), and cross-origin bypasses.
+  // Shared with Signup via safeRedirectPath so the two auth pages cannot drift.
+  const safeRedirect = safeRedirectPath(redirect, intent);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

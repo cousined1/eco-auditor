@@ -94,13 +94,18 @@ export default function PrivacyPolicy() {
         </LegalSection>
 
         <LegalSection id="info-third-parties" title="6. Information from Integrations and Third Parties" onScroll={setActiveSection}>
-          <p>When you connect third-party services to Eco-Auditor, we may receive:</p>
+          {/* No accounting, shipping or cloud-service integration exists in the
+              product today — pricing, the feature table and the landing page
+              all mark them roadmap. Describing them in the present tense told
+              readers we collect data we do not collect. Kept as a commitment
+              for when they ship. */}
+          <p>Eco-Auditor does not currently connect to any third-party accounting, shipping or logistics service, so we do not receive data from them today. The following categories describe what we would receive <em>if and when</em> such integrations are released:</p>
           <ul>
             <li>Data from accounting integrations (e.g., QuickBooks, Xero) such as transaction records relevant to emissions calculations</li>
             <li>Data from shipping and logistics providers (e.g., UPS, FedEx) such as shipment records for freight emission estimates</li>
             <li>Data from cloud service providers for Scope 3 ICT emission calculations</li>
           </ul>
-          <p>We only access data you explicitly authorize through these integrations, and we process it solely for the purpose of generating emissions estimates within your account.</p>
+          <p>If released, we will only access data you explicitly authorize through those integrations, and we will process it solely for the purpose of generating emissions estimates within your account. Any new integration will be listed as a subprocessor before it goes live.</p>
         </LegalSection>
 
         <LegalSection id="how-we-use" title="7. How We Use Information" onScroll={setActiveSection}>

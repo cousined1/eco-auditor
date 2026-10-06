@@ -3,41 +3,39 @@ import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useTheme } from '../hooks/useTheme';
+import { getPrerenderBlogPosts, type PrerenderBlogPost } from '../lib/ssrData';
+import { formatPublishedDate as formatDate } from '../lib/formatDate';
 
 // PERF-006: the list endpoint ships a computed excerpt + read time instead of
 // full HTML bodies — the list never renders them (detail page has its own route).
-interface BlogPost {
-  id: string;
-  slug: string;
-  title: string;
-  meta_description: string;
-  excerpt: string;
-  read_minutes: number;
-  primary_keyword: string;
-  content_score: number | null;
-  geo_score: number | null;
-  published_at: string;
-}
-
-function formatDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  } catch {
-    return iso;
-  }
-}
+// The list endpoint also returns content_score and geo_score, which this card
+// never renders. Typing the state to just what is displayed keeps the
+// prerendered payload assignable without fabricating values to satisfy the
+// compiler — see PrerenderBlogPost in src/lib/ssrData.ts.
+type BlogPost = PrerenderBlogPost;
 
 export default function BlogList() {
   const { theme, toggle } = useTheme();
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Build-time posts when prerendering (see src/lib/ssrData.ts), otherwise null
+  // and the fetch below fills the list as usual.
+  const prerendered = getPrerenderBlogPosts();
+  const [posts, setPosts] = useState<BlogPost[]>(prerendered ?? []);
+  // Only "loading" when there is genuinely nothing prerendered to show.
+  const [loading, setLoading] = useState(prerendered === null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = 'Blog — Eco-Auditor | Carbon Accounting Insights';
+    // These strings must match scripts/prerender.mjs HEAD['/blog'] exactly.
+    // They diverged once ("Carbon Accounting Insights" vs "Carbon Accounting
+    // for SMBs"), so /blog advertised two different titles and descriptions
+    // depending on whether a crawler read the static HTML or the live DOM.
+    // tests/blog-prerender.test.ts asserts the two agree.
+    document.title = 'Blog — Eco-Auditor | Carbon Accounting for SMBs';
     const desc = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (desc) desc.content = 'Insights on carbon accounting, GHG Protocol reporting, SB 253 compliance, and supply chain emissions for SMBs.';
+    if (desc) {
+      desc.content =
+        'Eco-Auditor blog: practical carbon accounting guidance for small and mid-size businesses — Scope 1-3 baselines, supplier data collection, and disclosure readiness.';
+    }
   }, []);
 
   useEffect(() => {
@@ -47,7 +45,12 @@ export default function BlogList() {
         const resp = await fetch('/api/blog-posts', { signal: AbortSignal.timeout(15000) });
         if (cancelled) return;
         if (!resp.ok) {
-          setError('Failed to load blog posts');
+          // Show the server's reason, not a browser-internal string. A 15s
+          // timeout rejects with a DOMException whose message is things like
+          // "signal timed out" — which is not a thing to tell a reader.
+          setError(resp.status >= 500
+            ? 'Our blog is temporarily unavailable. Please try again shortly.'
+            : 'Unable to load blog posts.');
           setLoading(false);
           return;
         }
@@ -56,7 +59,14 @@ export default function BlogList() {
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load blog posts');
+        // An aborted fetch is almost always our own 15s timeout; name the
+        // condition rather than leaking "signal timed out" into the page.
+        const name = err instanceof Error ? err.name : '';
+        setError(
+          name === 'TimeoutError' || name === 'AbortError'
+            ? 'The blog took too long to respond. Please try again.'
+            : 'Unable to load blog posts.'
+        );
         setLoading(false);
       }
     }

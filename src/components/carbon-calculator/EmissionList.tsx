@@ -12,7 +12,12 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleDelete(entry: EmissionEntry) {
-    if (!window.confirm(`Delete emission entry "${entry.source}"? This cannot be undone.`)) {
+    // Name the row the way the table names it. The row reads "Natural gas"
+    // (labelForSource); confirming "natural_gas" meant the user could not tell
+    // which irreversible delete they were approving, and VoiceOver announced
+    // the raw key.
+    const label = labelForSource(entry.category, entry.source);
+    if (!window.confirm(`Delete emission entry "${label}"? This cannot be undone.`)) {
       return;
     }
     setDeletingId(entry.id);
@@ -20,7 +25,11 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
     try {
       await onDelete(entry.id);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete entry');
+      // The caller throws a real Error, so err.message carries the server's
+      // reason. The old `err instanceof Error` test was false against the SDK's
+      // plain objects and collapsed every failure to one generic string.
+      const detail = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? '');
+      setDeleteError(detail || 'Failed to delete entry');
     } finally {
       setDeletingId(null);
     }
@@ -54,7 +63,11 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
         Emission Entries ({entries.length})
       </h2>
       {deleteError && (
-        <p className="text-sm text-risk-high mb-3">{deleteError}</p>
+        // role=alert so a failed delete is announced when focus is elsewhere;
+        // the row otherwise looks untouched.
+        <p role="alert" className="text-sm text-risk-high mb-3">
+          {deleteError}
+        </p>
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -93,7 +106,7 @@ export default function EmissionList({ entries, facilities, onDelete }: Props) {
                     onClick={() => handleDelete(e)}
                     disabled={deletingId === e.id}
                     className="text-surface-600 dark:text-surface-400 hover:text-risk-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label={`Delete entry ${e.source}`}
+                    aria-label={`Delete entry ${labelForSource(e.category, e.source)}`}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                       <path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" />

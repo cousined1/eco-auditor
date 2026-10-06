@@ -9,11 +9,12 @@ const {
   summarizeEntries,
   buildTrend,
   toDashboardSummary,
-  parseEmissionCsv,
+  parseEmissionCsvDetailed,
   getComplianceStatus,
   buildFacilityEmissions,
   normalizeScope,
 } = require('./emissions-engine.cjs');
+const { allDeadlines } = require('./compliance-deadlines.cjs');
 const {
   buildSecurityHeaders,
   canUseDevAuth,
@@ -35,6 +36,7 @@ const {
   canUseScope3,
   subscriptionRecordFromStripe,
   trialEligiblePriceIds,
+  normalizeAuthEmail,
 } = require('./server-billing.cjs');
 const {
   buildReportText,
@@ -52,11 +54,23 @@ const requestIdStore = new AsyncLocalStorage();
 // ─── Version 2.0.1 - Added Cache-Control: no-transform for Cloudflare fix ───
 
 // ─── Public base URL ───
-// Every Stripe redirect (checkout success/cancel, billing portal return) is
-// built from this. If it is wrong, a customer who has just paid is bounced to a
-// dead URL and /api/checkout/verify — the reconciliation that rescues a late
-// webhook — never runs. Production boot refuses to start without it rather than
-// silently shipping localhost redirects to real buyers.
+// Built from two independent consumers, which fail very differently if this is
+// wrong:
+//
+//   - Stripe redirects (checkout success/cancel, billing portal return). Wrong
+//     ⇒ a customer who has just paid is bounced to a dead URL and
+//     /api/checkout/verify — the reconciliation that rescues a late webhook —
+//     never runs. This is the consumer that earns the hard boot-time throw in
+//     startServer().
+//   - /sitemap.xml and the /blog/:slug canonical. Wrong ⇒ the sitemap advertises
+//     http://localhost:3000/… to crawlers and the blog canonical points at
+//     localhost. That is an SEO-03 regression with no customer-visible symptom,
+//     so it is guarded by a loud boot log rather than a throw — see startServer().
+//
+// The hard throw is deliberately coupled to STRIPE_SECRET_KEY, not unconditional:
+// an unconditional throw would crash-loop any production-mode preview deploy that
+// has no Stripe key, which is a normal pattern. So the sitemap consumer needs its
+// own signal rather than leaning on the billing one.
 // See ecoauditor-mvp-readiness-audit-2026-08-20.md ("Config gaps").
 const APP_BASE_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -181,12 +195,12 @@ async function seedBlogPosts(pool) {
       meta_title: 'SB 253 Compliance Guide for SMBs | Eco-Auditor',
       meta_description: 'A step-by-step SB 253 compliance roadmap for small and mid-sized businesses. Learn reporting thresholds, scope boundaries, and how to build a defensible GHG inventory.',
       primary_keyword: 'SB 253 compliance SMB',
-      body_html: '<h2>What SB 253 Means for Small and Mid-Sized Businesses</h2><p>California\'s Climate Corporate Data Accountability Act (SB 253) requires companies with over $1 billion in revenue operating in California to disclose their greenhouse gas (GHG) emissions. While the threshold places the direct reporting burden on large enterprises, the ripple effects reach small and mid-sized businesses (SMBs) throughout their supply chains.</p><p>If your SMB supplies goods or services to a covered entity, you will increasingly be asked to provide emissions data as part of their Scope 3 reporting. Getting ahead of this curve means building a defensible GHG inventory now — before it becomes a contract requirement.</p><h2>Understanding the Reporting Thresholds</h2><p>SB 253 applies a two-phase timeline:</p><ul><li><strong>Phase 1 (2026):</strong> Companies with revenue over $2 billion report Scope 1 and Scope 2 emissions.</li><li><strong>Phase 2 (2027):</strong> All covered companies ($1B+ revenue) report Scope 1, 2, and begin Scope 3.</li><li><strong>Phase 3 (2028+):</strong> Full Scope 3 reporting with third-party assurance.</li></ul><p>As an SMB, you are not directly covered by these thresholds. But your largest customers are. They need your emissions data to complete their own disclosures — and they will ask for it through procurement surveys, supplier portals, and ESG questionnaires.</p><h2>Building a Defensible GHG Inventory</h2><p>A defensible GHG inventory is one that can withstand external scrutiny — from auditors, customers, and regulators. The GHG Protocol Corporate Standard provides the accounting framework:</p><ol><li><strong>Define organizational and operational boundaries.</strong> Decide which facilities, vehicles, and activities are included. Use either the equity share or control approach.</li><li><strong>Collect activity data.</strong> Gather utility bills, fuel receipts, purchase records, and freight manifests. The more granular, the better.</li><li><strong>Apply emission factors.</strong> Convert activity data (therms, kWh, gallons, dollars) into CO2e using published factors from EPA, eGRID, and DEFRA.</li><li><strong>Document your methodology.</strong> Record which factors you used, where data came from, and any assumptions. This is what auditors check.</li></ol><h2>Scope 3: The Supply Chain Challenge</h2><p>Scope 3 emissions — those in your value chain — typically account for 70-90% of a company\'s total carbon footprint. For SMBs, the most relevant Scope 3 categories are:</p><ul><li><strong>Category 1: Purchased goods and services</strong> — The emissions embedded in everything you buy, from raw materials to office supplies.</li><li><strong>Category 4: Upstream transportation</strong> — Freight, shipping, and logistics.</li><li><strong>Category 11: Use of sold products</strong> — If your products consume energy during their lifetime.</li></ul><p>Start with a spend-based approach for Category 1: multiply purchase dollar amounts by industry-average emission factors. It is less precise than supplier-specific data, but it is defensible and scalable.</p><h2>How Eco-Auditor Helps</h2><p>Eco-Auditor automates the heavy lifting of GHG accounting for SMBs:</p><ul><li><strong>Emission factor library:</strong> Pre-loaded with EPA, eGRID, DEFRA, and GHG Protocol factors, updated quarterly.</li><li><strong>Scope 1, 2, and 3 calculations:</strong> Built-in formulas for stationary combustion, purchased electricity, purchased goods, and freight.</li><li><strong>SB 253-ready reports:</strong> Export disclosures in the format your customers\' auditors expect.</li><li><strong>Supply chain surveys:</strong> Send a single link to your suppliers and auto-calculate their contribution to your Scope 3.</li></ul><h2>Key Takeaways</h2><ul><li>SB 253 does not directly regulate SMBs, but supply chain pressure makes compliance unavoidable.</li><li>Start with Scope 1 and 2 — they are the easiest to measure and the first thing customers ask about.</li><li>Use spend-based methods for Scope 3 until you can collect supplier-specific data.</li><li>Document everything — a defensible methodology is worth more than precise numbers.</li></ul>',
+      body_html: '<h2>What SB 253 Means for Small and Mid-Sized Businesses</h2><p>California\'s Climate Corporate Data Accountability Act (SB 253) requires companies with over $1 billion in revenue operating in California to disclose their greenhouse gas (GHG) emissions. While the threshold places the direct reporting burden on large enterprises, the ripple effects reach small and mid-sized businesses (SMBs) throughout their supply chains.</p><p>If your SMB supplies goods or services to a covered entity, you will increasingly be asked to provide emissions data as part of their Scope 3 reporting. Getting ahead of this curve means building a defensible GHG inventory now — before it becomes a contract requirement.</p><h2>Understanding the Reporting Thresholds</h2><p>SB 253 applies a two-phase timeline:</p><ul><li><strong>Phase 1 (2026):</strong> Companies with annual revenue over $1 billion report Scope 1 and Scope 2 emissions. The initial regulation set the first deadline at August 10, 2026; CARB has proposed moving it to November 10, 2026, and that change still has to clear the Office of Administrative Law, so treat November 10 as the likely date rather than a settled one. Limited assurance is not required for the 2026 filings.</li><li><strong>Phase 2 (2027):</strong> All covered companies ($1B+ revenue) report Scope 1, 2, and begin Scope 3.</li><li><strong>Phase 3 (2028+):</strong> Full Scope 3 reporting with third-party assurance.</li></ul><p>One common point of confusion: the $500 million threshold belongs to SB 261, the separate climate-related financial risk disclosure law. SB 253 itself applies above $1 billion in annual revenue.</p><p>As an SMB, you are not directly covered by these thresholds. But your largest customers are. They need your emissions data to complete their own disclosures — and they will ask for it through procurement surveys, supplier portals, and ESG questionnaires.</p><h2>Building a Defensible GHG Inventory</h2><p>A defensible GHG inventory is one that can withstand external scrutiny — from auditors, customers, and regulators. The GHG Protocol Corporate Standard provides the accounting framework:</p><ol><li><strong>Define organizational and operational boundaries.</strong> Decide which facilities, vehicles, and activities are included. Use either the equity share or control approach.</li><li><strong>Collect activity data.</strong> Gather utility bills, fuel receipts, purchase records, and freight manifests. The more granular, the better.</li><li><strong>Apply emission factors.</strong> Convert activity data (therms, kWh, gallons, dollars) into CO2e using published factors from EPA, eGRID, and DEFRA.</li><li><strong>Document your methodology.</strong> Record which factors you used, where data came from, and any assumptions. This is what auditors check.</li></ol><h2>Scope 3: The Supply Chain Challenge</h2><p>Scope 3 emissions — those in your value chain — typically account for 70-90% of a company\'s total carbon footprint. For SMBs, the most relevant Scope 3 categories are:</p><ul><li><strong>Category 1: Purchased goods and services</strong> — The emissions embedded in everything you buy, from raw materials to office supplies.</li><li><strong>Category 4: Upstream transportation</strong> — Freight, shipping, and logistics.</li><li><strong>Category 11: Use of sold products</strong> — If your products consume energy during their lifetime.</li></ul><p>Start with a spend-based approach for Category 1: multiply purchase dollar amounts by industry-average emission factors. It is less precise than supplier-specific data, but it is defensible and scalable.</p><h2>How Eco-Auditor Helps</h2><p>Eco-Auditor automates the heavy lifting of GHG accounting for SMBs:</p><ul><li><strong>Emission factor library:</strong> Pre-loaded with EPA GHG Emission Factors Hub 2025, eGRID2023, and IPCC AR5 global warming potentials, with each factor\'s publisher, edition and data year recorded in the methodology.</li><li><strong>Scope 1, 2, and 3 calculations:</strong> Built-in formulas for stationary combustion, purchased electricity, purchased goods, and freight.</li><li><strong>SB 253-ready reports:</strong> Export disclosures in the format your customers\' auditors expect.</li><li><strong>Scope 3 estimation:</strong> Spend-based estimates for purchased goods and services, business travel, waste and employee commuting, priced with published per-category factors.</li></ul><h2>Key Takeaways</h2><ul><li>SB 253 does not directly regulate SMBs, but supply chain pressure makes compliance unavoidable.</li><li>Start with Scope 1 and 2 — they are the easiest to measure and the first thing customers ask about.</li><li>Use spend-based methods for Scope 3 until you can collect supplier-specific data.</li><li>Document everything — a defensible methodology is worth more than precise numbers.</li></ul>',
       faq: JSON.stringify([
         { question: 'Does SB 253 apply to small businesses?', answer: 'SB 253 directly applies to companies with over $1 billion in revenue operating in California. However, SMBs in the supply chains of covered companies will be asked to provide emissions data as part of Scope 3 reporting requirements.' },
-        { question: 'What is the deadline for SB 253 reporting?', answer: 'Phase 1 reporting (Scope 1 and 2 for companies over $2B revenue) begins in 2026. Full Scope 3 reporting with third-party assurance is required by 2028.' },
+        { question: 'What is the deadline for SB 253 reporting?', answer: 'Phase 1 reporting — Scope 1 and 2 for companies with annual revenue over $1 billion — is due in 2026. CARB set August 10, 2026 in the initial regulation and has proposed deferring it to November 10, 2026, pending approval from the Office of Administrative Law. Scope 3 reporting begins in 2027.' },
         { question: 'How do I calculate Scope 3 emissions as an SMB?', answer: 'Start with a spend-based approach: multiply purchase dollar amounts by industry-average emission factors. This provides a defensible estimate without requiring supplier-specific data.' },
-        { question: 'What emission factors should I use?', answer: 'Use EPA Center for Corporate Climate Leadership factors for US operations, eGRID for electricity, and DEFRA for international activities. Eco-Auditor includes all of these in its pre-loaded factor library.' },
+        { question: 'What emission factors should I use?', answer: 'For US operations, EPA GHG Emission Factors Hub 2025; for grid electricity, eGRID2023; and IPCC AR5 GWP-100 values to convert gases to CO2e. Those are the sources Eco-Auditor ships in its pre-loaded factor library, and it records each factor\'s publisher, edition and data year in the methodology. DEFRA factors are a common choice for UK and international activities — they are on our roadmap and are not in the library today.' },
       ]),
       internal_links: JSON.stringify([
         { href: 'https://ecoauditor.io/features', anchor: 'Eco-Auditor features' },
@@ -209,7 +223,7 @@ async function seedBlogPosts(pool) {
       meta_title: 'GHG Protocol Scope 3 Guide for SMBs | Eco-Auditor',
       meta_description: 'A practical guide to GHG Protocol Scope 3 emissions for small and mid-sized businesses. Learn which categories matter, how to measure them, and how to build a defensible inventory.',
       primary_keyword: 'GHG Protocol Scope 3 SMB',
-      body_html: '<h2>Why Scope 3 Matters for SMBs</h2><p>Scope 3 emissions — the indirect emissions in your value chain — typically represent 70-90% of a company\'s total carbon footprint. For small and mid-sized businesses, Scope 3 can feel overwhelming because it encompasses everything from purchased goods to employee commuting. But ignoring it is no longer an option.</p><p>Your enterprise customers need your emissions data to complete their own Scope 3 disclosures. Regulators like California\'s CARB are tightening reporting requirements. And investors increasingly factor carbon exposure into risk assessments. The good news: you do not need to measure all 15 Scope 3 categories to be defensible. You need to measure the ones that matter.</p><h2>The 15 Scope 3 Categories — Ranked for SMBs</h2><p>The GHG Protocol defines 15 Scope 3 categories. For most SMBs, only a handful are material:</p><h3>High priority (measure first)</h3><ul><li><strong>Category 1 — Purchased goods and services:</strong> The emissions embedded in everything you buy. Usually the largest Scope 3 category for product-based businesses.</li><li><strong>Category 4 — Upstream transportation and distribution:</strong> Freight, shipping, and logistics emissions from moving your inputs.</li><li><strong>Category 11 — Use of sold products:</strong> If your products consume energy during use, this can dwarf everything else.</li></ul><h3>Medium priority (estimate when feasible)</h3><ul><li><strong>Category 5 — Waste generated in operations:</strong> Use waste contractor data or estimate by waste type and volume.</li><li><strong>Category 6 — Business travel:</strong> Flight and hotel data from expense systems.</li><li><strong>Category 7 — Employee commuting:</strong> Survey-based or estimated by office size and region.</li></ul><h3>Low priority (screen and skip if immaterial)</h3><ul><li><strong>Categories 2, 3, 8, 9, 10, 12, 13, 14, 15:</strong> For most SMBs, these are either zero, negligible, or not applicable. Document that you screened them and explain why they are immaterial.</li></ul><h2>How to Measure Scope 3 Without a Sustainability Team</h2><p>You do not need a dedicated sustainability team to build a credible Scope 3 inventory. Here is the practical path:</p><ol><li><strong>Start with spend data.</strong> Export your accounts payable ledger and categorize purchases by industry sector. Multiply each category by an EPA or DEFRA spend-based emission factor.</li><li><strong>Pull freight records.</strong> Your shipping invoices contain mode, distance, and weight. Apply the EPA SmartWay factors to estimate Category 4.</li><li><strong>Estimate product use.</strong> If you sell physical products that consume energy, estimate lifetime energy consumption and multiply by the grid emission factor.</li><li><strong>Document what you skipped and why.</strong> A screening explanation for the categories you did not measure is itself part of a defensible inventory.</li></ol><h2>Building a Defensible Methodology</h2><p>Defensibility means your numbers can survive external review. Three principles:</p><ul><li><strong>Traceability:</strong> Every number should link back to a source document.</li><li><strong>Consistency:</strong> Use the same emission factors and boundary definitions year over year.</li><li><strong>Transparency:</strong> Document your assumptions, exclusions, and estimation methods.</li></ul><h2>How Eco-Auditor Simplifies Scope 3</h2><p>Eco-Auditor is built specifically for SMBs navigating Scope 3 for the first time:</p><ul><li><strong>Spend-based Category 1 calculator:</strong> Upload your AP ledger and get instant CO2e estimates.</li><li><strong>Freight emission estimator:</strong> Enter mode, distance, and weight to get Category 4 emissions.</li><li><strong>Pre-loaded emission factors:</strong> EPA, eGRID, DEFRA, and GHG Protocol factors — updated quarterly.</li><li><strong>Scope 3 screening template:</strong> Document which categories you assessed, measured, or excluded.</li><li><strong>Customer-ready exports:</strong> Generate reports in the format your enterprise customers\' auditors expect.</li></ul><h2>Key Takeaways</h2><ul><li>You do not need to measure all 15 Scope 3 categories. Focus on the 3-5 that are material to your business.</li><li>Spend-based methods are defensible for Category 1 — refine with supplier-specific data over time.</li><li>Documentation and screening explanations are part of a defensible inventory, not optional extras.</li><li>Start now. Your enterprise customers are already asking for this data.</li></ul>',
+      body_html: '<h2>Why Scope 3 Matters for SMBs</h2><p>Scope 3 emissions — the indirect emissions in your value chain — typically represent 70-90% of a company\'s total carbon footprint. For small and mid-sized businesses, Scope 3 can feel overwhelming because it encompasses everything from purchased goods to employee commuting. But ignoring it is no longer an option.</p><p>Your enterprise customers need your emissions data to complete their own Scope 3 disclosures. Regulators like California\'s CARB are tightening reporting requirements. And investors increasingly factor carbon exposure into risk assessments. The good news: you do not need to measure all 15 Scope 3 categories to be defensible. You need to measure the ones that matter.</p><h2>The 15 Scope 3 Categories — Ranked for SMBs</h2><p>The GHG Protocol defines 15 Scope 3 categories. For most SMBs, only a handful are material:</p><h3>High priority (measure first)</h3><ul><li><strong>Category 1 — Purchased goods and services:</strong> The emissions embedded in everything you buy. Usually the largest Scope 3 category for product-based businesses.</li><li><strong>Category 4 — Upstream transportation and distribution:</strong> Freight, shipping, and logistics emissions from moving your inputs.</li><li><strong>Category 11 — Use of sold products:</strong> If your products consume energy during use, this can dwarf everything else.</li></ul><h3>Medium priority (estimate when feasible)</h3><ul><li><strong>Category 5 — Waste generated in operations:</strong> Use waste contractor data or estimate by waste type and volume.</li><li><strong>Category 6 — Business travel:</strong> Flight and hotel data from expense systems.</li><li><strong>Category 7 — Employee commuting:</strong> Survey-based or estimated by office size and region.</li></ul><h3>Low priority (screen and skip if immaterial)</h3><ul><li><strong>Categories 2, 3, 8, 9, 10, 12, 13, 14, 15:</strong> For most SMBs, these are either zero, negligible, or not applicable. Document that you screened them and explain why they are immaterial.</li></ul><h2>How to Measure Scope 3 Without a Sustainability Team</h2><p>You do not need a dedicated sustainability team to build a credible Scope 3 inventory. Here is the practical path:</p><ol><li><strong>Start with spend data.</strong> Export your accounts payable ledger and categorize purchases by industry sector. Multiply each category by an EPA or DEFRA spend-based emission factor.</li><li><strong>Pull freight records.</strong> Your shipping invoices contain mode, distance, and weight. Apply the EPA SmartWay factors to estimate Category 4.</li><li><strong>Estimate product use.</strong> If you sell physical products that consume energy, estimate lifetime energy consumption and multiply by the grid emission factor.</li><li><strong>Document what you skipped and why.</strong> A screening explanation for the categories you did not measure is itself part of a defensible inventory.</li></ol><h2>Building a Defensible Methodology</h2><p>Defensibility means your numbers can survive external review. Three principles:</p><ul><li><strong>Traceability:</strong> Every number should link back to a source document.</li><li><strong>Consistency:</strong> Use the same emission factors and boundary definitions year over year.</li><li><strong>Transparency:</strong> Document your assumptions, exclusions, and estimation methods.</li></ul><h2>How Eco-Auditor Simplifies Scope 3</h2><p>Eco-Auditor is built specifically for SMBs navigating Scope 3 for the first time:</p><ul><li><strong>Spend-based Category 1 calculator:</strong> Upload your AP ledger and get instant CO2e estimates.</li><li><strong>Freight emission estimator:</strong> Enter mode, distance, and weight to get Category 4 emissions.</li><li><strong>Pre-loaded emission factors:</strong> EPA GHG Emission Factors Hub 2025, eGRID2023, and IPCC AR5 global warming potentials, each recorded with its publisher, edition and data year.</li><li><strong>Scope 3 screening template:</strong> Document which categories you assessed, measured, or excluded.</li><li><strong>Customer-ready exports:</strong> Generate reports in the format your enterprise customers\' auditors expect.</li></ul><h2>Key Takeaways</h2><ul><li>You do not need to measure all 15 Scope 3 categories. Focus on the 3-5 that are material to your business.</li><li>Spend-based methods are defensible for Category 1 — refine with supplier-specific data over time.</li><li>Documentation and screening explanations are part of a defensible inventory, not optional extras.</li><li>Start now. Your enterprise customers are already asking for this data.</li></ul>',
       faq: JSON.stringify([
         { question: 'Which Scope 3 categories should an SMB measure first?', answer: 'Start with Category 1 (purchased goods and services), Category 4 (upstream transportation), and Category 11 (use of sold products). These typically represent the largest share of Scope 3 emissions for SMBs.' },
         { question: 'Is spend-based Scope 3 reporting defensible?', answer: 'Yes. The GHG Protocol explicitly accepts spend-based methods as a valid estimation approach for Scope 3 Category 1. Document your data sources, emission factors, and assumptions.' },
@@ -237,7 +251,7 @@ async function seedBlogPosts(pool) {
       meta_title: 'Carbon Accounting Software for SMBs (2026 Guide) | Eco-Auditor',
       meta_description: 'A buyer\'s guide to carbon accounting software for small and mid-sized businesses. Compare features, pricing models, and must-have capabilities for 2026 compliance.',
       primary_keyword: 'carbon accounting software SMB',
-      body_html: '<h2>Why SMBs Need Carbon Accounting Software Now</h2><p>Carbon accounting used to be a spreadsheet exercise managed by an external consultant once a year. In 2026, that approach no longer holds up. Regulatory pressure from SB 253, CBAM, and SEC climate disclosure rules means emissions data needs to be audit-ready, continuously updated, and defensible.</p><p>For SMBs, the challenge is finding software that fits your budget and team size without sacrificing the rigor that enterprise customers and regulators expect. Here is what to look for.</p><h2>Must-Have Features for SMB Carbon Accounting</h2><h3>1. Pre-loaded emission factor libraries</h3><p>Your software should ship with emission factors from EPA, eGRID, DEFRA, and the GHG Protocol — not require you to research and input them manually. Factors should be versioned, sourced, and updated at least quarterly.</p><h3>2. Scope 1, 2, and 3 support</h3><p>Many tools handle Scope 1 and 2 well but treat Scope 3 as an afterthought. For SMBs in supply chains of regulated companies, Scope 3 is where the scrutiny is. Look for spend-based Category 1 calculation, freight estimation, and a screening template.</p><h3>3. Audit-ready documentation</h3><p>Every calculation should be traceable to its source data and emission factor. Look for audit trails that record who entered data, when it was modified, and which factors were applied.</p><h3>4. Customer-ready reporting</h3><p>Can the tool export reports in the formats your enterprise customers request? CDP, GRI, TCFD, and custom supplier questionnaire formats should all be supported.</p><h3>5. Supply chain survey tools</h3><p>The best way to improve Scope 3 data quality is to collect primary data from your suppliers. Look for tools that let you send a single survey link and auto-calculate supplier contributions.</p><h2>Pricing Models: What Makes Sense for SMBs</h2><ul><li><strong>Per-facility pricing:</strong> Charged based on the number of facilities. Gets expensive for distributed operations.</li><li><strong>Per-user pricing:</strong> Charged per seat. Best for teams where only a few people need access.</li><li><strong>Tiered plans:</strong> Fixed monthly or annual price with feature gates. Best for SMBs — predictable cost, no surprises.</li></ul><p>Eco-Auditor uses tiered pricing (Starter, Growth, Pro) with no per-facility or per-user penalties.</p><h2>Red Flags to Watch For</h2><ul><li><strong>"AI-generated" emission estimates with no methodology:</strong> If a tool gives you a carbon number without showing the underlying factors, it is not defensible.</li><li><strong>No Scope 3 support:</strong> Tools that only cover Scope 1 and 2 leave you unprepared for supply chain reporting requests.</li><li><strong>Annual-only factor updates:</strong> Emission factors change as grids decarbonize. If your tool updates once a year, your numbers are stale within months.</li><li><strong>No data export:</strong> If you cannot export your raw data, you are locked in.</li></ul><h2>The Spreadsheet Question</h2><p>Many SMBs start with Excel. That is fine for a first-pass estimate, but spreadsheets break down fast: no version control on emission factors, no audit trail, no validation, no factor updates. If you are spending more than two hours a month maintaining a carbon spreadsheet, dedicated software will pay for itself.</p><h2>How Eco-Auditor Compares</h2><ul><li><strong>Pre-loaded factors:</strong> EPA, eGRID, DEFRA, GHG Protocol — updated quarterly.</li><li><strong>All three scopes:</strong> Scope 1, 2, and 3 with spend-based methods and screening templates.</li><li><strong>Audit-ready:</strong> Every calculation links to source data, factor version, and methodology.</li><li><strong>Customer-ready exports:</strong> CDP, GRI, TCFD, and custom formats.</li><li><strong>Supply chain surveys:</strong> Send one link, auto-calculate supplier contributions.</li><li><strong>Tiered pricing:</strong> Starter at $149/month, no per-facility or per-user penalties.</li></ul><h2>Key Takeaways</h2><ul><li>Carbon accounting software is no longer optional for SMBs in regulated supply chains.</li><li>Look for pre-loaded emission factors, full Scope 3 support, audit trails, and customer-ready reporting.</li><li>Avoid tools with opaque estimates, no Scope 3, or no data export.</li><li>Tiered pricing without per-facility penalties is the SMB-friendly model.</li></ul>',
+      body_html: '<h2>Why SMBs Need Carbon Accounting Software Now</h2><p>Carbon accounting used to be a spreadsheet exercise managed by an external consultant once a year. In 2026, that approach no longer holds up. Regulatory pressure from SB 253, CBAM, and SEC climate disclosure rules means emissions data needs to be audit-ready, continuously updated, and defensible.</p><p>For SMBs, the challenge is finding software that fits your budget and team size without sacrificing the rigor that enterprise customers and regulators expect. Here is what to look for.</p><h2>Must-Have Features for SMB Carbon Accounting</h2><h3>1. Pre-loaded emission factor libraries</h3><p>Your software should ship with emission factors from EPA, eGRID, DEFRA, and the GHG Protocol — not require you to research and input them manually. Factors should be versioned, sourced, and updated at least quarterly.</p><h3>2. Scope 1, 2, and 3 support</h3><p>Many tools handle Scope 1 and 2 well but treat Scope 3 as an afterthought. For SMBs in supply chains of regulated companies, Scope 3 is where the scrutiny is. Look for spend-based Category 1 calculation, freight estimation, and a screening template.</p><h3>3. Audit-ready documentation</h3><p>Every calculation should be traceable to its source data and emission factor. Look for audit trails that record who entered data, when it was modified, and which factors were applied.</p><h3>4. Customer-ready reporting</h3><p>Can the tool export reports in the formats your enterprise customers request? CDP, GRI, TCFD, and custom supplier questionnaire formats should all be supported.</p><h3>5. Supply chain survey tools</h3><p>The best way to improve Scope 3 data quality is to collect primary data from your suppliers. Look for tools that let you send a single survey link and auto-calculate supplier contributions.</p><h2>Pricing Models: What Makes Sense for SMBs</h2><ul><li><strong>Per-facility pricing:</strong> Charged based on the number of facilities. Gets expensive for distributed operations.</li><li><strong>Per-user pricing:</strong> Charged per seat. Best for teams where only a few people need access.</li><li><strong>Tiered plans:</strong> Fixed monthly or annual price with feature gates. Best for SMBs — predictable cost, no surprises.</li></ul><p>Eco-Auditor uses tiered pricing (Starter, Growth, Pro) with no per-facility or per-user penalties.</p><h2>Red Flags to Watch For</h2><ul><li><strong>"AI-generated" emission estimates with no methodology:</strong> If a tool gives you a carbon number without showing the underlying factors, it is not defensible.</li><li><strong>No Scope 3 support:</strong> Tools that only cover Scope 1 and 2 leave you unprepared for supply chain reporting requests.</li><li><strong>Annual-only factor updates:</strong> Emission factors change as grids decarbonize. If your tool updates once a year, your numbers are stale within months.</li><li><strong>No data export:</strong> If you cannot export your raw data, you are locked in.</li></ul><h2>The Spreadsheet Question</h2><p>Many SMBs start with Excel. That is fine for a first-pass estimate, but spreadsheets break down fast: no version control on emission factors, no audit trail, no validation, no factor updates. If you are spending more than two hours a month maintaining a carbon spreadsheet, dedicated software will pay for itself.</p><h2>How Eco-Auditor Compares</h2><ul><li><strong>Pre-loaded factors:</strong> EPA GHG Emission Factors Hub 2025, eGRID2023 and IPCC AR5 global warming potentials, each recorded with its publisher, edition and data year.</li><li><strong>All three scopes:</strong> Scope 1, 2, and 3 with spend-based methods and screening templates.</li><li><strong>Audit-ready:</strong> Every calculation links to source data, factor version, and methodology.</li><li><strong>Customer-ready exports:</strong> CDP, GRI, TCFD, and custom formats.</li><li><strong>Supply chain surveys:</strong> Send one link, auto-calculate supplier contributions.</li><li><strong>Tiered pricing:</strong> Starter at $149/month, no per-facility or per-user penalties.</li></ul><h2>Key Takeaways</h2><ul><li>Carbon accounting software is no longer optional for SMBs in regulated supply chains.</li><li>Look for pre-loaded emission factors, full Scope 3 support, audit trails, and customer-ready reporting.</li><li>Avoid tools with opaque estimates, no Scope 3, or no data export.</li><li>Tiered pricing without per-facility penalties is the SMB-friendly model.</li></ul>',
       faq: JSON.stringify([
         { question: 'How much does carbon accounting software cost for an SMB?', answer: 'Carbon accounting software for SMBs typically ranges from $149 to $999 per month. Eco-Auditor offers tiered plans starting at $149/month with no per-facility or per-user penalties.' },
         { question: 'Can I use Excel for carbon accounting?', answer: 'Excel works for a first-pass estimate but breaks down due to lack of version control, audit trails, emission factor updates, and validation. Dedicated software saves time and reduces errors.' },
@@ -926,7 +940,14 @@ app.get('/ready', async function (_req, res) {
 // ─── Trial status endpoint (used by frontend after OAuth) ───
 app.get('/api/trial-status', authGuard, async function (req, res) {
   if (!pgPool) {
-    return res.json({ trial: true, trialEndsAt: null, source: 'no-db' });
+    // Fail closed here too, for the same reason the catch branch below does:
+    // this endpoint is a UI hint about entitlement, and an invented
+    // `trial: true` tells an expired user their trial is still running. The
+    // catch branch was fixed for exactly that and this early return — which
+    // returns the very value that was judged wrong — was left behind, so the
+    // two branches of one function disagreed. 503 lets session.ts retry
+    // instead of caching an answer nobody can substantiate.
+    return res.status(503).json({ error: 'Trial status unavailable', source: 'no-db' });
   }
   try {
     const { rows } = await pgPool.query(
@@ -952,7 +973,14 @@ app.get('/api/trial-status', authGuard, async function (req, res) {
 // ─── Billing state endpoint (trial + subscription, synced from Stripe webhooks) ───
 app.get('/api/billing', authGuard, async function (req, res) {
   if (!pgPool) {
-    return res.json({ active: true, plan: 'starter', status: 'trialing', trialActive: true, source: 'no-db' });
+    // Do not fabricate a subscription. This used to answer
+    // { active: true, plan: 'starter', status: 'trialing' } whenever the store
+    // was unavailable, so a paying Pro customer during a database outage was
+    // told — on the Settings screen they opened to check their plan — that
+    // they were on a free Starter trial. Entitlement itself is enforced by
+    // requirePlan, which fails closed, so this was never an access bypass; it
+    // was billing misinformation presented as fact.
+    return res.status(503).json({ success: false, error: 'Billing status unavailable, please retry', source: 'no-db' });
   }
   try {
     const state = await loadBillingState(req.user.id);
@@ -995,12 +1023,60 @@ async function loadCompanyExportRow(companyId) {
   return sampleCompanies[companyId] || null;
 }
 
+/**
+ * The company's generated reports and their sign-off state — the compliance
+ * audit trail. Kept separate from loadEmissionEntries so a missing table (an
+ * unmigrated database) degrades the export instead of failing the customer's
+ * data-portability request outright.
+ */
+async function loadReportsForExport(companyId) {
+  if (!pgPool) return [];
+  try {
+    const { rows } = await pgPool.query(
+      `SELECT id, title, type, status, last_updated, completeness, signoff, created_at
+         FROM public.reports WHERE company_id = $1 ORDER BY created_at ASC`,
+      [companyId]
+    );
+    return rows;
+  } catch (err) {
+    log('warn', 'Account export: reports unavailable', { error: String(err.message || err) });
+    return [];
+  }
+}
+
+/** Import history, so the customer can reconcile what entered the inventory. */
+async function loadCsvImportEventsForExport(companyId) {
+  if (!pgPool) return [];
+  try {
+    const { rows } = await pgPool.query(
+      `SELECT id, row_count, created_at
+         FROM public.csv_import_events WHERE company_id = $1 ORDER BY created_at ASC`,
+      [companyId]
+    );
+    return rows;
+  } catch (err) {
+    log('warn', 'Account export: csv_import_events unavailable', { error: String(err.message || err) });
+    return [];
+  }
+}
+
 app.get('/api/account/export', apiAuthGuard, async function (req, res) {
   try {
     const companyId = await requireCompanyAccess(req, res, null);
     if (!companyId) return;
     const company = await loadCompanyExportRow(companyId);
     const facilities = await loadFacilities(companyId);
+
+    // The audit trail. /api/account/delete-data deliberately PRESERVES reports
+    // and csv_import_events (they carry the compliance sign-off and the import
+    // history), but the export left them out entirely — so a customer could
+    // never obtain a copy of data the platform was keeping on their behalf, and
+    // could not exercise a data-portability right over it. reports.signoff in
+    // particular is the compliance artifact the whole product exists to
+    // produce, and it was silently absent from "export my data".
+    const reports = await loadReportsForExport(companyId);
+    const importEvents = await loadCsvImportEventsForExport(companyId);
+
     let entries = await loadEmissionEntries(companyId);
     const notes = [];
     if (entries.length > EXPORT_MAX_ENTRIES) {
@@ -1013,6 +1089,8 @@ app.get('/api/account/export', apiAuthGuard, async function (req, res) {
       company: company,
       facilities: facilities,
       emissionEntries: entries,
+      reports: reports,
+      csvImportEvents: importEvents,
     };
     if (notes.length) payload.notes = notes;
     res.setHeader('Content-Type', 'application/json');
@@ -1155,7 +1233,21 @@ async function authGuard(req, res, next) {
     if (!user || !user.id) {
       return res.status(401).json({ error: 'Invalid user payload' });
     }
-    req.user = user;
+    // Normalise the email once, here, where the payload shape is actually
+    // known. Every billing route passes req.user.email to
+    // ensureStripeCustomer, and node-postgres turns an undefined bind into
+    // NULL — which used to be a not-null violation on public.users.email and a
+    // 500 on checkout, verify, portal, plan change and cancel alike. The guard
+    // only ever validated `id`, so a session payload without an email walked
+    // straight into that. A blank or absent email now becomes null, which the
+    // column accepts (see migrations/20261005000000_users-email-nullable.sql)
+    // and Stripe does not require. Shared with the unit test via
+    // normalizeAuthEmail in server-billing.cjs.
+    const email = normalizeAuthEmail(user.email);
+    if (email === null) {
+      log('warn', 'authGuard: InsForge session carried no usable email', { userId: user.id });
+    }
+    req.user = { ...user, email };
     next();
   } catch (err) {
     log('error', 'authGuard error', { error: String(err) });
@@ -1297,8 +1389,11 @@ async function ensureStripeCustomer(insforgeUserId, email) {
     return rows[0].stripe_customer_id;
   }
 
+  // Stripe does not require an email on a customer, so omit the key entirely
+  // rather than sending null — a customer created here must stay usable even
+  // when the InsForge session carried no address.
   const customer = await stripe.customers.create({
-    email: email,
+    ...(email ? { email } : {}),
     metadata: { insforge_user_id: insforgeUserId },
   });
 
@@ -1701,7 +1796,15 @@ app.post('/api/checkout', express.json(), stripeGuard, authGuard, async function
       }
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    // The 409 guard above is check-then-act with no reservation, so two
+    // concurrent POSTs (double-click, or a client retry after a network
+    // timeout) both observe "no subscription" and both create a live session.
+    // Completing both yields two concurrent subscriptions and a flapping
+    // entitlement. An idempotency key makes a retry return the SAME session
+    // instead of a second billable one. Scoped to this user+price for a short
+    // window, so a genuine later repurchase is unaffected.
+    const idempotencyKey = `checkout:${req.user.id}:${priceId}:${Math.floor(Date.now() / (10 * 60 * 1000))}`;
+    const session = await stripe.checkout.sessions.create(sessionParams, { idempotencyKey });
     log('info', 'Checkout session created', { sessionId: session.id, userId: req.user.id });
     return res.json({ url: session.url });
   } catch (err) {
@@ -1738,9 +1841,29 @@ app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async f
       return res.json({ verified: false, reason: 'no_subscription_on_session' });
     }
 
-    // Lower bound taken before the read, so the watermark reflects when this
-    // state was true rather than when we finished writing it.
-    const readAt = Math.floor(Date.now() / 1000);
+    // The watermark must reflect WHEN THIS PURCHASE was true, not what time it
+    // is now. Using the wall clock made the ordering guard in
+    // syncSubscriptionRecord admit every write: the stored
+    // subscription_event_at is always older than "now", so replaying a stale
+    // session always won.
+    //
+    // Concretely: buy Growth (session A -> S1), cancel, buy Pro (session B ->
+    // S2 active). Revisiting the old confirmation link passes the ownership
+    // check above, loads S1 (canceled), and stamped that over the live Pro
+    // entitlement — the customer was 402'd off a plan they were paying for,
+    // while the route answered verified:true. Recovery waited for the next
+    // genuine Stripe event, up to a billing cycle.
+    //
+    // session.created is the purchase's own ordering key, so a replayed old
+    // session is rejected by the same guard that stops out-of-order webhooks.
+    // syncSubscriptionRecord reports that as a correct skip
+    // ({ok:true, reason:'stale_event'}), which means "the row already holds
+    // state at least as fresh as this" — so we can still answer verified:true
+    // with the CURRENT billing state.
+    const sessionCreated = Number(session.created);
+    const readAt = Number.isFinite(sessionCreated) && sessionCreated > 0
+      ? sessionCreated
+      : Math.floor(Date.now() / 1000);
     const subscription = typeof session.subscription === 'string'
       ? await stripe.subscriptions.retrieve(session.subscription)
       : session.subscription;
@@ -1752,7 +1875,11 @@ app.post('/api/checkout/verify', express.json(), stripeGuard, authGuard, async f
     }
 
     const state = await loadBillingState(req.user.id);
-    log('info', 'Checkout verified and subscription reconciled', { userId: req.user.id, subId: subscription.id });
+    log('info', 'Checkout verified and subscription reconciled', {
+      userId: req.user.id,
+      subId: subscription.id,
+      superseded: result.reason === 'stale_event',
+    });
     return res.json({ verified: true, billing: state });
   } catch (err) {
     log('error', 'Checkout verify failed', { error: String(err) });
@@ -2630,8 +2757,23 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     companyId = await requireCompanyAccess(req, res, req.query.company_id);
     if (!companyId) return;
     const csvText = req.body || '';
-    const rawRows = parseEmissionCsv(csvText);
+    // Per-row isolation. parseEmissionCsv threw on the FIRST bad amount, so a
+    // 500-row file with one typo imported nothing and the customer had to fix
+    // row 12, resubmit, discover row 47, and repeat. The detailed parser keeps
+    // the good rows and reports the bad ones by line, which is the same
+    // treatment this route already gave bad scope, bad confidence and unknown
+    // facilities.
+    const parsed = parseEmissionCsvDetailed(csvText);
+    const rawRows = parsed.rows;
+    const parseErrors = parsed.errors || [];
     if (rawRows.length === 0) {
+      if (parseErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `No importable rows. ${parseErrors.length === 1 ? parseErrors[0].message : parseErrors.length + ' rows have invalid amounts.'}`,
+          errors: parseErrors,
+        });
+      }
       return res.status(400).json({ success: false, error: 'CSV file is empty or has no data rows after the header.' });
     }
 
@@ -2670,12 +2812,15 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
     const companyFacilities = await loadFacilities(companyId);
     const SCOPE_LABELS = { scope1: 'Scope 1', scope2: 'Scope 2', scope3: 'Scope 3' };
     const entries = [];
-    var importErrors = [];   // fatal per-row errors
+    var importErrors = parseErrors.map(function (e) { return e.message; }); // fatal per-row errors
     var importWarnings = []; // non-fatal per-row notes
 
     for (var i = 0; i < rawRows.length; i++) {
       var row = rawRows[i];
-      var rowNum = i + 2; // 1-indexed + header row
+      // 1-indexed + header row. Rows dropped by the parser are excluded from
+      // rawRows, so the index is not the file line — use the line the parser
+      // recorded or every diagnostic would name the wrong row of the upload.
+      var rowNum = row._rowNumber || (i + 2);
       var rowErrors = [];
       var rowWarnings = [];
       var facilityId = null;
@@ -2795,7 +2940,7 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       id: jobId,
       status: entries.length > 0 ? 'completed' : 'failed',
       imported: entries.length,
-      total_rows: rawRows.length,
+      total_rows: rawRows.length + parseErrors.length,
       errors: importErrors,
       warnings: importWarnings,
       company_id: companyId,
@@ -2809,7 +2954,7 @@ app.post('/api/ingest/csv', express.text({ type: ['text/*', 'application/csv'], 
       success: true,
       job_id: jobId,
       imported: entries.length,
-      total_rows: rawRows.length,
+      total_rows: rawRows.length + parseErrors.length,
       errors: importErrors,
       warnings: importWarnings,
     });
@@ -2899,13 +3044,63 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
   }
 
   try {
-    // Facility cap. requirePlan has already attached req.billing. This has to
-    // sit inside the try — loadFacilities throws when the data store is
-    // unavailable, and Express 4 does not catch async rejections, so an
-    // uncaught one would hang the request instead of erroring cleanly.
     const plan = (req.billing && req.billing.plan) || 'starter';
+
+    // Facility cap. requirePlan has already attached req.billing.
+    //
+    // The cap check and the insert must be ONE transaction holding a row lock
+    // on the company. Reading the count and then inserting as two separate
+    // statements let parallel requests all observe the same count and all pass
+    // the check — five concurrent POSTs put five facilities on a starter plan
+    // whose limit is one. reserveCsvImportQuota already locks for exactly this
+    // reason; this mirrors it.
+    let facilityCheck;
+    if (pgPool) {
+      const client = await pgPool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SET LOCAL row_security = off');
+        const locked = await client.query(
+          'SELECT id FROM public.companies WHERE id = $1 FOR UPDATE',
+          [companyId]
+        );
+        if (locked.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, error: 'Company not found' });
+        }
+        const { rows } = await client.query(
+          'SELECT COUNT(*)::int AS used FROM public.facilities WHERE company_id = $1',
+          [companyId]
+        );
+        facilityCheck = canAddFacility(plan, rows.length ? rows[0].used : 0);
+        if (!facilityCheck.allowed) {
+          await client.query('ROLLBACK');
+          return res.status(402).json({
+            success: false,
+            code: 'upgrade_required',
+            requiredPlan: facilityCheck.requiredPlan,
+            error: `Your ${plan} plan includes ${facilityCheck.limit} ${facilityCheck.limit === 1 ? 'facility' : 'facilities'}. Upgrade to ${facilityCheck.requiredPlan} to add more.`,
+          });
+        }
+        const inserted = await client.query(
+          `INSERT INTO public.facilities (company_id, name, type, city)
+           VALUES ($1, $2, $3, $4) RETURNING id, company_id, name, type, city`,
+          [companyId, facilityName, facilityType, facilityCity]
+        );
+        await client.query('COMMIT');
+        emissionsSummaryCache.clear();
+        return res.status(201).json({ success: true, data: inserted.rows[0] });
+      } catch (txErr) {
+        try { await client.query('ROLLBACK'); } catch { /* connection already broken */ }
+        throw txErr;
+      } finally {
+        client.release();
+      }
+    }
+
+    // No pool: sample/dev mode keeps the original count-then-insert shape.
     const existing = await loadFacilities(companyId);
-    const facilityCheck = canAddFacility(plan, existing.length);
+    facilityCheck = canAddFacility(plan, existing.length);
     if (!facilityCheck.allowed) {
       return res.status(402).json({
         success: false,
@@ -2913,16 +3108,6 @@ app.post('/api/companies/:id/facilities', express.json(), apiAuthGuard, requireP
         requiredPlan: facilityCheck.requiredPlan,
         error: `Your ${plan} plan includes ${facilityCheck.limit} ${facilityCheck.limit === 1 ? 'facility' : 'facilities'}. Upgrade to ${facilityCheck.requiredPlan} to add more.`,
       });
-    }
-
-    if (pgPool) {
-      const result = await queryWithRlsBypass(
-        `INSERT INTO public.facilities (company_id, name, type, city)
-         VALUES ($1, $2, $3, $4) RETURNING id, company_id, name, type, city`,
-        [companyId, facilityName, facilityType, facilityCity]
-      );
-      emissionsSummaryCache.clear();
-      return res.status(201).json({ success: true, data: result.rows[0] });
     }
     if (allowSampleData()) {
       const facility = { id: crypto.randomUUID(), company_id: companyId, name: facilityName, type: facilityType, city: facilityCity };
@@ -2982,22 +3167,22 @@ app.get('/api/companies/:id/compliance', apiAuthGuard, requirePlan('starter'), a
 });
 
 app.get('/api/compliance/deadlines', apiAuthGuard, function (_req, res) {
-  // Derive status from the current date so past deadlines aren't reported as
-  // "upcoming" (e.g. EU CSRD 2025-01-01 was returned as upcoming in mid-2026).
+  // Dates come from the shared compliance-deadlines table. This route used to
+  // return a hardcoded SB 253 "2026-01-01", which on 2026-10-05 reported the
+  // deadline as overdue nine months before it was actually due — see
+  // compliance-deadlines.cjs.
   const now = Date.now();
-  const SOON_MS = 90 * 24 * 60 * 60 * 1000; // within 90 days = "due_soon"
-  const deadlines = [
-    { framework: 'SB 253', due_date: '2026-01-01', scope: 'Scope 1 and Scope 2' },
-    { framework: 'SB 253', due_date: '2027-01-01', scope: 'Scope 3' },
-    { framework: 'EU CSRD', due_date: '2025-01-01', scope: 'Sustainability report' },
-  ].map(function (d) {
-    const due = Date.parse(d.due_date + 'T00:00:00Z');
-    let status = 'upcoming';
-    if (due < now) status = 'overdue';
-    else if (due - now <= SOON_MS) status = 'due_soon';
-    return Object.assign({}, d, { status: status });
+  const deadlines = allDeadlines(now);
+  // Applicability is only knowable from a company profile (revenue/employees/
+  // region). Real tenant rows carry none of those yet, so the response says so
+  // instead of implying every framework applies to every company.
+  return res.json({
+    success: true,
+    data: deadlines,
+    applicability: 'unknown',
+    applicability_note:
+      'Applicability requires your company revenue, headcount, and operating region, which are not recorded yet.',
   });
-  return res.json({ success: true, data: deadlines });
 });
 
 app.post('/api/compliance/:id/signoff', express.json(), apiAuthGuard, requirePlan('starter'), async function (req, res) {
@@ -3037,6 +3222,12 @@ app.post('/api/companies/:id/reports/generate', express.json(), apiAuthGuard, re
     const companyId = await requireCompanyAccess(req, res, req.params.id);
     if (!companyId) return;
     const period = req.body && req.body.period ? String(req.body.period) : null;
+    // Same validation the summary route applies. reports.period is an
+    // unconstrained TEXT column, so an unvalidated body field let any
+    // authenticated account persist a ~100 KB "period" string per request.
+    if (period !== null && !SUMMARY_PERIOD_PATTERN.test(period)) {
+      return res.status(400).json({ success: false, error: 'period must be a 4-digit year, e.g. 2026' });
+    }
     const entries = await loadEmissionEntries(companyId, period);
     const summary = summarizeEntries(entries, { companyId: companyId, period: period });
 
@@ -3181,6 +3372,59 @@ app.get('/api/video', function (req, res) {
   }
 });
 
+// ─── Sitemap ───
+// Registered BEFORE express.static, which serves static/sitemap.xml (mirrored
+// from public/ at build time). Registered after, this route was shadowed and
+// never ran — caught by booting the server and diffing the response, which
+// returned the static file's lastmod values.
+app.get('/sitemap.xml', async function (_req, res) {
+  let postUrls = [];
+  if (pgPool) {
+    try {
+      const { rows } = await pgPool.query(
+        'SELECT slug, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 200'
+      );
+      postUrls = rows.map(function (row) {
+        const lastmod = row.published_at ? String(row.published_at).slice(0, 10) : null;
+        return '  <url>\n    <loc>' + APP_BASE_URL + '/blog/' + encodeURIComponent(row.slug) + '/</loc>' +
+          (lastmod ? '\n    <lastmod>' + lastmod + '</lastmod>' : '') +
+          '\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>';
+      });
+    } catch (err) {
+      log('warn', 'sitemap: could not read blog_posts', { error: String(err) });
+    }
+  }
+
+  // Only the marketing pages; /app/* and /auth/* are auth-only and blocked by
+  // robots.txt, so they must never appear here.
+  const staticUrls = [
+    ['/', '2026-05-21', 'weekly', '1.0'],
+    ['/pricing/', '2026-06-15', 'weekly', '0.9'],
+    ['/methodology/', '2026-06-15', 'monthly', '0.8'],
+    ['/blog/', '2026-09-05', 'weekly', '0.8'],
+    ['/sample-report/', '2026-06-15', 'monthly', '0.7'],
+    ['/security/', '2026-06-15', 'monthly', '0.6'],
+    ['/demo/', '2026-07-15', 'monthly', '0.6'],
+    ['/contact/', '2026-06-15', 'monthly', '0.5'],
+    ['/privacy/', '2026-06-15', 'monthly', '0.3'],
+    ['/terms/', '2026-05-21', 'monthly', '0.3'],
+    ['/dpa/', '2026-05-21', 'monthly', '0.3'],
+  ].map(function (u) {
+    return '  <url>\n    <loc>' + APP_BASE_URL + u[0] + '</loc>\n    <lastmod>' + u[1] +
+      '</lastmod>\n    <changefreq>' + u[2] + '</changefreq>\n    <priority>' + u[3] + '</priority>\n  </url>';
+  });
+
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    '  <!-- Public marketing pages. App routes are auth-only and blocked by robots.txt. -->\n' +
+    staticUrls.concat(postUrls).join('\n') +
+    '\n</urlset>\n';
+
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+});
+
 // ─── Static files with cache headers ───
 app.use(express.static(path.join(__dirname, 'static'), {
   setHeaders: function (res, filePath) {
@@ -3232,6 +3476,157 @@ app.get(['/dashboard', '/dashboard/'], function (_req, res) {
 // SPA HTML shell.
 app.use('/api', function (_req, res) {
   res.status(404).json({ error: 'Not found' });
+});
+
+// ─── Blog post metadata (server-rendered) ───
+//
+// Every /blog/:slug URL used to fall through to the SPA fallback, which serves
+// static/index.html — the homepage shell. Verified live on 2026-10-05: all
+// seven published posts returned the homepage's <title>, meta description, OG
+// tags and FAQPage JSON-LD, plus:
+//
+//   <link rel="canonical" href="https://ecoauditor.io/" />
+//
+// That canonical is an explicit instruction to consolidate the post URL onto
+// the homepage. Combined with a sitemap listing no post URLs and a prerendered
+// /blog/ containing no post links, Google had three independent signals to drop
+// every article. Seven high-intent pages (SB 253, CBAM, Scope 3, software
+// selection) were being actively de-indexed.
+//
+// Rewrites the head for the requested post so crawlers and social scrapers see
+// the article's own metadata and a self-referencing canonical. The React app
+// still renders the body after hydration; only the served <head> changes.
+function escapeHtmlAttribute(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Same shape server-publish.cjs enforces on write, so a slug that could never
+// have been stored is rejected before it reaches the database.
+const SLUG_SAFE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+function replaceFirst(html, pattern, replacement) {
+  return html.replace(pattern, function () { return replacement; });
+}
+
+function renderBlogPostHead(shell, post, canonicalUrl) {
+  const title = post.meta_title || post.title || 'Eco-Auditor Blog';
+  const description = post.meta_description || post.excerpt || '';
+  const fullTitle = title.indexOf('Eco-Auditor') === -1 ? title + ' | Eco-Auditor' : title;
+  let html = shell;
+
+  html = replaceFirst(html, /<title>[\s\S]*?<\/title>/i, '<title>' + escapeHtmlAttribute(fullTitle) + '</title>');
+  html = replaceFirst(
+    html,
+    /<meta name="description" content="[^"]*"\s*\/?>/i,
+    '<meta name="description" content="' + escapeHtmlAttribute(description) + '" />'
+  );
+  // Self-referencing canonical — the single change that stops de-indexing.
+  html = replaceFirst(
+    html,
+    /<link rel="canonical" href="[^"]*"\s*\/?>/i,
+    '<link rel="canonical" href="' + escapeHtmlAttribute(canonicalUrl) + '" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta property="og:type" content="[^"]*"\s*\/?>/i,
+    '<meta property="og:type" content="article" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta property="og:url" content="[^"]*"\s*\/?>/i,
+    '<meta property="og:url" content="' + escapeHtmlAttribute(canonicalUrl) + '" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta property="og:title" content="[^"]*"\s*\/?>/i,
+    '<meta property="og:title" content="' + escapeHtmlAttribute(title) + '" />'
+  );
+  if (description) {
+    html = replaceFirst(
+      html,
+      /<meta property="og:description" content="[^"]*"\s*\/?>/i,
+      '<meta property="og:description" content="' + escapeHtmlAttribute(description) + '" />'
+    );
+  }
+  html = replaceFirst(
+    html,
+    /<meta name="twitter:url" content="[^"]*"\s*\/?>/i,
+    '<meta name="twitter:url" content="' + escapeHtmlAttribute(canonicalUrl) + '" />'
+  );
+  html = replaceFirst(
+    html,
+    /<meta name="twitter:title" content="[^"]*"\s*\/?>/i,
+    '<meta name="twitter:title" content="' + escapeHtmlAttribute(title) + '" />'
+  );
+  if (description) {
+    html = replaceFirst(
+      html,
+      /<meta name="twitter:description" content="[^"]*"\s*\/?>/i,
+      '<meta name="twitter:description" content="' + escapeHtmlAttribute(description) + '" />'
+    );
+  }
+
+  // The homepage FAQPage block describes Eco-Auditor the product, not this
+  // article. Swap it for a BlogPosting node so structured data describes the
+  // page actually being served.
+  const articleLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: description || undefined,
+    url: canonicalUrl,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+    datePublished: post.published_at || undefined,
+    dateModified: post.published_at || undefined,
+    publisher: { '@type': 'Organization', name: 'Eco-Auditor', url: 'https://ecoauditor.io' },
+    isPartOf: { '@type': 'Blog', name: 'Eco-Auditor Blog', url: 'https://ecoauditor.io/blog/' },
+  };
+  // JSON.stringify does not escape `<`, `>` or `/`. A post title containing
+  // "</script>" would therefore close this block early and the remainder would
+  // be parsed as live markup — a stored XSS in the served <head> of every
+  // request for that post. Escaping them as JSON unicode escapes keeps the
+  // payload valid JSON while making it inert as HTML.
+  const jsonLd = JSON.stringify(articleLd, null, 2)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .split('\n')
+    .join('\n    ');
+  html = replaceFirst(
+    html,
+    /<script type="application\/ld\+json">[\s\S]*?<\/script>/i,
+    '<script type="application/ld+json">\n    ' + jsonLd + '\n    </script>'
+  );
+
+  return html;
+}
+
+app.get('/blog/:slug', async function (req, res, next) {
+  if (!pgPool) return next();
+  const slug = String(req.params.slug || '').trim();
+  if (!SLUG_SAFE_PATTERN.test(slug)) return next();
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT slug, title, meta_title, meta_description, published_at FROM blog_posts WHERE slug = $1 LIMIT 1',
+      [slug]
+    );
+    if (rows.length === 0) return next();
+
+    const shellPath = path.join(__dirname, 'static', 'index.html');
+    if (!fs.existsSync(shellPath)) return next();
+    const canonicalUrl = APP_BASE_URL + '/blog/' + encodeURIComponent(rows[0].slug);
+    const html = renderBlogPostHead(fs.readFileSync(shellPath, 'utf8'), rows[0], canonicalUrl);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  } catch (err) {
+    log('error', 'Blog post head render failed', { error: String(err), slug: req.params.slug });
+    return next();
+  }
 });
 
 // ─── SPA fallback ───
@@ -3300,6 +3695,20 @@ let server;
 async function startServer() {
   if (process.env.NODE_ENV === 'production' && INSFORGE_BASE_URL && !process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required when InsForge authentication is configured');
+  }
+
+  // The sitemap and /blog/:slug canonical read APP_BASE_URL but, unlike the
+  // Stripe redirects, have no hard guard: a production deploy with no
+  // STRIPE_SECRET_KEY (a preview box, or a deploy taken while billing is being
+  // rotated out) sails past the check below and quietly serves
+  // <loc>http://localhost:3000/</loc> to every crawler. Nothing fails; the only
+  // symptom is search visibility quietly collapsing weeks later. Log it loudly
+  // so it is visible at deploy time instead. Not a throw — see the note on
+  // APP_BASE_URL about why preview deploys must be allowed to boot.
+  if (process.env.NODE_ENV === 'production' && !process.env.APP_URL) {
+    log('error', 'APP_URL is not set in production: /sitemap.xml and the /blog/:slug canonical will advertise http://localhost:3000', {
+      hint: 'set APP_URL=https://ecoauditor.io (no trailing slash)',
+    });
   }
 
   // Half-configured billing is worse than no billing: the site stays up and

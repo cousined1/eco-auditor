@@ -49,6 +49,11 @@ export default function DataIntake() {
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    // Two overlapping upload loops raced: the slower one's setOutcomes /
+    // setCsvResult overwrote the newer one, so the customer saw results for
+    // the wrong files. The visible button was already disabled; the hidden
+    // input was not, and there was no guard here.
+    if (uploading) return;
     setCsvResult(null);
     // Clear any stale plan-gate prompt: a 402 from an earlier attempt must not
     // stay on screen once a later upload in this mount succeeds (FEW-08). If
@@ -172,6 +177,7 @@ export default function DataIntake() {
         type="file"
         multiple
         accept=".csv,text/csv"
+        disabled={uploading}
         className="sr-only"
         aria-label="Select files to upload"
         onChange={(e) => handleUpload(e.target.files)}
@@ -204,8 +210,11 @@ export default function DataIntake() {
         <div className="card" role="status" aria-live="polite">
           <h2 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Upload results</h2>
           <ul className="space-y-1.5">
-            {outcomes.map((o) => (
-              <li key={o.name} className="flex items-start gap-2 text-sm">
+            {outcomes.map((o, index) => (
+              // Keyed by name + position: two files selected from different
+              // folders can share a name, and duplicate keys made one result
+              // row render with the other's content.
+              <li key={`${o.name}-${index}`} className="flex items-start gap-2 text-sm">
                 <span
                   aria-hidden="true"
                   className={

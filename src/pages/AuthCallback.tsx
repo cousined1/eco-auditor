@@ -1,18 +1,40 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { insforge } from '../lib/insforge';
-import { destinationFor, takeAuthIntent } from '../lib/authIntent';
+import { destinationFor, peekAuthIntent, takeAuthIntent } from '../lib/authIntent';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const providerError = searchParams.get('error');
+  // The InsForge SDK strips `?error=` from the URL itself: its Auth constructor
+  // calls detectAuthCallback(), which runs cleanUrlParams("error") before any
+  // await — synchronously, when createClient() is evaluated at module import,
+  // which is before React Router snapshots the location. So `error` is normally
+  // already gone by the time this component reads it, and the old
+  // `searchParams.get('error')` check below was dead code.
+  //
+  // `error_description` is NOT stripped, so it is the signal that survives. It
+  // has to drive the short-circuit too: with `error` gone, the effect used to
+  // fall through to getCurrentUser(), which in browser mode answers from any
+  // session in local storage — so a denied-consent callback with a stale session
+  // navigated to /app as if sign-in had succeeded, and the user never saw the
+  // failure at all.
+  const providerErrorDescription = searchParams.get('error_description');
+  const providerError = searchParams.get('error') || providerErrorDescription;
   const error = providerError
-    ? searchParams.get('error_description') ||
-      `The sign-in provider returned an error: ${providerError}`
+    ? providerErrorDescription || `The sign-in provider returned an error: ${providerError}`
     : authError;
+
+  // Recovery link must not drop a stashed purchase intent. Retrying from a bare
+  // /login makes startProviderSignIn clear the intent, so a prospect who chose
+  // Growth/annual, failed one Google attempt and retried lost the sale. Peek
+  // rather than take — takeAuthIntent() is destructive by design.
+  const stashedIntent = peekAuthIntent();
+  const retryHref = stashedIntent
+    ? `/login?plan=${stashedIntent.plan}&billing=${stashedIntent.billing}`
+    : '/login';
 
   useEffect(() => {
     if (providerError) return;
@@ -69,7 +91,7 @@ export default function AuthCallback() {
           {error || 'Securely confirming your Eco-Auditor session.'}
         </p>
         {error && (
-          <Link to="/login" className="btn-primary mt-5 inline-flex">
+          <Link to={retryHref} className="btn-primary mt-5 inline-flex">
             Back to login
           </Link>
         )}

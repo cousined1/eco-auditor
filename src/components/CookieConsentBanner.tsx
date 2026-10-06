@@ -14,6 +14,29 @@ const subscribe = () => () => {};
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
 
+/**
+ * A button that opens the preferences dialog on the CURRENT choices.
+ *
+ * The footer link used to call resetConsent() directly, which meant asking to
+ * review your cookies destroyed them: consent dropped back to the defaults, the
+ * whole banner reappeared, and — now that CONSENT-01 makes revocation real —
+ * that reset tears down the analytics container and clears its cookies as a
+ * side effect of merely opening the dialog. Withdrawing should be a deliberate
+ * act inside the dialog, not a consequence of clicking a link that says
+ * "preferences".
+ */
+export function CookiePreferencesButton({ className }: { className?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={className}>
+        Cookie preferences
+      </button>
+      {open && <CookiePreferencesModal onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 export function CookieConsentBanner() {
   const { consentState, acceptAll, rejectAll } = useConsent();
   const [showPreferences, setShowPreferences] = useState(false);
@@ -75,7 +98,7 @@ export function CookieConsentBanner() {
   );
 }
 
-function CookiePreferencesModal({ onClose }: { onClose: () => void }) {
+export function CookiePreferencesModal({ onClose }: { onClose: () => void }) {
   const { consentState, updateConsent } = useConsent();
   const [localConsent, setLocalConsent] = useState(consentState.consent);
   // aria-modal alone does not contain the keyboard — Tab used to walk straight

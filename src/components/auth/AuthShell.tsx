@@ -30,7 +30,7 @@ export function AuthShell({ children, centered }: AuthShellProps) {
           </Link>
         </div>
       </header>
-      <main className="flex-1 flex items-center justify-center px-6 py-12">
+      <main id="main-content" tabIndex={-1} className="flex-1 flex items-center justify-center px-6 py-12">
         <section className={centered ? 'w-full max-w-md text-center' : 'w-full max-w-md'}>{children}</section>
       </main>
     </div>

@@ -44,7 +44,7 @@ RUN npm ci --omit=dev
 # root-level server module has to be added here too.
 # server-http-utils.cjs is in this list because server.cjs require()s it for the
 # /api/video Range handler and the static asset cache policy (RT-04/RT-05 extraction).
-COPY server.cjs server-publish.cjs emissions-engine.cjs server-security.cjs server-billing.cjs server-http-utils.cjs emission-factors.cjs emission-factors.json plan-limits.json ./
+COPY server.cjs server-publish.cjs emissions-engine.cjs server-security.cjs server-billing.cjs server-http-utils.cjs emission-factors.cjs emission-factors.json compliance-deadlines.cjs plan-limits.json ./
 
 # server.cjs require()s the report generator from its src/ path, so that one
 # file has to exist at the same relative location inside the image. Without it

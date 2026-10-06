@@ -221,6 +221,26 @@ function billingStateFromCompany(company, now = new Date()) {
 // ACTIVE_SUBSCRIPTION_STATUSES, PLAN_ORDER, and PRICE_ENV_KEYS stay internal —
 // they are implementation detail of the helpers below, and nothing outside this
 // file read them.
+/**
+ * Normalises an email from an auth session payload.
+ *
+ * authGuard validates only `user.id`, but every billing route forwards
+ * req.user.email into `INSERT INTO public.users (..., email)`. node-postgres
+ * turns an undefined bind parameter into NULL, so a session payload without an
+ * address produced a not-null violation and a 500 on checkout, checkout verify,
+ * the billing portal, plan changes and cancellation alike -- one missing field
+ * taking out the whole billing surface with an opaque database error.
+ *
+ * Stripe does not require an email on a customer, so the right answer is a
+ * clean null rather than a fabricated address or a hard failure. Pure so the
+ * boundary is testable without a database.
+ */
+function normalizeAuthEmail(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 module.exports = {
   billingStateFromCompany,
   hasPlanAccess,
@@ -232,6 +252,7 @@ module.exports = {
   canAddFacility,
   canImportCsv,
   canUseScope3,
+  normalizeAuthEmail,
   shouldRetryWebhook,
   WEBHOOK_RETRY_WINDOW_SECONDS,
   subscriptionRecordFromStripe,

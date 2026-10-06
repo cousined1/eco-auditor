@@ -127,6 +127,81 @@ const HEAD = {
   },
 };
 
+/**
+ * Blog posts for the prerendered /blog index.
+ *
+ * renderToString never runs effects, so the index used to ship with zero
+ * /blog/<slug> links — the content marketing surface's own landing page
+ * reached crawlers and no-JS visitors empty. The posts live in Postgres, so the
+ * build needs DATABASE_URL to render them.
+ *
+ * When it is absent the render still succeeds: BlogList falls back to its
+ * loading state, exactly as before. We log loudly rather than silently shipping
+ * an empty index again, because that failure is invisible in the output.
+ */
+async function loadBlogPosts() {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.warn(
+      '[prerender] DATABASE_URL not set — /blog will prerender WITHOUT post links.\n' +
+      '            Set DATABASE_URL at build time so the blog index ships its content.'
+    );
+    return null;
+  }
+  let Pool;
+  try {
+    ({ Pool } = (await import('pg')).default ?? (await import('pg')));
+  } catch {
+    console.warn('[prerender] pg module unavailable — /blog will prerender WITHOUT post links.');
+    return null;
+  }
+  const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 5000, query_timeout: 5000 });
+  try {
+    // Same projection and ordering as server.cjs /api/blog-posts, so the static
+    // index and the live endpoint cannot disagree.
+    const { rows } = await pool.query(
+      'SELECT id, slug, title, meta_description, body_html, primary_keyword, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 50'
+    );
+    return rows.map((row) => ({
+      id: String(row.id),
+      slug: row.slug,
+      title: row.title,
+      meta_description: row.meta_description ?? '',
+      excerpt: excerptFor(row),
+      read_minutes: readMinutesFor(row.body_html),
+      primary_keyword: row.primary_keyword ?? null,
+      content_score: null,
+      geo_score: null,
+      published_at: row.published_at,
+    }));
+  } catch (err) {
+    console.warn(`[prerender] blog post query failed (${String(err)}) — /blog will prerender WITHOUT post links.`);
+    return null;
+  } finally {
+    await pool.end().catch(() => {});
+  }
+}
+
+/** Mirrors blogListExcerpt() in server.cjs so the two lists read identically. */
+function excerptFor(row) {
+  const meta = row.meta_description && String(row.meta_description).trim();
+  if (meta) return meta;
+  // `<[^\n>]*>` — not `<[\n>]*>`. The negated class is what stops a tag from
+  // being swallowed across line breaks.
+  const text = String(row.body_html || '').slice(0, 100000).replace(/<[^\n>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (text.length <= 160) return text;
+  const sliced = text.slice(0, 160);
+  const lastSpace = sliced.lastIndexOf(' ');
+  return sliced.slice(0, lastSpace > 80 ? lastSpace : 160) + '\u2026';
+}
+
+/** Mirrors blogListReadMinutes() in server.cjs. */
+function readMinutesFor(html) {
+  const text = String(html || '').slice(0, 100000).replace(/<[^\n>]*>/g, ' ');
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
 async function main() {
   if (!existsSync(TEMPLATE_PATH)) {
     console.error('[prerender] static/index.html not found. Run `vite build` first.');
@@ -168,11 +243,16 @@ async function main() {
     process.exit(1);
   }
 
+  const blogPosts = await loadBlogPosts();
+  if (blogPosts) {
+    console.log(`[prerender] blog index: ${blogPosts.length} posts available for /blog`);
+  }
+
   let ok = 0;
   let fail = 0;
   for (const route of ROUTES) {
     try {
-      const html = render(route);
+      const html = render(route, { blogPosts });
       if (!html || html.length < 50) {
         // A near-empty render is a strong signal something blew up silently.
         throw new Error(`rendered output suspiciously short (${html.length} chars)`);

@@ -91,3 +91,28 @@ function dataControlError(status: number, serverMessage: string | undefined, fal
   if (status === 401) return 'You must be signed in to manage your data.';
   return serverMessage || fallback;
 }
+
+/**
+ * Save a Blob to disk via a synthetic anchor click.
+ *
+ * The revoke MUST be deferred past the click. Revoking in the same turn frees
+ * the blob before the browser has read it: Chrome tolerates that, but Firefox
+ * and Safari resolve the download asynchronously and produce no file at all —
+ * while the caller reports success and offers no retry.
+ *
+ * Two call sites had this bug independently (the account data export and the
+ * report generator), so the dance lives here once. If you need to download a
+ * blob, use this rather than re-implementing it.
+ */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Long enough to clear the download turn on every engine, short enough that
+  // the blob is not held for the life of the page.
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

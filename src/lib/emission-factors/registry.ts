@@ -8,7 +8,7 @@
 export type EmissionFactorVersion = {
   id: string;
   label: string;
-  publisher: 'US EPA' | 'Smart Freight Centre' | 'Exiobase Consortium' | 'IPCC';
+  publisher: 'US EPA' | 'Smart Freight Centre' | 'Exiobase Consortium' | 'IPCC' | 'EcoAuditor internal';
   publishedYear: number;
   dataYear: number;
   scopes: ('Scope 1' | 'Scope 2' | 'Scope 3')[];
@@ -75,6 +75,22 @@ export const EMISSION_FACTOR_REGISTRY: EmissionFactorVersion[] = [
     dataYear: 2014,
     scopes: ['Scope 1'],
     verified: true,
+  },
+  {
+    // Internal proxy, not a published dataset. The sample report cited this id
+    // without it ever appearing here, which broke the catalog's own rule that
+    // every factorSource resolves to a registry id — consumers got
+    // '(verify before publication)' for a legitimate row. Registered
+    // deliberately as verified:false so factorLabel() keeps rendering the
+    // sentinel and nobody can present it as a sourced figure.
+    id: 'survey-proxy-2026',
+    label: 'Employee commute proxy (internal estimate)',
+    publisher: 'EcoAuditor internal',
+    publishedYear: 2026,
+    dataYear: 2026,
+    scopes: ['Scope 3'],
+    verified: false,
+    note: 'Internal proxy from the employee commute survey. Not a published dataset — treat as a placeholder until a sourced method replaces it.',
   },
 ];
 

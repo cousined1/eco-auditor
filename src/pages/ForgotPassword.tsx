@@ -41,6 +41,16 @@ export default function ForgotPassword() {
   useNoIndex();
 
   const mismatch = confirm.length > 0 && password !== confirm;
+  // Same treatment Signup already received. The submit button is disabled by the
+  // same isPasswordValid() test that guards the reset handler, so a policy
+  // message inside the handler could never fire: a locked-out customer typing a
+  // 3-character password got a permanently greyed-out "Set new password"
+  // button, no explanation, and no visible rule — the placeholder stating it
+  // disappears as soon as the field has a value. Native minLength cannot help
+  // either, because it only blocks submission and submission is already
+  // impossible, so the browser never raises its own validation bubble.
+  // Only once something has been typed — an empty field is not "wrong yet".
+  const passwordInvalid = password.length > 0 && !isPasswordValid(password);
 
   async function handleRequest(e: React.FormEvent) {
     e.preventDefault();
@@ -114,9 +124,19 @@ export default function ForgotPassword() {
   if (step === 'reset') {
     return (
       <AuthShell>
+        {/* Reaching this step without an email is legitimate — the user may be
+            arriving in a new tab with a code in hand, and the form asks for the
+            address separately. It is NOT legitimate to leave an empty address in
+            the subtitle: it rendered "If an account exists for , we've emailed a
+            reset code." on exactly that path, which is the path the "I already
+            have a code" button exists to serve. */}
         <AuthHeading
           title="Enter your code"
-          subtitle={`If an account exists for ${email}, we've emailed a reset code. Enter it below with your new password.`}
+          subtitle={
+            email.trim()
+              ? `If an account exists for ${email.trim()}, we've emailed a reset code. Enter it below with your new password.`
+              : "Enter your new password below, along with the 6-digit code we emailed you."
+          }
         />
 
         <div className="card space-y-3">
@@ -164,7 +184,15 @@ export default function ForgotPassword() {
               value={password}
               onChange={setPassword}
               disabled={submitting}
-            />
+              invalid={passwordInvalid}
+              {...(passwordInvalid ? { errorId: 'reset-password-error' } : {})}
+            >
+              {passwordInvalid && (
+                <p id="reset-password-error" className="text-xs text-risk-high mt-1" role="alert">
+                  Password must be at least 8 characters and include at least one letter and one number.
+                </p>
+              )}
+            </PasswordInput>
             <PasswordInput
               id="confirm-password"
               label="Confirm new password"
@@ -195,7 +223,7 @@ export default function ForgotPassword() {
 
           <button
             type="button"
-            onClick={() => { setStep('request'); setError(null); setCode(''); }}
+            onClick={() => { setStep('request'); setError(null); setCode(''); setPassword(''); setConfirm(''); }}
             className="w-full text-center text-xs text-accent-text hover:underline"
           >
             Use a different email, or send another code

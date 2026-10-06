@@ -85,7 +85,11 @@ export default function EmissionsDashboard({ entries, facilities }: Props) {
                 cy="50%"
                 outerRadius={80}
                 innerRadius={40}
-                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                // One decimal, matching the scope cards below, which read the same
+                // denominator. Whole percent printed "Scope 3 0%" on the donut
+                // while the card directly beneath it said "0.3% of total" for
+                // the same data.
+                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(1)}%`}
                 labelLine={false}
               >
                 {pieData.map((entry) => (

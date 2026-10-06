@@ -59,3 +59,46 @@ export function takeAuthIntent(): AuthIntent | null {
 export function destinationFor(intent: AuthIntent | null): string {
   return intent ? `/app?checkout=${intent.plan}_${intent.billing}` : '/app';
 }
+
+/**
+ * Read the stashed intent WITHOUT clearing it.
+ *
+ * takeAuthIntent() is destructive by design so a completed purchase cannot be
+ * replayed. But a recovery link needs to look before it destroys: the OAuth
+ * failure screen has to hand the retry something to resume, and calling
+ * takeAuthIntent() there would delete the very thing it is trying to pass on.
+ */
+export function peekAuthIntent(): AuthIntent | null {
+  try {
+    const raw = sessionStorage.getItem(KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthIntent>;
+    if (!parsed.plan || !PLANS.has(parsed.plan)) return null;
+    return { plan: parsed.plan, billing: parsed.billing === 'annual' ? 'annual' : 'monthly' };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve where to send a user after authenticating, preferring an explicit
+ * same-origin `?redirect=` over the purchase intent.
+ *
+ * Shared by Login and Signup. Only same-origin paths are accepted: a protocol-
+ * relative `//evil.com`, a backslash `/\evil.com`, and any cross-origin URL are
+ * all rejected. Signup previously ignored `?redirect=` entirely, so a visitor
+ * deep-linked to a protected route who chose "Sign up" was dumped on /app
+ * instead of the page they were trying to open.
+ */
+export function safeRedirectPath(redirect: string | null, intent: AuthIntent | null): string {
+  const fallback = destinationFor(intent);
+  if (!redirect || !redirect.startsWith('/') || redirect.startsWith('//') || redirect.startsWith('/\\')) {
+    return fallback;
+  }
+  try {
+    const parsed = new URL(redirect, window.location.origin);
+    return parsed.origin === window.location.origin && parsed.pathname.startsWith('/') ? redirect : fallback;
+  } catch {
+    return fallback;
+  }
+}

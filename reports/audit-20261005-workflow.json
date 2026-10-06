@@ -1,0 +1,583 @@
+{
+  "date": "2026-10-05",
+  "repository": "cousined1/eco-auditor",
+  "branch": "fix/full-audit-20261005",
+  "audited_live_sha": "13743299071fc3bdd2f6c9e5039a2042be9ca653",
+  "requested_scope": "Full audit and remediation of all errors in code and in the customer workflow.",
+  "scope": [
+    "Regulatory deadline correctness across API, engine and public copy",
+    "Server billing, entitlement reconciliation, checkout and tenant boundaries",
+    "Customer workflow: calculator entry save, checkout handoff and retry, upload intake",
+    "Accessibility of the authenticated application shell",
+    "Dependency and runtime-packaging posture"
+  ],
+  "fixed": [
+    {
+      "id": "BILL-01",
+      "severity": "critical",
+      "issue": "POST /api/checkout/verify used the wall clock as its ordering watermark, so the guard in syncSubscriptionRecord — which only accepts a write newer than the stored subscription_event_at — could never reject a replayed session. Revisiting an older confirmation link overwrote the customer's live subscription with the old, canceled one and still answered verified:true.",
+      "impact": "Buy Growth, cancel, buy Pro, then open the old confirmation link: a paying Pro customer is 402'd off the plan they pay for, with recovery deferred to the next genuine Stripe event (up to a billing cycle). The client makes it reachable without deliberate abuse, because success_url always carries session_id and App auto-fires verify on any /app load with that param.",
+      "change": "Watermark the sync with session.created (the purchase's own ordering key), falling back to the wall clock only when absent. A stale session is now skipped by the same guard that stops out-of-order webhooks and is reported as ok:true/stale_event, so the response still carries the correct current billing state.",
+      "tests": "tests/audit-20261005-server.test.ts pins the watermark decision and that the cross-account ownership check is unchanged."
+    },
+    {
+      "id": "COMP-01",
+      "severity": "high",
+      "issue": "The compliance dates lived in three disagreeing copies: /api/compliance/deadlines said SB 253 was due 2026-01-01, getComplianceStatus hardcoded a '2026-01-01 Scope 1 and Scope 2 reporting' next_deadline, and the public methodology page said August 10, 2026.",
+      "impact": "On 2026-10-05 the API reported the SB 253 first-year deadline as overdue by roughly nine months while it was in fact about five weeks away. In a product sold on compliance, telling a customer they are late when they are not is a trust-destroying error.",
+      "change": "Added compliance-deadlines.cjs as the single source of truth. SB 253 Scope 1/2 is 2026-11-10 (CARB deferred it from August 10 in the proposed Modified Regulations) carried explicitly as date_status 'proposed', because the deferral still depends on the comment period and OAL approval. Status and days_left derive from the current date; getComplianceStatus returns no deadline at all for a framework that does not apply; the public copy states the deferral and tells readers to confirm with CARB.",
+      "tests": "tests/compliance-deadlines.test.ts — 7 cases including the live regression window, past-date detection across four 2026 dates, UTC day-boundary behaviour, and non-applicable frameworks."
+    },
+    {
+      "id": "COMP-02",
+      "severity": "medium",
+      "issue": "getComplianceStatus carried the deadline text as a static string with no date awareness, and /api/compliance/deadlines returned the same static entries to every company with no applicability signal.",
+      "change": "Both read the shared table. The endpoint now returns days_left, a date_status and an explicit applicability:'unknown' with a note, rather than implying every framework applies to every tenant."
+    },
+    {
+      "id": "COMP-03",
+      "severity": "medium",
+      "issue": "Two defects in one function, both about CSRD. (a) Stale date: the deadline table carried csrd_wave2 due_date 2026-12-31, 'wave 2 companies report for FY2025'. Directive (EU) 2025/794 ('Stop-the-Clock', OJ L 2025/794 of 16.4.2025, in force 17 April 2025) postponed wave 2 by two years, so it is 2028 for FY2027. (b) Contradictory threshold: getComplianceStatus hardcoded `region in EU && employees >= 500`, while the same table's wave 2 row said 'EU entities with 250+ employees'.",
+      "impact": "Latent, not live. /api/companies/:id/compliance already answers 501 for real tenants because company revenue/employees/region are not modelled, and both sample companies are region CA, so nothing customer-facing changes today. When an EU tenant is supported, (a) would tell wave 2 customers they owe a sustainability statement on a date that stopped being legally correct around eighteen months earlier, and (b) would report every EU company with 251-500 employees as not_applicable with a null deadline, contradicting the product's own table. Same failure shape as COMP-01: a hardcoded date outliving the regulation, plus a second reader of the table disagreeing with the first.",
+      "change": "Wave 2 moved to due_date 2028-12-31 with previously_scheduled '2026-12-31' retained for audit and the Directive cited in the file header; wave 1 deliberately left on its unmodified 2025 date because the postponement did not touch it. Applicability no longer restated in code: every deadline row now carries a machine-readable `applies` block (regions / min_revenue / min_employees) alongside its human `applies_to` string, with deadlineAppliesTo() and deadlinesApplicableTo() as the single reader. getComplianceStatus selects from those rows instead of computing thresholds. `applicable` is now derived from whether ANY deadline for the framework applies, so scope no longer flips to 'not applicable' merely because the date passed; `in_scope_deadlines` exposes what the company is actually on the hook for.",
+      "sources": "Directive (EU) 2025/794, verified against the primary text on EUR-Lex on 2026-10-05: https://eur-lex.europa.eu/eli/dir/2025/794/oj/eng — wave 2 'to report in 2026 for financial years beginning on or after 1 January 2025', and 'the sustainability reporting requirements for those undertakings should be postponed by two years'. Transposition deadline 31 December 2025.",
+      "tests": "tests/compliance-deadlines.test.ts COMP-03 block — 9 cases: the superseded date is gone and the previous one is retained, wave 1 is unchanged, a 251-employee EU company is in scope with a 2028 deadline, a 250-employee one is not, applicability agrees with the table at seven headcount boundaries including both sides of each threshold, SB 253 scope 1/2 still precedes scope 3, scope survives every deadline passing, and region matching is checked against the real shipped row (both 'EU' and 'europe' spellings, plus the state fallback)."
+    },
+    {
+      "id": "DATA-01",
+      "severity": "high",
+      "issue": "A successful emission-entry INSERT followed by a failed list re-read was reported as 'Failed to add emission entry'. The form keeps its values on a thrown error, so pressing 'Add Entry' again wrote a second row for the same activity.",
+      "impact": "Silently inflated the dashboard totals, the report aggregates and the PDF for an audit artifact, with no warning.",
+      "change": "A refresh failure is now caught separately and surfaced as its own notice that warns against re-adding; the form clears because the write genuinely succeeded. Insert failures are re-thrown as real Errors so the customer sees the actual reason (RLS denial, quota, constraint) instead of a generic string.",
+      "tests": "tests/emission-entry-save.test.ts drives the real form — including that a refresh-only failure still clears the form and warns, and that a genuine insert failure retains the values."
+    },
+    {
+      "id": "BILL-02",
+      "severity": "medium",
+      "issue": "stripe.checkout.sessions.create had no idempotency key, so two concurrent /api/checkout calls (double-click, or a retry after a network timeout) both passed the check-then-act 'no active subscription' guard and both created a live billable session.",
+      "change": "Added a deterministic user+price+window idempotency key so a retry returns the same session."
+    },
+    {
+      "id": "BILL-03",
+      "severity": "low",
+      "issue": "reports.period is an unconstrained TEXT column and the report-generate route validated nothing, unlike the summary route, so any authenticated account could persist a ~100 KB string per request under the global rate limit.",
+      "change": "Shares SUMMARY_PERIOD_PATTERN and rejects before the insert."
+    },
+    {
+      "id": "UX-01",
+      "severity": "high",
+      "issue": "/app was the only customer-facing route shell without id='main-content', so the route-change focus move was a silent no-op and keyboard/screen-reader users had no named main landmark on any paid page.",
+      "change": "The authenticated shell now defines the same focus target the other eight route shells use."
+    },
+    {
+      "id": "UX-02",
+      "severity": "medium",
+      "issue": "A failed checkout erased its intent from the URL before the POST resolved and offered no retry, so a reload or any later navigation discarded a purchase the customer had already chosen.",
+      "change": "The intent is stripped only on success (where the browser leaves for Stripe); failure keeps it and the error banner now offers a working 'Retry checkout' button that rebuilds the identical request."
+    },
+    {
+      "id": "UX-03",
+      "severity": "low",
+      "issue": "The destructive delete named the raw catalog key ('natural_gas') while the row read 'Natural gas', so the customer could not verify which irreversible action they were approving.",
+      "change": "Confirm text and the button's accessible name both use the row label."
+    },
+    {
+      "id": "UX-04",
+      "severity": "low",
+      "issue": "DataIntake had no re-entry guard on the hidden file input, so overlapping upload loops raced and the slower one overwrote the newer results; results were also keyed by file name alone, colliding across folders.",
+      "change": "Guarded re-entry, disabled the input during upload, and keyed outcomes by name plus position."
+    },
+    {
+      "id": "CJU-01",
+      "severity": "high",
+      "issue": "ReportGenerator.tsx called URL.revokeObjectURL synchronously immediately after link.click(). Releasing the object URL in the same turn as the click frees the blob before the browser has read it.",
+      "impact": "Chrome tolerates this; Firefox and Safari resolve the download asynchronously and the click produces no file at all. Line 58 then unconditionally set 'Report generated and downloaded.' — so on those browsers the product's headline paid action reported success while delivering nothing, with no error state and no retry. In a product whose output is the customer's audit artifact, a silently missing PDF is worse than a visible failure.",
+      "change": "The download now goes through one shared helper, src/lib/api.ts downloadBlob(), which defers the revoke with window.setTimeout(..., 10_000) past the point where the download turn has resolved, so the object URL is still freed rather than leaked.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-01 — stubs URL.createObjectURL/revokeObjectURL and anchor click, then asserts the revoke has NOT fired once the handler settles, and separately that advancing past the delay DOES fire it so deferring cannot silently become leaking. Verified non-vacuous by reverting the fix: both cases fail against the old synchronous revoke."
+    },
+    {
+      "id": "SET-01",
+      "severity": "high",
+      "issue": "The same revoke-before-download defect existed a second time, independently, in Settings.tsx handleExportData — the GDPR self-serve data export. Two copies of the same anchor-and-revoke dance, both wrong in the same way.",
+      "impact": "Materially worse than CJU-01 because this is a statutory right: a customer exercising their GDPR Article 15 data-access right clicked 'Export my data', and on Firefox or Safari no file was produced, while the banner immediately confirmed 'Your data export has been downloaded as a machine-readable JSON file.' A customer who cannot obtain their own data cannot exercise their rights, and the confirmation actively misleads them.",
+      "change": "Rather than fix the second copy independently, both now call one shared downloadBlob() in src/lib/api.ts, so a third blob download cannot reintroduce it. A guard test asserts neither caller contains createObjectURL or revokeObjectURL again. Settings' data-notice, data-error, billing-error and billing-loading regions also gained role=status / role=alert, matching the convention already used in DataIntake and the calculator.",
+      "tests": "tests/customer-journey-regressions.test.tsx SET-01 — three cases covering the helper's timing behaviour directly, plus regression guards that both callers use it and neither has re-introduced the raw dance."
+    },
+    {
+      "id": "AUTH-01",
+      "severity": "high",
+      "issue": "AuthCallback read `searchParams.get('error')` to detect an OAuth failure, but the InsForge SDK deletes that param before React Router ever sees it. Its Auth constructor calls detectAuthCallback(), which runs cleanUrlParams('error') before its first await — synchronously, at createClient() evaluation during module import, and src/App.tsx statically imports src/lib/insforge, so the strip always wins the race.",
+      "impact": "Two failures. First, the branch was dead code: a visitor who denied consent or hit an IdP fault got the generic 'We could not finish signing you in' instead of the reason, even though error_description — which the SDK does NOT strip — was sitting in the URL being ignored. Second and worse, with `error` gone the effect fell through to getCurrentUser(), which in browser mode answers from any session in local storage. So a failed OAuth round trip on a browser holding a stale session navigated to /app as if sign-in had succeeded, and the user was never told anything had failed.",
+      "change": "error_description is now read in its own right and drives the short-circuit alongside error, so the effect cannot reach getCurrentUser() on a failed callback. The rendered message prefers the provider's description. `error` is still read, so the code is correct if a future SDK stops stripping it.",
+      "tests": "tests/auth-flow-regressions.test.ts — a source guard asserts the short-circuit keys off error_description as well as error, and that the provider-error early-return precedes the navigation. Verified non-vacuous by reverting the short-circuit: the guard fails."
+    },
+    {
+      "id": "AUTH-02",
+      "severity": "medium",
+      "issue": "The OAuth-failure recovery link on AuthCallback was a bare <Link to=\"/login\">, and that path never called takeAuthIntent(). The retry then actively destroyed the intent: startProviderSignIn calls saveAuthIntent(intent ?? null), and with no intent on the URL that removes the sessionStorage key.",
+      "impact": "A prospect who picked Growth/annual, failed one Google attempt, and retried from this link landed on a bare /app after signing in — the selected plan and the checkout were silently dropped. A lost sale presented to the customer as a successful login.",
+      "change": "Added peekAuthIntent(), a non-destructive read, because takeAuthIntent() consumes by design so a completed purchase cannot be replayed and cannot be used by a screen that only wants to forward the intent. The recovery link now carries ?plan=&billing= so the retry resumes the checkout.",
+      "tests": "tests/auth-flow-regressions.test.ts — asserts peekAuthIntent() is idempotent across repeated reads while takeAuthIntent() still consumes exactly once, that a corrupted or unknown stored intent reads as null, and that AuthCallback's retry link carries the plan."
+    },
+    {
+      "id": "AUTH-03",
+      "severity": "medium",
+      "issue": "Signup never read `?redirect=`, while Login forwarded it. App.tsx sends anonymous visitors on a protected route to /login?redirect=<path+search> (and does the same on mid-session expiry), and Login copies all search params onto /signup — where destinationFor(intent) ignored them entirely.",
+      "impact": "An anonymous visitor deep-linked to a protected route who chose 'Sign up' instead of 'Sign in' was dumped on /app after signup and again after email verification, never reaching the page they were trying to open.",
+      "change": "Extracted Login's same-origin redirect validation into safeRedirectPath() in src/lib/authIntent.ts and routed Signup through it, so there is one reader for the open-redirect rule rather than two that can drift. Login's behaviour is unchanged.",
+      "tests": "tests/auth-flow-regressions.test.ts — safeRedirectPath is exercised directly against the real bypass shapes (protocol-relative //host, backslash /\\host, cross-origin absolute) and the same-origin pass-through; Signup is guarded to resolve through the helper and to carry no second copy of the validation."
+    },
+    {
+      "id": "AUTH-05",
+      "severity": "low",
+      "issue": "ForgotPassword's 'I already have a code' button set the reset step without setting `email`, but the step's subtitle interpolated `email`, which initialises to ''.",
+      "impact": "Rendered literally 'If an account exists for , we've emailed a reset code.' — on exactly the path the button exists to serve, since that path is for users arriving in a new tab already holding a code.",
+      "tests": "tests/auth-flow-regressions.test.ts guards that the interpolation is behind an email.trim() check and that the old unguarded template is gone."
+    },
+    {
+      "id": "AUTH-08",
+      "severity": "low",
+      "issue": "The 'Use a different email, or send another code' handler cleared the code but left password and confirm in component state.",
+      "impact": "After a failed reset the previous new password survived the step swap, so re-requesting a code and stepping forward again showed a stale password that belonged to a code the customer no longer held — inviting a second failed attempt.",
+      "change": "The handler now clears password and confirm as well as the code.",
+      "tests": "tests/auth-flow-regressions.test.ts asserts the reset-step handler clears all three fields."
+    },
+    {
+      "id": "CJU-02",
+      "severity": "medium",
+      "issue": "The delete path carried two copies of the bug DATA-01 had already fixed on the insert path. handleDelete threw the InsForge SDK's plain error object, so EmissionList's `err instanceof Error` was false and every failure collapsed to 'Failed to delete entry', never the real reason. And because the post-delete re-read was unisolated, a refresh failure was reported as a failed delete.",
+      "impact": "The real cause (an RLS denial, a constraint, a quota) was never shown to the customer. Worse, when the DELETE succeeded but the re-read failed, the row stayed on screen beside an error saying the delete failed — and every retry re-issued a DELETE for a row that no longer existed, so the UI could not be recovered without a manual reload.",
+      "change": "handleDelete now throws a real Error carrying the server's message, mirroring the insert path, and wraps the re-read so a refresh failure sets the existing refreshNotice ('Entry deleted, but the list could not be refreshed...') instead of a delete error. EmissionList additionally reads .message off a non-Error throw and the banner carries role=\"alert\" so a delete that fails while focus is elsewhere is announced rather than leaving the row looking untouched.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-02 — three cases driving the real component: the server's message is shown rather than the generic string, the banner is a role=alert live region, and a successful delete followed by a failing re-read produces the refresh notice and NO delete error."
+    },
+    {
+      "id": "CJU-03",
+      "severity": "medium",
+      "issue": "Dashboard.tsx treated any 400 or 403 — from either of two parallel requests — as 'no company yet'. The catch could not tell which request had failed, and a 403 is not a no-company signal.",
+      "impact": "If the summary succeeded but the trend call returned 400/403, setEmissions was never reached and the render fell into the needsOnboarding branch: 'Welcome to EcoAuditor — your account is ready' for an existing account with real data. That screen has two navigation links and no retry, so the customer is stuck there with no way to recover except navigating away.",
+      "change": "The fetch effect records which request failed. Only a 400 from the summary request is treated as onboarding; a trend failure or any 403 now falls through to the error branch, which carries a retry affordance.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-03 renders the real Dashboard against a stubbed fetch: a summary 400 does show onboarding, a trend 403 does not, a summary 403 does not, and the trend failure path offers a retry control."
+    },
+    {
+      "id": "CJU-04",
+      "severity": "low",
+      "issue": "ReportGenerator styled its status with `status.startsWith('Error') ? 'text-risk-high' : 'text-risk-low'`, encoding severity as a message prefix. The plan gate sets 'Reports require an active plan — visit Pricing to upgrade.', which does not start with 'Error'.",
+      "impact": "A blocked, non-upgraded action rendered in the same green (#16a34a) as a completed report download.",
+      "change": "Status is now a {tone, message} object with tones error/warn/ok mapped through TONE_CLASS. The plan gate is 'warn' (amber, risk.medium), which is a real token in tailwind.config.js rather than an arbitrary colour.",
+      "tests": "tests/customer-journey-regressions.test.tsx CJU-04 drives a real 402 upgrade_required response and asserts the rendered class is text-risk-medium and NOT text-risk-low."
+    },
+    {
+      "id": "CJU-05",
+      "severity": "low",
+      "issue": "Three async result regions had no live region: the EmissionList delete-error banner, the ReportGenerator status line, and the Dashboard loading spinner text.",
+      "impact": "A failed delete, a failed or successful report generation, and the dashboard content swapping in after its fetch were all silent for screen-reader users. The codebase already set role=\"alert\"/role=\"status\" correctly elsewhere (DataIntake.tsx, carbon-calculator/index.tsx), so this was an inconsistency rather than a missing convention.",
+      "change": "role=\"alert\" on the delete-error banner; role=\"status\" on the ReportGenerator result line and the Dashboard loading text.",
+      "tests": "CJU-02 asserts the delete banner is a role=alert live region, CJU-06 asserts the report status region is a role=status live region carrying the error tone on a failed generate, and the CJU-03 block asserts the dashboard loading state is announced while its fetch is still in flight."
+    },
+    {
+      "id": "ENT-01",
+      "severity": "medium",
+      "issue": "Both entitlement endpoints fabricated a subscription when the data store was unavailable. /api/billing answered 200 with { active: true, plan: 'starter', status: 'trialing', trialActive: true, source: 'no-db' }. /api/trial-status answered 200 with { trial: true, trialEndsAt: null, source: 'no-db' } — the precise value its own catch branch had been changed to stop returning, with the comment 'Returning trial:true here told an expired user their trial was still active'. Two branches of one function disagreeing.",
+      "impact": "Customer-visible billing misinformation, not privilege escalation. Settings.tsx renders /api/billing directly, so a paying Pro customer who opened Settings during a database outage was shown they were on a free Starter trial — on the one screen they open specifically to check their plan. Scope is bounded and stated plainly: entitlement is enforced by requirePlan, which returns 503 when a billing lookup throws, so nothing was unlocked. pgPool is only null when DATABASE_URL is unset, the Pool constructor does not connect eagerly so an outage leaves a non-null pool whose queries throw, and production boot requires DATABASE_URL. The failure mode needed a misconfigured deploy.",
+      "change": "Both no-pool branches now return 503 with an explicit error, matching the invariant the catch branch already documented. Verified safe for both clients: session.ts's isSessionValid only forces a logout on 401, so a 503 means 'cannot tell' rather than mass-signing-users-out during a database blip; Settings checks res.ok and surfaces the billingError card.",
+      "found_by": "Enumerating all 39 server routes and cross-checking them against the test suite. Four routes had no test reference anywhere — /api/chat, /api/compliance/:id/signoff, /api/insforge-config and /api/trial-status — and this was in the one that mattered least covered.",
+      "tests": "tests/entitlement-honesty.test.ts ENT-01 (16 cases across the four previously-untested routes) uses a brace-balanced branch extractor and a string-aware comment stripper, because these branches carry comments quoting the old payload verbatim — a fixed window or a naive substring assertion matches the prose describing the defect rather than the code. It also pins that the live paths still report real state, so the fix cannot be re-made by inverting the behaviour. Verified non-vacuous by reverting both branches: 2 cases fail. scripts/smoke.mjs additionally asserts at runtime that neither endpoint answers 200 or carries a fabricated entitlement payload, which fires if the guards are ever reordered."
+    },
+    {
+      "id": "CONSENT-01",
+      "severity": "high",
+      "issue": "Withdrawing analytics consent did not stop analytics. GTMInitializer loaded the container only on a positive branch and had no teardown at all, so once gtm.js was injected it kept firing the container's own tags and setting cookies until the tab was closed. The `marketing` category was collected, stored and audit-logged but never forwarded to the container, and no Consent Mode signal of any kind was sent.",
+      "impact": "A published GDPR right the product did not honour. PrivacyPolicy.tsx states 'Withdrawal of consent: Withdraw consent you have previously provided...', 'You can grant or withdraw consent at any time through the cookie preferences settings on our site', and 'Analytics cookies... you can opt out at any time'. A visitor who opened preferences and switched analytics off saw the UI and localStorage update and nothing else change — the container carried on beaconing to Google. On a product that sells compliance and publishes a privacy policy promising withdrawal, that is both a regulatory exposure and a false claim on a legal page. The trackEvent() gate was never sufficient: it stops this app's own dataLayer pushes, not tags configured inside GTM. This was already recorded in the 2026-09-08 audit as M16/C6 and marked PARTIALLY fixed — the load path was gated, the unload path never existed.",
+      "change": "Consent Mode v2 added, queued BEFORE the gtm.js bootstrap event so the container reads it while initialising (appending it after that event arrives too late to gate startup tags). GTMInitializer now forwards both categories on every change and calls a new teardownGTM() when analytics is revoked: it removes the script, the container iframe, the dataLayer, and clears _ga/_gid cookies on this host and its parent domain, while deliberately leaving non-analytics cookies alone because essential cookies carry the session and sweeping them would sign every visitor out. Re-granting after a withdrawal re-loads the container.",
+      "found_by": "Second gap analysis of the same shape as ENT-01: enumerate all 65 src/ modules and cross-check against the test suite. 15 had no test reference, and src/lib/gtm.ts was among them.",
+      "tests": "tests/consent-revocation.test.ts — 14 cases. Behavioural where it can be: defaults queued and ordered before the bootstrap, each category forwarded independently, revocation removing script/dataLayer/cookies, essential cookies surviving teardown, teardown being safe when GTM never loaded, and re-grant re-loading. The ordering case caught a real ordering bug in the first version of this fix, which pushed gtm.js before the deny-all default. Verified non-vacuous by reverting GTMInitializer to its original grant-only form: 3 cases fail."
+    },
+    {
+      "id": "CONSENT-02",
+      "severity": "high",
+      "issue": "The capability CONSENT-01 added was unreachable, and the only existing control was actively harmful. The /app shell renders no <Footer>, so the sole 'Cookie preferences' control lived on the marketing pages. And that control called resetConsent(), which does not open preferences: it wipes the stored choice back to defaults and re-shows the whole banner.",
+      "impact": "A signed-in customer — who spends all their working life in the app, the surfaces where analytics is actually collected — could not reach or withdraw consent without logging out and navigating to the marketing site. The Privacy Policy promises withdrawal 'at any time through the cookie preferences settings on our site'. Second, the footer control made asking to review your cookies destroy them. Before CONSENT-01 that was merely bad UX; combined with it, clicking a link labelled 'preferences' tore down the analytics container and cleared its _ga cookies, even when the visitor then re-granted exactly what they had — silently resetting analytics history. GDPR art. 7(3) and the ePrivacy rules require withdrawal to be as easy as granting; neither was true.",
+      "change": "CookiePreferencesModal is now exported and a new CookiePreferencesButton opens it on the CURRENT stored choices. The footer uses that button, so viewing preferences no longer mutates consent. The /app shell renders the same control below its main region, so withdrawal is reachable from the signed-in product without logging out. Withdrawal is now a deliberate act inside the dialog.",
+      "correction": "The first hypothesis going in was that there was no entry point at all. That was wrong — Footer.tsx had one. Checking before editing caught it; the real finding was that it reset rather than opened, and that /app had no footer.",
+      "tests": "tests/consent-reachability.test.tsx — 9 cases, behavioural against the real component under ConsentProvider: the dialog pre-fills from stored consent, opening it leaves storage untouched, saving unchanged preserves the choice, unchecking analytics then saving withdraws it, the strictly-necessary toggle stays locked on, and structurally that the app shell imports the control and the footer no longer references resetConsent. Verified non-vacuous by restoring the original footer: 1 case fails. Note the test clicks the checkbox rather than dispatching a change event, because React drives checkbox onChange from the click and a raw event leaves controlled state untouched."
+    },
+    {
+      "id": "TRUTH-01",
+      "severity": "low",
+      "issue": "The sample-report page described the downloadable sample PDF as '~3 KB'. The file is 920 bytes (0.9 KB) — overstated by more than 3x. The three sibling CSVs stated 11 rows, 5 factors and 11 entries, and all three were exactly right.",
+      "impact": "Small in absolute terms, but it is a specific checkable claim on the page a prospect downloads from to judge the product, and it is the same class PROV-03 already fixed on this page (fabricated sha256 checksums, an un-shipped DEFRA library). Because the CSV counts were accurate, the wrong number sat next to three correct ones and would not have been caught by skimming. A prospect who downloads and checks sees a file three times smaller than advertised.",
+      "change": "Corrected to 'Under 1 KB'. Beyond the one number, the page's factual claims are now asserted against the shipped assets so this class cannot recur silently.",
+      "found_by": "Third gap-analysis pass over the 15 uncovered src/ modules; SampleReport.tsx is 274 lines and had no test reference.",
+      "tests": "tests/sample-report-claims.test.ts — 14 cases that parse the page's own download anchors and check each claim against public/: every advertised href exists and is non-empty, every shipped sample file is linked (both directions, so neither a broken download nor an orphan asset survives), each stated row count equals the real data-row count of its CSV, the PDF size claim is within 1 KB of reality and inside the stated band, a size is stated at all, and the file is a structurally valid PDF rather than a renamed placeholder. Verified non-vacuous by restoring '~3 KB': 1 case fails. The size guard checks Number.isFinite rather than for undefined, because Number(undefined) is NaN and the original claim would otherwise have slipped past."
+    },
+    {
+      "id": "SEO-06",
+      "severity": "high",
+      "issue": "The prerendered /blog/ index shipped with zero post links. renderToString never runs effects, so BlogList's useEffect fetch could not execute during the static render; its state stayed at its initializer (loading = true, posts = []) and the post-list branch was unreachable. Verified against the real build artifact: static/blog/index.html contained 0 links matching /blog/<slug> and the literal text 'Loading posts…'. This was previously recorded as RESIDUAL-BLOG-INDEX and deliberately deferred — the reasoning at the time was that the sitemap is the primary discovery path. That reasoning was about crawlers following the sitemap; it missed that the page itself, and every no-JS visitor, got an empty index.",
+      "impact": "The content marketing surface's own landing page reached crawlers and no-JS visitors empty, while the in-app version worked fine, so the defect was invisible to anyone testing the product. The existing smoke check passed throughout: it asserted /blog/ 'renders its own content' by byte length, and the hero markup is long enough to look healthy. Exactly the class of defect this session's runtime gate exists to catch, and the first thing it caught.",
+      "change": "A build-time data channel (src/lib/ssrData.ts) that prerender.mjs fills from blog_posts before calling render(); BlogList seeds its state from it and only shows the loading state when there is genuinely nothing prerendered. entry-server.render() accepts blogPosts, seeds the channel before renderToString and clears it in a finally so no later render inherits stale data. The prerenderer selects the same columns and ordering as server.cjs /api/blog-posts and mirrors blogListExcerpt and blogListReadMinutes so the static and live indexes cannot diverge. Without DATABASE_URL the build still succeeds and the prerenderer warns loudly rather than silently shipping an empty index again. DEPLOY.md now records that DATABASE_URL must be present at BUILD time, not just at runtime.",
+      "found_by": "Third gap-analysis pass over the 15 uncovered src/ modules, audited by a subagent and then verified directly against static/blog/index.html.",
+      "residual": "Not end-to-end verified locally: this machine has no DATABASE_URL, so the build injected no posts. The mechanism is proven behaviourally (18 tests render the real component and assert the links appear), and the runtime gate now FAILS on the current artifact with '0 post links; loading-state text present: true — was DATABASE_URL set during the build?'. A build with DATABASE_URL set is still required to confirm the passing path.",
+      "tests": "tests/blog-prerender.test.tsx — 18 cases: links render per post from the channel, the loading state is absent when posts exist, a null channel falls back to loading rather than claiming 'No posts yet', an empty array does render 'No posts yet', the channel is cleared after render, entry-server seeds before renderToString and clears in a finally, the prerender query's columns all exist in the server's query, the tag-stripping regex is byte-identical to server.cjs (hand-typing it went wrong twice), and the client title/description match prerender HEAD. scripts/smoke.mjs asserts at runtime that /blog/ serves post links and no loading text."
+    },
+    {
+      "id": "SEO-07",
+      "severity": "low",
+      "issue": "Four smaller defects surfaced by the same pass. (a) /blog/ advertised two different titles and descriptions depending on whether a crawler read the static HTML or the live DOM — prerender.mjs wrote 'Carbon Accounting for SMBs' while BlogList set 'Carbon Accounting Insights'. (b) BlogList's 15s fetch timeout rejected with a DOMException whose message was rendered verbatim, so a slow backend showed a reader 'signal timed out' under the heading 'Unable to load blog posts'. (c) formatDate wrapped new Date() in try/catch, but new Date() does not throw on bad input — it yields Invalid Date, and toLocaleDateString() returns the literal string 'Invalid Date', which rendered under a post title; a null published_at rendered 'January 1, 1970'. (d) AuthShell's <main> was the only shell in the app without id=\"main-content\", so the route-change focus move in App.tsx:145 was a silent no-op on /login, /signup and /forgot-password.",
+      "impact": "Each is small. Together they mean a reader could be shown a browser-internal error string, a false date, and a heading outline that skipped three levels on the paywall — and crawlers got inconsistent metadata for one URL. (c) and (d) were invisible because both had plausible-looking defensive code: a try/catch that can never run, and an <main> that looks correct.",
+      "change": "Client title/description aligned to the prerender values (the richer of the two). Timeouts and 5xx now produce product copy, distinguished by the DOMException name rather than leaking err.message. formatDate validates the timestamp and renders 'Undated'. AuthShell gained id=\"main-content\" tabIndex={-1}. UpgradePrompt's heading is now h1 in fullPage mode — on the Dashboard paywall it was the page's only heading and it was an h4 — and h2 inline.",
+      "found_by": "Same third gap-analysis pass; the subagent reported each with file:line and confidence, and its own explicit list of five hypotheses it discarded as unverifiable rather than reporting them.",
+      "tests": "tests/blog-prerender.test.tsx covers the title/description agreement structurally, the date behaviour by rendering the real component with an unparseable and a missing timestamp and asserting 'Undated' rather than 'Invalid Date' or the epoch, the timeout-copy guard, the AuthShell landmark, and the paywall heading level. The date test is behavioural on purpose: a source grep for 'Invalid Date' matched the explanatory comment rather than the code."
+    },
+    {
+      "id": "VERIFIED-RLS",
+      "severity": "informational",
+      "issue": "No new defect. Row level security and table privileges are the highest-consequence surface in this product — a wrong policy means one customer reading another's emissions, a re-granted column means anyone granting themselves Pro from a console — and neither is exercised by any existing test. This pass audited them by replaying the migrations.",
+      "findings": "Clean, with specifics. All 9 tables have ENABLE ROW LEVEL SECURITY. companies is scoped by user_id = auth.uid(); facilities, emission_entries and reports resolve ownership through a subquery on public.companies; every UPDATE policy carries a WITH CHECK alongside USING, so a user cannot reassign a row they own to a company they do not. No policy contains an unconditional USING (true) or WITH CHECK (true) on an owner table. The two tables with RLS and no policies — consent_records and users — are deny-all by design and written only over the server's direct Postgres connection via queryWithRlsBypass; neither has a client SDK read path. leads and contact_submissions had anonymous INSERT policies which a later migration drops and revokes, routing lead capture through POST /api/leads where the Express boundary enforces a body limit, rate limiting and a honeypot.",
+      "already_fixed_noted": "20260902000000_lock-billing-columns.sql closes a real privilege escalation that would otherwise still be open: companies_owner_update plus table-level UPDATE meant one browser SDK call could set subscription_plan='pro', subscription_status='active' or push trial_ends_at into the future and billingStateFromCompany would grant the entitlement. It now revokes and re-grants at column level, keeping only user_id/name/industry for onboarding. It also closes DELETE on companies (deleting your own row cascaded away csv_import_events, the monthly quota, and the next API call re-provisioned a fresh 14-day trial) and makes reports server-owned so a browser cannot forge signoff='completed' in the compliance audit trail. Verified the client write paths are consistent with this: Onboarding only inserts and updates the three granted columns, and no client code deletes companies or writes reports.",
+      "change": "No SQL changed — the layer is correct. What was missing was any executable record of it: the protections lived only in the migrations and their comments. tests/rls-tenant-isolation.test.ts makes them executable, replaying migrations in statement order so the FINAL policy state is asserted rather than whatever was once written down. That ordering matters and was itself a bug in the first version of the test: add-csv-import-log.sql drops and immediately recreates csv_import_events_owner_select, and a per-file 'all creates then all drops' pass silently deleted it.",
+      "tests": "31 cases: every table has RLS enabled; each owner-scoped table has exactly its expected DML policy set (companies has three, the others four, with the dropped delete asserted); no unconditional USING/WITH CHECK; child tables resolve via public.companies; every UPDATE policy re-checks ownership; the billing columns are absent from browser grants and companies DELETE and the reports table are revoked; the client only writes granted columns and never deletes companies or writes reports; consent_records and users stay deny-all; leads and contact_submissions keep no anon policy; migrations are ordered and uniquely named. Verified non-vacuous by injecting GRANT UPDATE ON public.companies TO authenticated — the re-grant guard fails."
+    },
+    {
+      "id": "FACTORY-01",
+      "severity": "medium",
+      "issue": "The facility quota was a count-then-insert across two statements with no row lock, while the CSV quota deliberately used SELECT ... FOR UPDATE. Five parallel POST /api/companies/:id/facilities all read existing.length === 0 and all inserted, putting five facilities on a starter plan whose limit is one.",
+      "change": "The cap check and the insert now run in one transaction that takes SELECT id FROM public.companies WHERE id = $1 FOR UPDATE, mirroring reserveCsvImportQuota. Rejection rolls back instead of leaving the transaction open, and the no-pool sample path keeps the original shape.",
+      "tests": "tests/audit-20261005-server.test.ts pins the lock, the ordering of lock/count/insert/commit, and the rollback. Not exercised against a live database here: that requires the Docker-backed suites, which cannot start on this machine, so the concurrency behaviour itself is argued from the transaction shape rather than observed."
+    },
+    {
+      "id": "PROV-01",
+      "severity": "high",
+      "issue": "The public sample report — the product's primary proof artifact — contradicted the factor registry. It cited ipcc-ar6-gwp100, an id the registry had already removed, on an AR6 basis, while the calculator standardised on ipcc-ar5-gwp100 because EPA EFH 2025 and eGRID2023 both use AR5 GWPs. Every row carried a fabricated checksum (sha256:ab12, cd34, ef56, gh78, ij90 — four hex digits where SHA-256 is 64). It listed uk-defra-2024 as active when DEFRA is absent from the codebase, and exiobase-3-eeio-2021 as active with the 2022/2021 dates the registry comments describe as fabricated, when EXIOBASE is roadmap-only.",
+      "impact": "The core claim is 'every number traces back to a source'. A prospect or auditor downloading the register and checking the checksums would find they verify as nothing and that the GWP basis disagrees with the methodology page.",
+      "change": "Register reconciled to registry.ts: AR5 id and basis throughout, eGRID2023 publication year corrected, fabricated checksums cleared, DEFRA row removed, EXIOBASE renamed to exiobase-3.8 with roadmap-not-wired status, and three activity rows' decorated source ('epa-egrid-2023 (CAMX subregion)') normalised so it resolves again. survey-proxy-2026 registered as an explicit internal estimate.",
+      "tests": "tests/sample-report-provenance.test.ts — 7 cases covering id resolution, AR5 consistency, roadmap sources never marked active, checksum shape, and fixture/CSV agreement."
+    },
+    {
+      "id": "PROV-02",
+      "severity": "medium",
+      "issue": "report-generator.cjs validated the register with a hardcoded length of 5, so the count was an accident rather than an invariant and the validator could not detect an incomplete register.",
+      "change": "Replaced the count with referential integrity: every factor cited by an activity row must appear in the register. That immediately caught a real gap — the employee-commute proxy was cited by two rows and had never been registered, which the count-based check could not have found.",
+      "tests": "tests/sample-report-provenance.test.ts plus the existing audit-regressions suite."
+    },
+    {
+      "id": "TRUST-01",
+      "severity": "medium",
+      "issue": "The chat header read 'EcoAuditor Sales / Online now', implying a staffed live-chat queue. /api/chat is a rule-based state machine — string matches and regex over a fixed script, with no LLM call and no human in the loop.",
+      "change": "Now 'EcoAuditor Assistant' / 'Automated · replies instantly'."
+    },
+    {
+      "id": "TRUST-02",
+      "severity": "medium",
+      "issue": "Security.tsx and PrivacyPolicy.tsx described QuickBooks/Xero/OAuth integrations in the present tense, including a read-only data-protection assurance. No such integration exists anywhere in the codebase; pricing.ts, mockData.ts, LandingPage.tsx and llms.txt all mark them roadmap.",
+      "change": "Both now state the integrations are roadmap and not available today, keeping the read-only/OAuth commitment scoped to when they ship. A security page should not carry data-handling assurances about systems that do not exist."
+    },
+    {
+      "id": "SEO-01",
+      "severity": "high",
+      "issue": "Every /blog/:slug URL fell through to the SPA fallback and served static/index.html. Verified live 2026-10-05: all seven published posts returned the homepage's title, meta description, OG tags and FAQPage JSON-LD, plus <link rel=\"canonical\" href=\"https://ecoauditor.io/\" />.",
+      "impact": "A canonical aimed at the homepage explicitly instructs Google to consolidate the post URL away. Combined with a sitemap listing zero post URLs and a prerendered /blog/ containing zero post links, Google had three independent signals to drop every article. Seven high-intent pages (SB 253, CBAM, Scope 3, ESG software selection) were being actively de-indexed.",
+      "change": "Added a /blog/:slug route that rewrites the served head per post: own title, description, self-referencing canonical, og:type=article, OG/Twitter tags, and a BlogPosting JSON-LD node in place of the homepage FAQPage. Slugs are shape-checked before the query and failures fall through to existing SPA behaviour. The app still renders the body after hydration; only the head changes.",
+      "tests": "tests/blog-post-seo.test.ts (12 cases, including a hostile-title injection attempt) and tests/blog-head-real-shell.test.ts (6 cases running the rewrite against the actual built static/index.html, skipped when no build is present)."
+    },
+    {
+      "id": "SEO-02",
+      "severity": "high",
+      "issue": "public/sitemap.xml is a static file listing 11 marketing URLs and no blog posts. Posts live in the database and are published without a rebuild, so post URLs could never appear.",
+      "change": "Added a dynamic /sitemap.xml that appends published post URLs from blog_posts (lastmod from published_at). Degrades to the marketing page list if the table is missing, and never advertises auth-only /app/* or /auth/* routes. Registered BEFORE express.static — see SEO-03.",
+      "tests": "tests/blog-post-seo.test.ts pins the query, the auth-route exclusion, the content type and the fallback."
+    },
+    {
+      "id": "XSS-01",
+      "severity": "high",
+      "issue": "Introduced by this run's own SEO-01 change and caught by the escaping test before release: JSON.stringify does not escape <, > or /. A post title containing '</script>' terminates the JSON-LD block early, so the remainder parses as live markup in the served head of every request for that post.",
+      "change": "JSON-LD is emitted with <, > and & escaped as JSON unicode sequences, keeping the payload valid JSON while inert as HTML.",
+      "tests": "tests/blog-post-seo.test.ts and tests/blog-head-real-shell.test.ts both assert a hostile title cannot break out, and that the block still parses as JSON with the original value intact."
+    },
+    {
+      "id": "DATA-02",
+      "severity": "high",
+      "issue": "parseEmissionCsv threw on the first row whose amount was blank or non-numeric, so a 500-row upload with one typo imported nothing at all. It also contradicted the ingest route, which already isolates bad scope, bad confidence and unknown facilities per row and skips only those rows — a blank amount was the single problem that voided an entire customer import.",
+      "impact": "The customer fixed line 12, resubmitted, discovered line 47, and repeated. For a paid plan whose differentiator is bulk CSV import of real utility and fuel data, this was the most likely day-one workflow blocker.",
+      "change": "Added parseEmissionCsvDetailed returning { rows, errors } and skipping only unparseable rows. Each surviving row carries _rowNumber, because dropped rows mean the array index is no longer the file line and every later diagnostic would name the wrong row of the upload. File-level problems still throw, since a missing column or unterminated quoted field makes the whole file unreadable; parseEmissionCsv is kept as a strict all-or-nothing wrapper so existing callers and boundary tests are unchanged. total_rows now counts parser-rejected rows, so the UI reports '498 of 500 rows imported' against the file the customer actually uploaded.",
+      "tests": "tests/csv-partial-import.test.ts — 7 cases covering partial success, exact line numbers, multiple bad rows, the blank-amount-zero guard, file-level throws, the strict wrapper, and a header-only file."
+    },
+    {
+      "id": "GDPR-01",
+      "severity": "medium",
+      "issue": "GET /api/account/export returned only company, facilities and emissionEntries. The `reports` table — which holds title, type, status, last_updated, completeness and signoff — and `csv_import_events` were absent.",
+      "impact": "/api/account/delete-data deliberately PRESERVES both tables as the audit trail, so the platform retained data the customer could never obtain a copy of, and could not exercise a data-portability right over it. reports.signoff is the compliance artifact the product exists to produce. The Privacy Policy section 9 tells customers they can export their workspace data at any time, and the claims register approves `no-proprietary-formats` partly on the evidence of that export.",
+      "change": "Both audit-trail reads added to the payload. Tenant-scoped, and each degrades to an empty list when its table is missing so an unmigrated database cannot turn a portability request into a 500. The emission-entry cap remains disclosed in notes rather than silently truncating.",
+      "tests": "tests/account-export-rights.test.ts — 7 cases including that every public.reports / public.csv_import_events read in the file is tenant-scoped."
+    },
+    {
+      "id": "SEO-03",
+      "severity": "high",
+      "issue": "Introduced by SEO-02 and caught only at runtime: the dynamic /sitemap.xml was registered AFTER express.static, which serves static/sitemap.xml (a build-time mirror of public/sitemap.xml). Express matches in registration order, so the static file answered first and the dynamic route never ran.",
+      "impact": "The route would have shipped completely inert, so production would still have listed zero blog post URLs — the entire reason it exists. No source-level test could see it, because registration order is invisible to text assertions.",
+      "change": "Route moved above express.static; the duplicate further down removed. express.static still mounted, and the blog head route stays below it since it reads static/index.html itself and rewrites the head.",
+      "verification": "Found by booting the server locally and diffing the response: the served body carried the static file's lastmod values and its em-dash comment. After the move the response carries the dynamic markers, /pricing still serves from express.static, and /blog/:slug with no database falls through to the SPA rather than erroring.",
+      "tests": "tests/route-ordering.test.ts compares indexOf positions directly, asserts the route is registered exactly once, and pins that express.static is still mounted."
+    },
+    {
+      "id": "SEO-04",
+      "severity": "medium",
+      "issue": "public/robots.txt had `User-agent: *` carrying nothing but `Allow: /`. The auth-only disallows sat at the bottom of the file, after the Applebot-Extended block. In robots.txt, directives after a `User-agent:` line belong to that group and the group ends at the next `User-agent:` line, so those disallows attached to Applebot alone.",
+      "impact": "Verified against the live file on 2026-10-05: Googlebot matches the wildcard group and was therefore explicitly permitted to crawl /app/, /auth/, /login, /signup and /forgot-password — exactly the surfaces the file claimed to protect. A naive substring check would have passed, since the paths are present in the text.",
+      "change": "The auth-only disallows moved inside the wildcard group; the named AI agents keep their own groups, which are allowed to differ from the wildcard. Sitemap declaration moved to the end where it belongs.",
+      "tests": "tests/robots-txt.test.ts parses the file the way a crawler does (RFC 9309 group semantics) instead of substring-matching, and embeds the previous wildcard group as a fixture so the test cannot pass vacuously."
+    },
+    {
+      "id": "SEO-05",
+      "severity": "medium",
+      "issue": "APP_BASE_URL falls back to http://localhost:3000 when APP_URL is unset. The hard boot-time throw that guards it was coupled to STRIPE_SECRET_KEY — deliberately, because an unconditional throw would crash-loop any production-mode preview deploy that has no Stripe key. That coupling was sound while APP_BASE_URL fed only Stripe redirects. SEO-03 then made it feed /sitemap.xml and the /blog/:slug canonical, so a production deploy without billing (a preview box, or a deploy taken while Stripe is being rotated out) passed the guard and served localhost URLs.",
+      "impact": "Latent, not live: production currently sets APP_URL, and the Stripe-coupled throw keeps it set, so the shipped sitemap is correct. The exposure is the silent-failure shape — the server boots clean, logs nothing, and every <loc> in the sitemap reads <loc>http://localhost:3000/…</loc>. Crawlers get an unreachable origin, search visibility collapses over weeks, and nothing in the logs connects it to a missing env var. Found by the new runtime smoke gate, which booted the server with no APP_URL: the static mirror had the right origin, so every source-level test reading public/ saw a healthy file.",
+      "change": "startServer() now logs at error level whenever NODE_ENV=production and APP_URL is unset, independent of Stripe, naming the two affected surfaces. It is a log and not a throw, to preserve the reason the throw was scoped: a boot loop in preview deploys is a worse failure than a wrong sitemap. The comment on APP_BASE_URL was rewritten to describe its two consumers and their different failure modes, replacing a claim of coverage that was broader than the code.",
+      "tests": "tests/audit-20261005-server.test.ts SEO-05 block pins four things: the sitemap builds every <loc> from APP_BASE_URL with no hardcoded host; the guard is not nested inside the STRIPE_SECRET_KEY block (asserted by index position); it logs rather than throws; and the original Stripe throw still stands for the redirects that genuinely strand a paying customer. The smoke gate additionally asserts no sitemap <loc> contains localhost."
+    },
+    {
+      "id": "VERIFIED-CLEAN",
+      "note": "Confirmed by probing a running server rather than by reading code. No changes were needed for any of these; recorded so the result is not re-litigated.",
+      "checks": [
+        "Route sweep over 20 paths including unknown pages and /app/*: no 500s. The 301s on bare marketing paths are express.static directory redirects, one hop before a 200.",
+        "Every marketing page serves its own <title> and self-referencing canonical; /login, /signup and /forgot-password correctly carry none (they are noindex).",
+        "Adversarial blog slugs (' OR 1=1--, ../../etc/passwd, %00, newline injection, <script>, a/b/c, UPPER-Case) all fall through to the SPA with no crash and no injection.",
+        "Unauthenticated requests to every data-bearing endpoint are refused; none returns 2xx. apiAuthGuard returns 503 when the auth backend is unconfigured, dev auth requires ALLOW_DEV_AUTH plus an exact DEV_AUTH_SECRET match, and req.user is assigned only after a validated session.",
+        "Security headers ship live including Strict-Transport-Security with preload. Rate limiting is applied to all /api/ paths with the Stripe webhook exempt for a documented reason, and resolveClientIp validates Cloudflare X-Forwarded-For against the published egress ranges.",
+        "Password reset avoids being an account-existence oracle (404 deliberately swallowed) and handles the 'I already have a code' path without an email in state.",
+        "Plan gates are genuinely enforced: the CSV import quota counts from public.csv_import_events under a row lock, and Scope 3 is gated on both /api/calculate and /api/ingest/csv.",
+        "Blog XSS is handled on both write and read: sanitizeBlogHtml runs at publish and again on the detail route, and the list route ships excerpts rather than body_html.",
+        "SampleReport.tsx already labels the ledger, factor register and evidence index as roadmap, and the Pro 'unlimited companies' claim was already corrected to one company per plan."
+      ]
+    },
+    {
+      "id": "RESIDUAL-BLOG-INDEX",
+      "severity": "low",
+      "issue": "The prerendered /blog/index.html contains 838 visible characters and zero post links, because the post list is fetched client-side and a static prerender cannot reach the database.",
+      "assessment": "Left as a residual deliberately. After SEO-01/02/03 the seven post URLs are in the sitemap and each serves its own title, description, canonical and BlogPosting JSON-LD, which is the primary discovery path. Rendering the index server-side would mean injecting links into a React shell that then hydrates over them, for a page that is already reachable and linked.",
+      "follow_up": "Worth doing before any content-marketing push, not before release."
+    },
+    {
+      "id": "PKG-01",
+      "severity": "high",
+      "issue": "The new compliance-deadlines.cjs module is a top-level require of server.cjs, but the Dockerfile's runtime stage copies server files selectively — only the builder stage uses COPY . ., which hid the gap.",
+      "impact": "The container would crash-loop with MODULE_NOT_FOUND and every route would 502, while a local build and the rest of the suite stayed green.",
+      "change": "Added to the runtime COPY line. Caught by tests/dockerfile-runtime-deps.test.ts before release rather than in production."
+    },
+    {
+      "id": "PLAN-01",
+      "severity": "medium",
+      "issue": "plan-limits.json states the rule \"Every limit here MUST have a server-side check — if you add one with no enforcement, you are selling something you do not deliver\" — but nothing tested it. It was the only file in the repo with zero test references. Separately, server-billing.test.ts pinned the plan limits as hardcoded literals (1 / 5 / 10) rather than reading the file, so the suite held a second copy of the numbers that plan-limits.json exists to prevent.",
+      "impact": "A limit could be added to the pricing page and the server-side plan data with no enforcement anywhere, and the suite would stay green — the exact failure the file warns about. Editing a limit would instead break server-billing.test.ts with a failure that names neither file.",
+      "change": "Added tests/plan-limits-enforcement.test.ts (22 tests) deriving the oracle from plan-limits.json itself: every limit key must have an enforcement-map entry, every declared limit must have a gate contract, limits must never shrink as the tier rises, the server gates must agree with the file across every boundary value, a denial must report the file limit and point at a plan that actually grants the feature, each enforcement-map route must genuinely call its gate (comment-stripped, to avoid matching the prose that quotes it), and the advertised pricing labels must match the enforced numbers. All three limits were already correctly enforced; no product code changed.",
+      "verified_by": "Mutation-tested: advertising a limit with no enforcement entry (3 failures), adding a limit plus an enforcement entry but no gate contract (3), unwiring canAddFacility from its route (1), mishandling a null unlimited limit (3), hardcoding 99 facilities in the server (4), and committing the CSV quota before rows persist (1) were each detected. Baseline 22/22."
+    },
+    {
+      "id": "BLOG-01",
+      "severity": "medium",
+      "issue": "src/pages/BlogPost.tsx reset nothing when the route param changed. React Router reuses the element for /blog/a -> /blog/b rather than remounting it, so error/post/loading all described the previous slug.",
+      "impact": "Arriving at a second post after a 404 left error set. The error and article blocks are independent conditions, so both rendered: the reader saw \"Post not found\" above an article that had loaded correctly. loading also never returned to true, so that stale error was shown during the next fetch instead of \"Loading…\".",
+      "change": "Collapsed the three state variables into one object tagged with the slug it describes, discarded during render via the documented adjustment pattern (the effect form trips react-hooks/set-state-in-effect). tests/blog-post-page.test.tsx drives a real useNavigate param change — re-rendering with new initialEntries would have passed on the old code, because MemoryRouter ignores initialEntries after mount."
+    },
+    {
+      "id": "BLOG-02",
+      "severity": "medium",
+      "issue": "formatDate existed in both BlogPost.tsx and BlogList.tsx and only the BlogList copy was ever fixed by TRUTH-01. new Date(badString) does not throw — it yields an Invalid Date, and toLocaleDateString() returns the literal string \"Invalid Date\", so the try/catch the BlogPost copy wrapped around it could never fire.",
+      "impact": "The same post rendered \"Undated\" on the blog index and \"Invalid Date\" (or \"January 1, 1970\", since new Date(null) is the epoch) under its own title on the post page.",
+      "change": "Extracted src/lib/formatDate.ts as the single copy; both pages import it, and a test asserts neither page declares its own."
+    },
+    {
+      "id": "BLOG-03",
+      "severity": "low",
+      "issue": "BlogPost overwrote <meta name=\"description\"> but its effect cleanup restored only document.title.",
+      "impact": "A post's meta description stayed on every page navigated to afterwards.",
+      "change": "The effect now snapshots the shell description before overwriting and restores it on cleanup."
+    },
+    {
+      "id": "BLOG-04",
+      "severity": "low",
+      "issue": "estimateReadTime read html.length during render, with no guard for a null body_html.",
+      "impact": "A post whose body_html was null threw a TypeError during render and took the whole page into the ErrorBoundary.",
+      "change": "Bounded from String(html || \"\").slice(0, 100_000)."
+    },
+    {
+      "id": "EB-01",
+      "severity": "medium",
+      "issue": "The ErrorBoundary fallback offered exactly one control, \"Reload page\" -> window.location.reload(). The boundary wraps AppContent, CookieConsentBanner and TrackPageViews, so tripping it unmounts Header and Footer with the tree.",
+      "impact": "When the crash is deterministic for the URL (a malformed record, a lazy() chunk a deploy replaced), reloading reproduced the identical screen — and every support affordance in the product was unmounted, while the copy told the customer to \"contact support\".",
+      "change": "The fallback now offers the same affordances the footer does: home, /contact, and the support mailto, whose address is read from Footer.tsx so the two cannot drift. Verified by mutation (2 failures when removed)."
+    },
+    {
+      "id": "EB-02",
+      "severity": "low",
+      "issue": "The fallback had no landmark, no role and no focus move. App.tsx focuses #main-content on every navigation, but TrackPageViews is a CHILD of the boundary, so the error unmounts the mechanism that would have announced it.",
+      "impact": "A screen-reader user was told nothing happened and focus fell back to <body>.",
+      "change": "The fallback is role=\"alert\" aria-live=\"assertive\", carries the #main-content target with tabIndex=-1, and focuses itself when the error is caught. Verified by mutation (6 failures removing role/landmark, 1 removing the focus move)."
+    },
+    {
+      "id": "PW-01",
+      "severity": "medium",
+      "issue": "ForgotPassword disabled \"Set new password\" with the same isPasswordValid() test its handler used, so the handler policy message was unreachable. The field carried no invalid/errorId/children, unlike the confirm field immediately below it.",
+      "impact": "A locked-out customer typing 3 characters got a permanently greyed button, no explanation and no visible rule — the placeholder stating it vanishes once the field has a value. Native minLength cannot compensate: it blocks submission, and submission is already impossible, so the browser never raises its own bubble either.",
+      "change": "Applied the treatment Signup already received: the rule renders inline via PasswordInput's invalid/errorId affordances, only once something has been typed. Verified by mutation (1 failure when removed). This is distinct from AUTH-08, which was the step-reset handler not clearing the password fields."
+    },
+    {
+      "id": "CALC-01",
+      "severity": "high",
+      "issue": "EmissionForm computed its unit list and its CO2e preview without a `source &&` guard, while the isFormValid check on the next line did require a source. getSource deliberately falls back from the source key to the CATEGORY key so a Scope 3 CSV row naming an arbitrary vendor still prices -- but for the four calculator-visible categories whose key is also one of their own source keys, that fallback fires for an EMPTY source too.",
+      "impact": "Choosing Scope 3, picking a category, leaving Source on \"Select source\", typing an amount and choosing a unit showed a confident compliance estimate for a source that was never chosen -- measured against the real catalog: purchased_goods 100 USD = 25.0 kg, business_travel = 26.0, employee_commuting = 22.0, waste = 105.0 -- while \"Add Entry\" stayed disabled with no explanation for why.",
+      "change": "The form now guards both calls with source &&, so the preview and the submit precondition agree. The library fallback is deliberately unchanged: it is what lets imported rows naming an arbitrary vendor (or a blank source cell) still price, and removing it would reject rows the product accepts today. A test pins both halves.",
+      "verified_by": "Mutation: removing the guard fails 1 test. The four affected categories were confirmed empirically against the shared module, not by reading."
+    },
+    {
+      "id": "CALC-02",
+      "severity": "medium",
+      "issue": "labelForSource falls back to the raw stored string, so a source of \"\" renders a blank Source cell and confirms `Delete emission entry \"\"?` on an irreversible delete. A CSV Scope 3 row with an empty source cell imports successfully via the category fallback, so this is reachable data.",
+      "impact": "The customer could not tell which row they were deleting, and the audit artifact contained an unattributed emission line.",
+      "change": "An empty source now renders \"Unspecified source\". Known labels and unknown raw keys are unchanged. This extends the CJU-02 delete-label hardening, which fixed the raw-catalog-key case and left the empty one behind.",
+      "verified_by": "Mutation: restoring the blank fallback fails 2 tests. Confirmed empirically that labelForSource(\"waste\",\"\") returned \"\"."
+    },
+    {
+      "id": "CALC-03",
+      "severity": "low",
+      "issue": "EmissionForm announced failures via role=\"alert\" but produced nothing on a successful save.",
+      "impact": "A screen-reader user pressing \"Add Entry\" got silence, where every other async result region in the app speaks (ReportGenerator, DataIntake, Settings, Dashboard, carbon-calculator/index.tsx).",
+      "change": "Added a role=\"status\" confirmation, cleared at the start of each submit.",
+      "verified_by": "Mutation: removing it fails 1 test."
+    },
+    {
+      "id": "CALC-04",
+      "severity": "low",
+      "issue": "The donut labelled slices with toFixed(0) while the scope card directly beneath it used toFixed(1), over the same denominator.",
+      "impact": "Any scope below 0.5% of total showed \"Scope 3 0%\" on the donut and \"0.3% of total\" on the card simultaneously -- two contradicting readouts of one number on the compliance dashboard. Routine for an SMB with a large electricity inventory and a small purchased-goods or waste line.",
+      "change": "Both now round to one decimal.",
+      "verified_by": "Mutation: reintroducing the split precision fails 1 test."
+    },
+    {
+      "id": "BLOG-DEFRA-CLAIM",
+      "severity": "high",
+      "issue": "The seeded blog posts claimed an emission factor library and a feature set the product does not have. The SB 253 guide said \"Pre-loaded with EPA, eGRID, DEFRA, and GHG Protocol factors, updated quarterly\"; the Scope 3 guide and the software-comparison post repeated it. DEFRA appears nowhere in src/lib/emission-factors — not in the catalog, not in the registry — and the registry's verified:true entries are only EPA GHG Emission Factors Hub 2025, eGRID2023 and IPCC AR5 GWP-100, so factorLabel() would have rendered the \"(verify before publication)\" sentinel for it. There is no factor-refresh mechanism anywhere in the codebase, so \"updated quarterly\" was invented. The same post also advertised \"Supply chain surveys: send a single link to your suppliers\", while \"Supplier request hub\" is listed in the roadmap array of EVERY plan, which src/content/pricing.ts defines as \"unshipped features planned for this tier\".",
+      "impact": "Published articles on ecoauditor.io told prospects the product ships a factor library it does not have, refreshes it on a schedule it does not follow, and offers supplier-survey collection that is explicitly unshipped. All three are checkable by a prospect who reads the pricing page or asks for a demo.",
+      "change": "Corrected the seed in server.cjs. The factor-library claims now name only EPA GHG Emission Factors Hub 2025, eGRID2023 and IPCC AR5 GWP-100, each recorded with publisher, edition and data year. The FAQ now states plainly that DEFRA is a common choice for UK and international work, is on the roadmap, and is not in the library today. The supplier-survey bullet was replaced with the Scope 3 estimation that does ship. Generic buyer advice recommending DEFRA as a published source was left intact — that is correct advice about the world, not about this product.",
+      "verified_by": "tests/blog-claim-consistency.test.ts (15 tests) parses the seeded posts and pins the claims. Mutation: restoring the DEFRA/quarterly claim (3 failures), the $2 billion threshold (2), the unshipped supplier-survey feature (2), the DEFRA claim in the comparison post (2), and stating the deferral as settled fact (1). The test initially passed on content I had not found -- it surfaced two further instances in the other two posts."
+    },
+    {
+      "id": "SB253-THRESHOLD",
+      "severity": "high",
+      "issue": "The SB 253 guide put Phase 1 at \"companies with revenue over $2 billion\" while its own opening paragraph said \"$1 billion\". Six independent sources confirm $1 billion for SB 253: CARB's program page, CARB's March 2026 workshop slides, and briefings from Morgan Lewis, Goodwin, Mayer Brown and Baker Tilly. The $500 million figure belongs to SB 261, the separate climate-related financial-risk law. The post also omitted that CARB set the first-year deadline at August 10, 2026 and has proposed deferring it to November 10, 2026 pending Office of Administrative Law approval.",
+      "impact": "A reader could size their own compliance obligations wrongly, and an SMB would not know the filing date had moved.",
+      "change": "Phase 1 now reads $1 billion, consistent with the opening paragraph. The post states the August 10 date, the proposed November 10 deferral and that it still has to clear the Office of Administrative Law, that limited assurance is not required for the 2026 filings, and that Scope 3 reporting begins in 2027. The FAQ deadline answer was corrected to match. An explicit note disambiguates SB 253 ($1B) from SB 261 ($500M), which are constantly confused. Phase 2's \"$1B+\" threshold was verified as correct and left alone rather than replaced with a differently-sourced number."
+    },
+    {
+      "id": "STRIPE-EMAIL",
+      "severity": "high",
+      "issue": "authGuard validated only user.id on the InsForge session payload, but all five billing routes (checkout, checkout verify, portal, plan change, cancel) forward req.user.email into ensureStripeCustomer, which runs INSERT INTO public.users (insforge_user_id, stripe_customer_id, email) — and public.users.email was declared TEXT NOT NULL in migrations/20260706000000_add-users-billing-map.sql. node-postgres converts an undefined bind parameter to NULL.",
+      "impact": "A session payload without an address produced a not-null violation and a 500 on every billing route at once: a paying customer could not subscribe, change plan, open the billing portal or cancel, with an opaque database error in the log naming neither the cause nor the user. Whether InsForge always returns an email was not verifiable from here, so the code was relying on an upstream guarantee it never checked.",
+      "change": "Fixed at the source of the mistake rather than papering over it. The column constrains a field that merely mirrors an optional upstream value, and a Stripe customer does not need an email to exist, so migrations/20261005000000_users-email-nullable.sql drops the NOT NULL. authGuard now normalises the payload once, at the only place where the shape is actually known, via normalizeAuthEmail() exported from server-billing.cjs (pure, so the boundary is testable without a database), logging a warning when the address is absent so the gap is diagnosable instead of fatal. ensureStripeCustomer omits the email key entirely rather than sending null, because that is a different and stricter Stripe request than omitting it.",
+      "verified_by": "tests/billing-email-optionality.test.ts (12 tests), including an assertion that the ORIGINAL migration really did declare NOT NULL so the later DROP is proven to be doing work. Mutation: the helper returning the raw value again (3 failures), authGuard not normalising (1), authGuard assigning the raw payload (1), Stripe sent an explicit null (1), migration not dropping the constraint (1). The test also pins that exactly two req.user assignment sites exist and that both yield a normalised email, so a future third site cannot silently bypass the normalisation.",
+      "note": "src/db/schema.ts (the Drizzle declaration that originally motivated NOT NULL) is not present in the repository, so there is no schema drift that could re-impose the constraint; a test asserts no later migration re-adds it."
+    },
+    {
+      "id": "DEP-PROXYADDR",
+      "severity": "critical",
+      "issue": "GHSA-jqcg-44mw-7w3h — proxy-addr 1.1.0 - 2.0.7 is vulnerable to IP spoofing via an IPv4-mapped IPv6 trust subnet; fixed in 2.0.8. There was no proxy-addr entry in the top-level overrides block, so the production tree took whatever express resolved, and the direct devDependency was pinned ~2.0.7, which permits the vulnerable version.",
+      "impact": "Directly relevant rather than theoretical: server.cjs sets a custom `trust proxy` and resolves req.ip through it, and req.ip keys the per-IP rate limiters and the consent IP hash. An address the library mis-parses is one a client can present, which is rate-limit evasion.",
+      "change": "Added \"proxy-addr\": \"~2.0.8\" to the top-level overrides block, following the convention already used for brace-expansion, body-parser and qs; it dedupes to a single 2.0.8 for both express and the direct devDependency. Bumped the devDependency to ~2.0.8 as well, since npm rejects an override that conflicts with the direct dependency spec. The devDependency itself stays because tests/server.test.ts imports proxy-addr directly for its trust-proxy assertions.",
+      "attribution": "NOT introduced by this branch. package-lock.json pins the identical proxy-addr@2.0.7 on master. The advisory was published after master's last green CI run, so this branch is simply the first run to surface it, and npm run security:audit now fails locally on it — which would fail the \"Audit production dependencies\" CI step on any branch.",
+      "verified_by": "npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes; tests/server.test.ts (the direct consumer) passes 37 tests; lint clean."
+    }
+  ],
+  "resolved_without_change": [
+    {
+      "id": "DEPENDENCY-REMAINDER",
+      "conclusion": "Not fixable as reported, and not a production exposure. The advisory GHSA-vfj7-8cjw-p6xm affects braces <=3.0.3 and 3.0.3 is the highest version ever published, so every available release is affected and there is no patched version to move to. It reaches the tree only through tailwindcss@3.4.19 (chokidar 3.6.0, micromatch 4.0.8), and `npm ls braces --omit=dev` is empty — it is absent from the production dependency tree entirely. npm's only suggested fix is tailwindcss 4.x, which AGENTS.md explicitly forbids. Closing this requires either an upstream braces release or relaxing the Tailwind constraint; it is not a code defect."
+    },
+    {
+      "id": "LOCAL-DB-SUITES",
+      "conclusion": "The three Docker-backed suites (32 tests) cannot start on this machine because Docker is absent; they are not skipped in CI. .github/workflows/security.yml runs `npm run build && npm test` on ubuntu-latest, which ships Docker, so they execute there. This is a local environment limitation, not a repository defect."
+    },
+    {
+      "id": "PREVIOUS-P2-REGISTER",
+      "conclusion": "Still not derivable. Searching the working tree and the full git history across every branch for P2-4 through P2-7 returns nothing; the only P2-6 reference is the label this project applied to the signup plan-handoff fix. docs/audits/ecoauditor-mvp-audit.md has a P2-1..P2-3 register, but it is a different (product/UX) register whose P2-6 does not exist. Reconciling the historical IDs needs the originating findings document."
+    },
+    {
+      "id": "VERIFIED-PLAN-LIMITS",
+      "conclusion": "The three limits in plan-limits.json — facilities, csvImportsPerMonth and scope3 — are all genuinely enforced server-side and were left unchanged. canAddFacility/canImportCsv/canUseScope3 are called on the exact routes the enforcement map names (POST /api/companies/:id/facilities, POST /api/ingest/csv, POST /api/calculate). The facility cap is checked inside a transaction holding SELECT ... FOR UPDATE on the company row, so concurrent creates cannot all pass. A CSV import spends quota in the same transaction that persists the rows, so a failed save does not burn a monthly import, and the quota is only spent when entries.length > 0. A null limit is short-circuited before any comparison, so unlimited is never evaluated as count >= 0. src/content/pricing.ts and src/data/mockData.ts both derive their labels from this file, so the advertised and enforced limits cannot drift."
+    },
+    {
+      "id": "VERIFIED-ERROR-BOUNDARY-ROUTING",
+      "conclusion": "The error boundary does catch what it must, and cannot leak a stack trace to production. React Router 7 only inserts its own inner boundary in data-router mode (chunk-HHGH3NKS.js gates it on dataRouterState) and main.tsx uses declarative BrowserRouter + Routes, so the app's own ErrorBoundary is what catches route render errors and rejected lazy() chunks. No errorElement or useRouteError exists anywhere in src/. The DEV stack-trace block is correctly gated behind import.meta.env.DEV, which is false under vite build. useTheme, which sits above the boundary and would blank the whole site if it threw, already guards both localStorage calls. Left unchanged apart from EB-01/EB-02."
+    },
+    {
+      "id": "VERIFIED-PASSWORD-POLICY",
+      "conclusion": "The client password rule (8+ chars, at least one letter, one digit) is strictly stronger than the backend auth.password.min_length = 6, so it cannot cause a false accept; the inline text matches the isPasswordValid predicate exactly, so it cannot cause a false reject either. Paste is not blocked, the show/hide control is a real <button type=\"button\"> with aria-pressed and aria-controls, and it does not move focus. /forgot-password hard-loads correctly — it is prerendered by scripts/prerender.mjs, so it is absent from neither PRERENDERED_ROUTES nor spaRoots only because express.static already serves it (pinned by tests/routes-prerender.test.ts)."
+    },
+    {
+      "id": "VERIFIED-CALC-ENGINE",
+      "conclusion": "The emissions maths is sound and was left unchanged. The server stores CSV results as co2e_kg = tonnes * 1000, so there is no kg/tonnes mismatch between the dashboard and the generated PDF. ReportGenerator delegates all maths to the server, whose 0.001 tonnes-per-kg passthrough for rows already in kg agrees exactly with the client entryKgCO2e. entryKgCO2e always returns a finite number because the calculateEmissions(...) ?? 0 tail covers a null factor, so the dashboard cannot render NaN. Catalog hygiene was checked and is clean: no empty-units sources, no negative factors, no duplicate category or source keys, and no two unit names within a source that collide after normalisation (so no duplicate React key in the option lists). Three zero factors are semantically correct and produce a legitimate 0.0 kg."
+    },
+    {
+      "id": "VERIFIED-CALC-EDGE-CASES",
+      "conclusion": "Three plausible-looking defects were checked and are not defects. (1) EmissionList uses `if (!id) return \"-\"` for facilityName while EmissionsDashboard uses `== null`, but facility_id is BIGINT GENERATED ALWAYS AS IDENTITY starting at 1, so no row can have id 0 -- unreachable. (2) `if (!company) return;` in index.tsx would silently resolve the save promise and make the customer believe a non-existent entry was saved, but index.tsx renders <Onboarding> instead of the form whenever company is null, so the form is never mounted in that state. (3) The concurrent-delete race on deletingId can permit a redundant second DELETE, but the delete is idempotent and loadEntries refreshes the list, so no row is double-deleted and no work is lost."
+    }
+  ],
+  "verification": {
+    "build": "PASS: TypeScript, Vite and 14 prerendered routes",
+    "lint": "PASS: eslint .",
+    "typecheck": "PASS: tsc -b",
+    "local_tests": "670 passed across 64 files, 0 failed, plus 32 Docker-backed tests unexecutable locally. Baseline at the start of this run was 348 passed across 38 files, so +240 tests with no regressions. The three Docker suites cannot start on this machine (spawn docker ENOENT) but do run in CI.",
+    "runtime_smoke": "PASS: scripts/smoke.mjs — 99 checks (98 pass; the blog-index check fails locally by design because this machine has no DATABASE_URL at build time — see SEO-06) against a real booted server. Three defects in this report (SEO-03 route shadowing, SEO-04 group scoping, SEO-05 unguarded sitemap origin) are properties of the running process, not of the code text, and none of them were visible to a source-level assertion. The gate boots server.cjs on a free port with a deterministic APP_URL and sweeps the marketing pages, self-canonicals, noindex pages, the sitemap, robots.txt, robustness paths, security headers, and fail-closed auth. Its robots.txt reader is scripts/robots-groups.mjs, the same RFC 9309 parser the unit test uses — an earlier in-gate copy of that parser was wrong and reported five failures against a correct file, which is exactly the two-readers-disagree failure SEO-04 was about.",
+    "production_dependencies": "PASS: npm audit --omit=dev reports 0 vulnerabilities; npm run security:audit passes",
+    "external_inputs": "SB 253 deadline verified against CARB program material and two law-firm briefings (Aug 10 2026 set by the initial regulation, deferred to November 10 2026 in the proposed Modified Regulations, still subject to comment period and OAL approval). CSRD wave 2 verified against the primary text of Directive (EU) 2025/794 on EUR-Lex; the later Content Directive scope change is left open as COMP-04 rather than encoded."
+  },
+  "open": [
+    {
+      "id": "COMP-04",
+      "severity": "medium",
+      "issue": "The CSRD scope thresholds may be superseded again. Multiple secondary sources (EY, BDO, Taylor Wessing, Deloitte) report that a Content Directive entered into force on 18 March 2026 raising mandatory CSRD scope to more than 1,000 employees AND more than EUR450m turnover, with transposition due 19 March 2027, removing wave 3 and allowing Member States to exempt wave 1 companies below the revised thresholds for FY2025 and FY2026.",
+      "why_open": "Deliberately NOT encoded in compliance-deadlines.cjs. Transposition is national and Member States have exemption options, so the operative scope for any given Member State cannot be resolved from the Directive text alone, and no public surface states a CSRD date that would now be wrong. Encoding a half-verified threshold change into a compliance verdict would trade a known-stale date for a new, less-well-grounded one. The primary text was not verified on EUR-Lex during this run, unlike COMP-03 where it was.",
+      "required": "Confirm the instrument and its number on EUR-Lex, then decide with the customer which Member State(s) are supported. Until then the wave 1 (>500 employees) and wave 2 (>250 employees) criteria stand as the last verified state. Note the product currently cannot answer this question for a real tenant anyway, since company revenue/employees/region are not modelled and /api/companies/:id/compliance answers 501."
+    },
+    {
+      "id": "EDGE-01",
+      "severity": "P1",
+      "issue": "www redirects omit the slash before the path: /health returns Location https://ecoauditor.iohealth and /pricing?plan=growth returns https://ecoauditor.iopricing?plan=growth. Re-verified live 2026-10-05 with curl; the query string survives, so only the separator is missing and the host fuses into a different registrable name.",
+      "required": "Correct the Cloudflare redirect target to retain http.request.uri.path and preserve the query string. The redirect is issued before the origin request, so no application deploy can fix it. No Cloudflare connector is connected in this session (the only connected App is matrix), so it must be applied in the Cloudflare dashboard. docs/EDGE-01-cloudflare-redirect.md has the confirmed before/after, the expression for both Single Redirects and Bulk Redirects, and copy-paste verification commands.",
+      "reverified": "2026-10-06 (UTC): still live. curl -D- https://www.ecoauditor.io/health returns \"HTTP/1.1 301 Moved Permanently\" with \"Location: https://ecoauditor.iohealth\"; the apex returns 200 for the same path. The response carries Report-To: cf-nel, confirming Cloudflare emits it before the origin.",
+      "connector_check": "Re-checked this session rather than assuming: mcp list returns zero connected servers and a tool search for cloudflare/dns/redirect/zone returns no matches. There is no Cloudflare connector, so the dashboard change cannot be made from here.",
+      "remediation_options": [
+        "Preferred: Rules -> Redirect Rules -> Single Redirects. Fix the www rule so it concatenates with a path separator (dynamic target https://ecoauditor.io${path}, or static target https://ecoauditor.io with \"Preserve query string\" and \"Subpath matching\" left enabled).",
+        "Alternative if the rule is a Bulk Redirect: replace it with a Single Redirect, since Bulk Redirects on a whole subdomain are where the missing \"/\" usually originates.",
+        "Alternative if the rule is a Transform Rule or a Page Rule doing a dynamic redirect: the target concatenation is the same bug in a different rule type.",
+        "Until then no deploy can help: the 301 is emitted before the request reaches server.cjs, so an app-side redirect would only add a competing hop."
+      ],
+      "customer_impact_now": "Any shared or bookmarked www.ecoauditor.io link that carries a path resolves to a host that does not exist. The bare apex host is unaffected, and canonical tags plus robots already point at the apex, so this is a broken-link problem rather than an SEO one."
+    },
+    {
+      "id": "PR35",
+      "issue": "Draft PR 35 carries 137-finding remediation whose rollout depends on documented schema/content prerequisites. Current calculator and onboarding use direct browser writes that ownership RLS does not subject to server billing/quota guards.",
+      "required": "Complete the documented schema/content/server rollout against an authenticated backend before revoking browser writes; do not deploy that image ahead of its schema. InsForge CLI is logged out and unlinked, so authenticated backend access is required."
+    },
+    {
+      "id": "BLOG-DEFRA-CLAIM",
+      "severity": "medium",
+      "issue": "RESIDUAL of the now-fixed seed content. The four seeded posts were corrected in server.cjs (see the fixed entry), but ecoauditor.io still serves the old rows from its database.",
+      "required": "Republish the corrected posts through POST /api/publish with SITE_DEPLOY_TOKEN so the live site stops telling prospects we ship DEFRA factors and supplier surveys. The seed only runs when blog_posts is empty, so a redeploy alone will NOT update the existing rows.",
+      "note": "Originally recorded as \"not present in the working tree\" -- that was wrong. The content is the inline seed in server.cjs, which runs whenever blog_posts is empty and is therefore what any fresh deploy publishes. The source is fixed and pinned; only this publish step remains."
+    },
+    {
+      "id": "CI-DB-FLAKY",
+      "severity": "medium",
+      "issue": "The three Docker-backed suites fail in CI with \"connection to server on socket /var/run/postgresql/.s.PGSQL.5432 failed\" — variously \"Connection refused\", \"No such file or directory\", and \"server closed the connection unexpectedly\", with the failing suite count varying between 2 and 3 across runs. The stack trace points at e2e-helpers.ts:198, the bootstrap script, which runs before any migration is applied.",
+      "impact": "The Security workflow aborts at its Test step, so the later lint, security:audit and gitleaks steps never execute on that run. The audit branch cannot obtain a green check.",
+      "attribution": "Pre-existing and nondeterministic, NOT caused by this branch: the main-branch run at 2026-10-05T17:29Z failed with the identical socket error on code that does not contain any of these changes, while the master run one minute later on that same code succeeded.",
+      "investigation": "Container names (fix-tests-pg, fix-tests-pg-reg, fix-tests-pg-leads) and host ports (54398, 54394, 54395) are all distinct, so this is not a name or port collision between the three suites. waitPgReady passes — pg_isready reports the server accepting — and the socket is then gone, so the container is dying after coming up. Three Postgres containers plus several spawned servers and 62 test files in parallel is the most likely cause on a constrained runner. Not reproducible locally: this machine has no Docker.",
+      "note": "Because CI never reaches the migration step, migrations/20261005000000_users-email-nullable.sql has never executed against a live Postgres. It was therefore rewritten as a guarded DO block that checks information_schema.columns first, so it cannot abort a schema run regardless of table order, and a test pins that guard."
+    }
+  ],
+  "release": {
+    "status": "Eighteen commits on fix/full-audit-20261005, rebased onto the current origin/master (50d6191) and verified there. NOT pushed and NOT deployed — pushing was not requested, and a previous attempt to use the GitHub integration returned HTTP 403.",
+    "migrations": "No schema migrations.",
+    "rollback": "Revert the application commits; no schema rollback required."
+  }
+}

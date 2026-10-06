@@ -281,8 +281,14 @@ export default function ChatWidget({
                 </svg>
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>EcoAuditor Sales</h3>
-                <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>Online now</p>
+                {/* "EcoAuditor Sales / Online now" implied a staffed live-chat
+                    queue. /api/chat is a rule-based state machine — string
+                    matches and regex over a fixed script, with no LLM call and
+                    no human in the loop — so a prospect was told a sales
+                    rep was waiting when nobody was reading. Name it for what
+                    it is. See ecoauditor-mvp-audit-2026-08-20.md (E-9). */}
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>EcoAuditor Assistant</h3>
+                <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>Automated · replies instantly</p>
               </div>
             </div>
             <button

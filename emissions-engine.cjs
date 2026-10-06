@@ -9,6 +9,7 @@
 // 4.75% gross-up also existed only on this side, so it was a second reason the
 // two paths disagreed. Scope 3 Cat 3 accounting for T&D is not built yet.
 const { factorFor, getSource, getCategory } = require('./emission-factors.cjs');
+const { deadlinesApplicableTo } = require('./compliance-deadlines.cjs');
 
 const CONFIDENCE_BY_CATEGORY = {
   stationary_combustion: 90,
@@ -298,25 +299,52 @@ function toDashboardSummary(summary, priorSummary) {
   };
 }
 
-function parseEmissionCsv(csv) {
-  const lines = splitCsvRecords(String(csv || '').trim());
-  if (lines.length < 2) return [];
+// Parses rows and isolates per-row amount problems instead of throwing on the
+// first bad cell.
+//
+// A 500-row file with a typo in row 12 previously imported NOTHING: the .map()
+// below threw and the caller had no rows to work with. That also defeated the
+// per-row isolation the ingest route implements for bad scope, bad confidence
+// and unknown facilities — those skip just their own row, while a blank amount
+// failed the whole customer import. The customer fixed row 12, resubmitted,
+// hit row 47, and repeated.
+//
+// File-level problems (a missing required column, an unterminated quoted
+// field) still throw: those make the whole file unreadable and there is no
+// sensible partial import.
+//
+// @returns {{rows: object[], errors: {row: number, message: string}[]}}
+function parseEmissionCsvDetailed(csvText) {
+  const records = splitCsvRecords(csvText).filter((r) => r.some((v) => String(v).trim() !== ''));
+  if (records.length === 0) return { rows: [], errors: [] };
+
+  const lines = records.map((r) => r.map((v) => String(v).trim()));
   const headers = lines[0].map(normalizeKey);
   const required = ['scope', 'category', 'source', 'amount', 'unit'];
   for (const key of required) {
     if (!headers.includes(key)) throw new Error(`CSV is missing required column: ${key}`);
   }
 
-  return lines.slice(1).map((values, index) => {
+  const rows = [];
+  const errors = [];
+  lines.slice(1).forEach((values, index) => {
     const row = {};
     headers.forEach((header, i) => { row[header] = values[i] || ''; });
     // REL-002: a blank cell made Number('') === 0 pass, importing a silent
-    // zero. Blank and non-numeric amounts both fail the row.
+    // zero. Blank and non-numeric amounts both fail the row — but only that row.
     const amount = Number(row.amount);
     if (String(row.amount).trim() === '' || !Number.isFinite(amount)) {
-      throw new Error(`CSV row ${index + 2} has an invalid amount.`);
+      errors.push({
+        row: index + 2,
+        message: `CSV row ${index + 2} has an invalid amount.`,
+      });
+      return;
     }
-    return {
+    rows.push({
+      // Source line in the uploaded file. Rows that fail parsing are dropped, so
+      // the consumer cannot recover this from the array index — without it every
+      // later diagnostic would point at the wrong line of the customer's CSV.
+      _rowNumber: index + 2,
       scope: row.scope,
       category: row.category,
       source: row.source,
@@ -327,8 +355,20 @@ function parseEmissionCsv(csv) {
       facility_name: row.facility_name || undefined,
       date: row.date || undefined,
       notes: row.notes || undefined,
-    };
+    });
   });
+
+  return { rows, errors };
+}
+
+/**
+ * Strict wrapper: throws if ANY row is malformed. Kept for callers that need
+ * all-or-nothing semantics (and for the existing boundary tests).
+ */
+function parseEmissionCsv(csvText) {
+  const { rows, errors } = parseEmissionCsvDetailed(csvText);
+  if (errors.length > 0) throw new Error(errors[0].message);
+  return rows;
 }
 
 function splitCsvRecords(line) {
@@ -364,28 +404,71 @@ function splitCsvRecords(line) {
   return records;
 }
 
-function getComplianceStatus(company = {}) {
-  const revenue = Number(company.revenue || 0);
-  const employees = Number(company.employees || 0);
-  const region = String(company.region || company.state || '').toUpperCase();
-  const sb253Applicable = revenue >= 1_000_000_000 && (region === 'CA' || region === 'CALIFORNIA');
-  const csrdApplicable = (region === 'EU' || region === 'EUROPE') && employees >= 500;
+function getComplianceStatus(company = {}, options = {}) {
+  const now = options.now ?? Date.now();
+
+  // Deadlines come from the shared table, and `next_deadline` is derived from
+  // the current date. It used to be a hardcoded "2026-01-01 Scope 1 and Scope 2
+  // reporting" string that was already in the past — reported to customers as
+  // the next deadline months after it had gone.
+  //
+  // Applicability also comes from the table now. This function used to hardcode
+  // `revenue >= 1e9 && region in CA` for SB 253 and `region in EU && employees
+  // >= 500` for CSRD. The CSRD threshold contradicted this repo's own deadline
+  // table, whose wave 2 row says "250+ employees": every EU company with
+  // 251-500 employees was answered `not_applicable` with a null deadline even
+  // though the table listed them as in scope. See compliance-deadlines.cjs.
+  const applicable = deadlinesApplicableTo(company, now);
+
+  function frameworkStatus(frameworkKey, name) {
+    // Every deadline this company is in scope for, not just upcoming ones —
+    // "am I in scope" must not flip to "no" merely because the date passed.
+    const inScope = applicable.filter((d) => d.framework === frameworkKey);
+    const next = inScope.find((d) => (d.days_left ?? -1) >= 0) || null;
+    if (inScope.length === 0) {
+      return {
+        name: name,
+        applicable: false,
+        status: 'not_applicable',
+        next_deadline: null,
+        next_deadline_status: null,
+        next_deadline_label: null,
+        deadline_status_basis: null,
+        days_left: null,
+      };
+    }
+    if (!next) {
+      return {
+        name: name,
+        applicable: true,
+        status: 'in_scope',
+        next_deadline: null,
+        next_deadline_status: null,
+        next_deadline_label: null,
+        deadline_status_basis: null,
+        days_left: null,
+        in_scope_deadlines: inScope.map((d) => d.due_date),
+      };
+    }
+    const label = `${next.status === 'overdue' ? 'Overdue since' : 'Due'} ${next.due_date} — ${name} ${next.scope}`;
+    return {
+      name: name,
+      applicable: true,
+      status: 'in_scope',
+      next_deadline: next.due_date,
+      next_deadline_status: next.status,
+      next_deadline_label: label,
+      deadline_status_basis: next.date_status,
+      days_left: next.days_left,
+      in_scope_deadlines: inScope.map((d) => d.due_date),
+    };
+  }
 
   return {
     company_id: company.id || null,
     frameworks: {
-      sb253: {
-        name: 'California SB 253',
-        applicable: sb253Applicable,
-        status: sb253Applicable ? 'in_scope' : 'not_applicable',
-        next_deadline: '2026-01-01 Scope 1 and Scope 2 reporting',
-      },
-      csrd: {
-        name: 'EU CSRD',
-        applicable: csrdApplicable,
-        status: csrdApplicable ? 'in_scope' : 'not_applicable',
-        next_deadline: '2025-01-01 CSRD reporting readiness',
-      },
+      sb253: frameworkStatus('SB 253', 'California SB 253'),
+      csrd: frameworkStatus('EU CSRD', 'EU CSRD'),
     },
   };
 }
@@ -418,6 +501,7 @@ module.exports = {
   buildTrend,
   toDashboardSummary,
   parseEmissionCsv,
+  parseEmissionCsvDetailed,
   getComplianceStatus,
   buildFacilityEmissions,
   // Exported so the server's Scope 3 plan gate normalises labels exactly the

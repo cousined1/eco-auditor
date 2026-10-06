@@ -75,8 +75,26 @@ function validateFixture(fixture) {
   if (!Array.isArray(activityData) || activityData.length !== 11) {
     throw new Error('activityData must be an array of 11 rows, got ' + (Array.isArray(activityData) ? activityData.length : 'non-array'));
   }
-  if (!Array.isArray(factorRegister) || factorRegister.length !== 5) {
-    throw new Error('factorRegister must be an array of 5 factors, got ' + (Array.isArray(factorRegister) ? factorRegister.length : 'non-array'));
+  if (!Array.isArray(factorRegister) || factorRegister.length === 0) {
+    throw new Error('factorRegister must be a non-empty array, got ' + (Array.isArray(factorRegister) ? factorRegister.length : 'non-array'));
+  }
+  // Referential integrity instead of a hardcoded count. The old check pinned
+  // exactly 5 rows, so removing a fabricated source (UK DEFRA, absent from the
+  // codebase) broke the report — the count was an accident, not an invariant.
+  // What actually matters is that every factor a row cites appears in the
+  // register, which is what makes the register a usable audit trail.
+  const registeredIds = new Set(factorRegister.map((f) => f && f.factor_id));
+  const unregistered = [
+    ...new Set(
+      activityData
+        .map((row) => row && row.emission_factor_source)
+        .filter((id) => typeof id === 'string' && id && !registeredIds.has(id))
+    ),
+  ];
+  if (unregistered.length > 0) {
+    throw new Error(
+      'factorRegister is missing entries cited by activityData: ' + unregistered.join(', ')
+    );
   }
   if (!Array.isArray(evidenceIndex) || evidenceIndex.length !== 11) {
     throw new Error('evidenceIndex must be an array of 11 entries, got ' + (Array.isArray(evidenceIndex) ? evidenceIndex.length : 'non-array'));
