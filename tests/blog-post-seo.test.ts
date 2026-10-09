@@ -68,7 +68,7 @@ const post = {
   meta_description: 'A step-by-step SB 253 compliance roadmap for small and mid-sized businesses.',
   published_at: '2026-07-29T01:10:26.536Z',
 };
-const canonical = 'https://ecoauditor.io/blog/sb-253-compliance-guide-smb';
+const canonical = 'https://ecoauditor.io/blog/sb-253-compliance-guide-smb/';
 
 describe('SEO-01 blog posts are not canonicalised to the homepage', () => {
   const out = renderBlogPostHead(SHELL, post, canonical);

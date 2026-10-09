@@ -43,11 +43,11 @@ export default function DataProcessingAddendum() {
 
       <article className="flex-1 max-w-3xl mx-auto px-6 py-10 lg:px-12">
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Data Processing Addendum</h1>
-        <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
+        <p className="text-sm text-surface-500">Last updated: October 9, 2026</p>
 
         <S id="purpose" title="1. Purpose and Scope" onScroll={setActiveSection}>
-          <p>This Data Processing Addendum ("DPA") forms part of the Terms of Service between Developer312 and the Customer and supplements the Terms with respect to the processing of personal data.</p>
-          <p>This DPA applies where Developer312 processes personal data on behalf of the Customer in connection with the Eco-Auditor platform. It is intended to support GDPR-aligned controller-to-processor arrangements.</p>
+          <p>This Data Processing Addendum ("DPA") forms part of the Terms of Service between Night Lite USA LLC, 25200 Carlos Bee Blvd, Hayward, CA 94542, and the Customer and supplements the Terms with respect to the processing of personal data. Developer312 is a brand (dba) of Night Lite USA LLC. Night Lite USA LLC is the contracting Processor.</p>
+          <p>This DPA applies where Night Lite USA LLC processes personal data on behalf of the Customer in connection with the Eco-Auditor platform. It is intended to support GDPR-aligned controller-to-processor arrangements.</p>
           <p>In the event of a conflict between this DPA and the Terms of Service, this DPA shall prevail with respect to the processing of personal data.</p>
         </S>
 
@@ -55,17 +55,17 @@ export default function DataProcessingAddendum() {
           <p>Unless defined otherwise, terms used in this DPA have the meanings given in the General Data Protection Regulation (Regulation (EU) 2016/679) ("GDPR"). Key definitions:</p>
           <ul>
             <li><strong>"Customer"</strong> means the organization that has entered into a subscription agreement for the Eco-Auditor platform</li>
-            <li><strong>"Processor"</strong> means Developer312, acting on behalf of the Customer in processing personal data</li>
+            <li><strong>"Processor"</strong> means Night Lite USA LLC, acting on behalf of the Customer in processing personal data</li>
             <li><strong>"Controller"</strong> means the Customer, which determines the purposes and means of processing personal data</li>
             <li><strong>"Personal Data"</strong> means any information relating to an identified or identifiable natural person</li>
-            <li><strong>"Subprocessor"</strong> means any third party engaged by Developer312 to process personal data on behalf of the Customer</li>
+            <li><strong>"Subprocessor"</strong> means any third party engaged by Night Lite USA LLC to process personal data on behalf of the Customer</li>
             <li><strong>"Data Subject"</strong> means an identified or identifiable natural person whose personal data is processed</li>
           </ul>
         </S>
 
         <S id="roles" title="3. Roles of the Parties" onScroll={setActiveSection}>
-          <p>The Customer acts as the Controller of personal data. Developer312 acts as the Processor, processing personal data on the Customer's behalf and only in accordance with the Customer's documented instructions.</p>
-          <p>Where Developer312 decides on the purposes and means of processing its own employee or business data separate from the Customer's data, Developer312 acts as Controller for that processing.</p>
+          <p>The Customer acts as the Controller of personal data. Night Lite USA LLC acts as the Processor, processing personal data on the Customer's behalf and only in accordance with the Customer's documented instructions.</p>
+          <p>Where Night Lite USA LLC decides on the purposes and means of processing its own employee or business data separate from the Customer's data, Night Lite USA LLC acts as Controller for that processing.</p>
         </S>
 
         <S id="subject-matter" title="4. Subject Matter and Duration of Processing" onScroll={setActiveSection}>
@@ -74,22 +74,22 @@ export default function DataProcessingAddendum() {
         </S>
 
         <S id="processing-instructions" title="5. Processing on Documented Instructions" onScroll={setActiveSection}>
-          <p>Developer312 shall process personal data only on documented instructions from the Customer, including:</p>
+          <p>Night Lite USA LLC shall process personal data only on documented instructions from the Customer, including:</p>
           <ul>
             <li>Instructions provided through the Eco-Auditor platform interface</li>
             <li>Instructions provided in writing (including email) by authorized Customer representatives</li>
             <li>Processing necessary to comply with applicable legal obligations</li>
           </ul>
-          <p>Developer312 shall not process personal data for its own purposes or for purposes not authorized by the Customer, unless required by applicable law, in which case Developer312 shall inform the Customer unless legally prohibited from doing so.</p>
+          <p>Night Lite USA LLC shall not process personal data for its own purposes or for purposes not authorized by the Customer, unless required by applicable law, in which case Night Lite USA LLC shall inform the Customer unless legally prohibited from doing so.</p>
         </S>
 
         <S id="confidentiality" title="6. Confidentiality" onScroll={setActiveSection}>
-          <p>Developer312 ensures that all persons authorized to process personal data have committed themselves to confidentiality or are under an appropriate statutory obligation of confidentiality.</p>
-          <p>Developer312's employees and contractors are bound by confidentiality agreements and receive data protection training appropriate to their role.</p>
+          <p>Night Lite USA LLC ensures that all persons authorized to process personal data have committed themselves to confidentiality or are under an appropriate statutory obligation of confidentiality.</p>
+          <p>Night Lite USA LLC's employees and contractors are bound by confidentiality agreements and receive data protection training appropriate to their role.</p>
         </S>
 
         <S id="security" title="7. Security of Processing" onScroll={setActiveSection}>
-          <p>Developer312 implements appropriate technical and organizational measures to ensure a level of security appropriate to the risk, as detailed in Annex II. These measures include:</p>
+          <p>Night Lite USA LLC implements appropriate technical and organizational measures to ensure a level of security appropriate to the risk, as detailed in Annex II. These measures include:</p>
           <ul>
             <li>Role-based access controls and least-privilege access</li>
             <li>Encryption of personal data in transit (TLS 1.2+) and at rest</li>
@@ -105,51 +105,51 @@ export default function DataProcessingAddendum() {
         </S>
 
         <S id="subprocessors" title="8. Use of Subprocessors" onScroll={setActiveSection}>
-          <p>The Customer authorizes Developer312 to engage subprocessors to process personal data on the Customer's behalf. Developer312 ensures that subprocessors are bound by written agreements that impose data protection obligations no less protective than those in this DPA.</p>
-          <p>A current list of subprocessors is maintained in Annex III. Developer312 will notify the Customer of any addition or replacement of subprocessors, providing the Customer with a reasonable opportunity to object to such changes.</p>
+          <p>The Customer authorizes Night Lite USA LLC to engage subprocessors to process personal data on the Customer's behalf. Night Lite USA LLC ensures that subprocessors are bound by written agreements that impose data protection obligations no less protective than those in this DPA.</p>
+          <p>A current list of subprocessors is maintained in Annex III. Night Lite USA LLC will notify the Customer of any addition or replacement of subprocessors, providing the Customer with a reasonable opportunity to object to such changes.</p>
           <p>If the Customer objects to a subprocessor change and the parties cannot reach a resolution, the Customer may terminate the affected portion of the service or, if the change affects the entire service, terminate the subscription.</p>
         </S>
 
         <S id="data-subject-rights" title="9. Assistance with Data Subject Rights" onScroll={setActiveSection}>
-          <p>Developer312 shall assist the Customer in fulfilling its obligations to respond to data subject requests for exercising their rights under applicable data protection laws, including rights of access, rectification, erasure, portability, restriction, and objection.</p>
-          <p>Developer312 will promptly notify the Customer if it receives a data subject request directly and will not respond to such requests without the Customer's instructions, except as required by applicable law.</p>
+          <p>Night Lite USA LLC shall assist the Customer in fulfilling its obligations to respond to data subject requests for exercising their rights under applicable data protection laws, including rights of access, rectification, erasure, portability, restriction, and objection.</p>
+          <p>Night Lite USA LLC will promptly notify the Customer if it receives a data subject request directly and will not respond to such requests without the Customer's instructions, except as required by applicable law.</p>
         </S>
 
         <S id="breach-notification" title="10. Personal Data Breach Notification" onScroll={setActiveSection}>
-          <p>Developer312 shall notify the Customer without undue delay after becoming aware of a personal data breach, providing:</p>
+          <p>Night Lite USA LLC shall notify the Customer without undue delay after becoming aware of a personal data breach, providing:</p>
           <ul>
             <li>The nature of the breach, including the categories and approximate number of data subjects and records affected</li>
             <li>The likely consequences of the breach</li>
             <li>The measures taken or proposed to address the breach and mitigate its effects</li>
             <li>A designated point of contact for further information</li>
           </ul>
-          <p>Developer312 will cooperate with the Customer in investigating breaches and will provide all reasonably available information to assist the Customer in meeting its notification obligations under applicable law.</p>
+          <p>Night Lite USA LLC will cooperate with the Customer in investigating breaches and will provide all reasonably available information to assist the Customer in meeting its notification obligations under applicable law.</p>
         </S>
 
         <S id="return-deletion" title="11. Return and Deletion of Personal Data" onScroll={setActiveSection}>
           <p>Personal data is returned and deleted as follows:</p>
           <ul>
             <li><strong>Return:</strong> The Customer can export its workspace data at any time from the Service's Settings as a machine-readable JSON download</li>
-            <li><strong>Deletion:</strong> The Customer can delete its audit data (emissions entries and facilities) at any time from the Service's Settings; deletion takes effect immediately. The account record is deleted by submitting a deletion request to support, which Developer312 will process within 30 days of the request</li>
+            <li><strong>Deletion:</strong> The Customer can delete its audit data (emissions entries and facilities) at any time from the Service's Settings; deletion takes effect immediately. The account record is deleted by submitting a deletion request to support, which Night Lite USA LLC will process within 30 days of the request</li>
           </ul>
-          <p>This obligation does not apply where retention of personal data is required by applicable law, in which case Developer312 will continue to process such data only for the purpose and duration required by law.</p>
+          <p>This obligation does not apply where retention of personal data is required by applicable law, in which case Night Lite USA LLC will continue to process such data only for the purpose and duration required by law.</p>
         </S>
 
         <S id="audit-rights" title="12. Information and Audit Rights" onScroll={setActiveSection}>
-          <p>Developer312 shall make available to the Customer all information necessary to demonstrate compliance with this DPA and shall allow for and contribute to audits, including inspections, conducted by the Customer or an auditor mandated by the Customer.</p>
-          <p>Such audits shall be conducted during normal business hours with reasonable advance notice, and the Customer shall bear the cost of such audits unless they reveal a material breach of this DPA by Developer312.</p>
+          <p>Night Lite USA LLC shall make available to the Customer all information necessary to demonstrate compliance with this DPA and shall allow for and contribute to audits, including inspections, conducted by the Customer or an auditor mandated by the Customer.</p>
+          <p>Such audits shall be conducted during normal business hours with reasonable advance notice, and the Customer shall bear the cost of such audits unless they reveal a material breach of this DPA by Night Lite USA LLC.</p>
         </S>
 
         <S id="international-transfers" title="13. International Data Transfers" onScroll={setActiveSection}>
-          <p>Developer312 may process or access personal data outside the EEA, UK, or Switzerland depending on hosting, support, or infrastructure operations.</p>
+          <p>Night Lite USA LLC may process or access personal data outside the EEA, UK, or Switzerland depending on hosting, support, or infrastructure operations.</p>
           <p>Where required, international transfers shall be governed by the Standard Contractual Clauses described in Section 14 and Annex IV.</p>
-          <p>Developer312 will ensure that any transfer of personal data to a third country is subject to appropriate safeguards as required by applicable data protection law.</p>
+          <p>Night Lite USA LLC will ensure that any transfer of personal data to a third country is subject to appropriate safeguards as required by applicable data protection law.</p>
         </S>
 
         <S id="scc" title="14. Standard Contractual Clauses" onScroll={setActiveSection}>
           <p>Where personal data is transferred from the EEA, the parties agree to incorporate the Standard Contractual Clauses ("SCCs") as adopted by the European Commission, consisting of:</p>
           <ul>
-            <li><strong>Module Two</strong> (Controller to Processor): Where the Customer acts as Controller and Developer312 acts as Processor</li>
+            <li><strong>Module Two</strong> (Controller to Processor): Where the Customer acts as Controller and Night Lite USA LLC acts as Processor</li>
             <li><strong>Module Three</strong> (Processor to Processor): Where both parties act as Processors in a chain of processing</li>
           </ul>
           <p>The specific module(s) applicable will depend on the processing context. Annex IV provides the relevant SCC details and transfer information.</p>
@@ -167,15 +167,16 @@ export default function DataProcessingAddendum() {
         </S>
 
         <S id="changes" title="17. Changes to this DPA" onScroll={setActiveSection}>
-          <p>Developer312 may update this DPA to reflect changes in applicable law, regulatory requirements, or data processing practices. Where the update represents a material change, Developer312 will provide the Customer with notice and an opportunity to review the updated terms.</p>
+          <p>Night Lite USA LLC may update this DPA to reflect changes in applicable law, regulatory requirements, or data processing practices. Where the update represents a material change, Night Lite USA LLC will provide the Customer with notice and an opportunity to review the updated terms.</p>
           <p>Updated subprocessor information will be provided in accordance with Section 8.</p>
         </S>
 
         <S id="contact-dpa" title="18. Contact Information" onScroll={setActiveSection}>
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
-            <p className="font-medium text-surface-800 dark:text-surface-200">Developer312 — Data Protection</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="font-medium text-surface-800 dark:text-surface-200">Night Lite USA LLC — Data Protection</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Eco-Auditor is offered under the Developer312 brand (a dba of Night Lite USA LLC).</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">25200 Carlos Bee Blvd, Hayward, CA 94542</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
           </div>
         </S>
@@ -206,7 +207,7 @@ export default function DataProcessingAddendum() {
         </S>
 
         <S id="annex-ii" title="Annex II: Technical and Organizational Security Measures" onScroll={setActiveSection}>
-          <p>Developer312 implements the following technical and organizational measures to protect personal data:</p>
+          <p>Night Lite USA LLC implements the following technical and organizational measures to protect personal data:</p>
           <div className="space-y-3 mt-3">
             {[
               { category: 'Access Control', measures: ['Role-based access controls with least-privilege principles', 'Multi-factor authentication for administrative access', 'Unique user identification and authentication', 'Regular access reviews and deprovisioning'] },
@@ -224,7 +225,7 @@ export default function DataProcessingAddendum() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-surface-500 mt-3">This is a summary of key measures. Detailed security documentation is available upon request under NDA. Developer312 does not overclaim certifications or controls not currently in place.</p>
+          <p className="text-xs text-surface-500 mt-3">This is a summary of key measures. Detailed security documentation is available upon request under NDA. Night Lite USA LLC does not overclaim certifications or controls not currently in place.</p>
         </S>
 
         <S id="annex-iii" title="Annex III: List of Subprocessors" onScroll={setActiveSection}>
@@ -240,14 +241,13 @@ export default function DataProcessingAddendum() {
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
                 {[
-                  // Regions follow src/content/trust-facts.ts (the single source of
-                  // truth): only verified regions are asserted concretely; the rest
-                  // render the sentinel wording instead of an unverified location.
-                  { name: 'Cloud hosting provider', purpose: 'Application hosting, data storage, compute', location: 'Region pending verification — available upon request' },
+                  { name: 'Railway', purpose: 'Application hosting', location: 'Region not stated in this repository' },
+                  { name: 'Cloudflare', purpose: 'CDN and reverse proxy in front of the application', location: 'Global edge network' },
+                  { name: 'InsForge', purpose: 'Authentication, Postgres database, and verification or password-reset email', location: 'United States (us-east)' },
                   { name: 'Stripe, Inc.', purpose: 'Payment processing and billing', location: 'United States' },
-                  { name: 'Analytics provider', purpose: 'Service-level monitoring and aggregated usage analytics', location: 'Region pending verification — available upon request' },
-                  { name: 'Email/communications provider', purpose: 'Transactional and notification email delivery', location: 'Region pending verification — available upon request' },
-                  { name: 'Customer support platform', purpose: 'Support ticket management and communications', location: 'Region pending verification — available upon request' },
+                  { name: 'Google', purpose: 'Sign-in, and Google Tag Manager after analytics consent', location: 'No single city stated in this repository' },
+                  { name: 'Microsoft', purpose: 'Sign-in, only when the user chooses Microsoft', location: 'No single city stated in this repository' },
+                  { name: 'Apple', purpose: 'Sign-in, only when the user chooses Apple', location: 'No single city stated in this repository' },
                 ].map((sp) => (
                   <tr key={sp.name}>
                     <td className="py-2.5 font-medium text-surface-800 dark:text-surface-200">{sp.name}</td>
@@ -258,7 +258,7 @@ export default function DataProcessingAddendum() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-surface-500 mt-3">Developer312 will notify the Customer of changes to this subprocessor list in accordance with Section 8 of this DPA. A current list is available upon request.</p>
+          <p className="text-xs text-surface-500 mt-3">Night Lite USA LLC will notify the Customer of changes to this subprocessor list in accordance with Section 8 of this DPA. A current list is available upon request.</p>
         </S>
 
         <S id="annex-iv" title="Annex IV: International Data Transfers and SCC Information" onScroll={setActiveSection}>
@@ -266,7 +266,7 @@ export default function DataProcessingAddendum() {
           <div className="space-y-4 mt-3">
             <div className="p-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">
               <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">SCC Module Applicability</h4>
-              <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">Module Two (Controller to Processor) applies where the Customer acts as Controller. Module Three (Processor to Processor) applies where Developer312 engages subprocessors.</p>
+              <p className="text-xs text-surface-600 dark:text-surface-400 mt-1">Module Two (Controller to Processor) applies where the Customer acts as Controller. Module Three (Processor to Processor) applies where Night Lite USA LLC engages subprocessors.</p>
             </div>
             <div className="p-3 rounded-lg bg-surface-50 dark:bg-surface-800/50">
               <h4 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Transfer Mechanism</h4>

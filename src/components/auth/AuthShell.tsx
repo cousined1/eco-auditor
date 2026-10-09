@@ -149,16 +149,9 @@ function ProviderIcon({ provider }: { readonly provider: SocialAuthProvider }) {
 
 export function EcoMark() {
   return (
-    <svg width="28" height="28" viewBox="0 0 512 512" fill="none" aria-hidden="true">
-      <path fill="none" stroke="#06b6d4" strokeWidth="24" strokeLinecap="round" d="M380 310 A150 150 0 0 0 132 310" />
-      <polygon points="115,295 132,270 148,298" fill="#06b6d4" />
-      <path fill="none" stroke="#1e3a5f" strokeWidth="24" strokeLinecap="round" d="M132 202 A150 150 0 0 0 380 202" />
-      <polygon points="397,217 380,242 364,214" fill="#1e3a5f" />
-      <path fill="#52b788" d="M256 120 C256 120 200 170 200 260 C200 310 225 350 256 380 C287 350 312 310 312 260 C312 170 256 120 256 120Z" />
-      <path fill="#ffffff" d="M256 160 C256 160 225 200 225 260 C225 300 240 330 256 350 C272 330 287 300 287 260 C287 200 256 160 256 160Z" />
-      <line x1="256" y1="155" x2="256" y2="365" stroke="#2d6a4f" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-      <circle cx="256" cy="430" r="28" fill="#1e3a5f" />
-      <polyline points="242,430 252,440 270,420" fill="none" stroke="#ffffff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className="w-7 h-7" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Eco-Auditor logo">
+      <rect width="28" height="28" rx="7" fill="currentColor" className="text-brand-600" />
+      <path d="M8 20V8l6 4 6-4v12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

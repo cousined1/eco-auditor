@@ -75,7 +75,7 @@ export const PLANS: Record<PlanId, Plan> = {
       'PDF emissions summary',
       'Email support',
     ],
-    locked: [facilitiesLabel('growth'), 'Scope 3 workflows', 'Priority support'],
+    locked: ['Scope 3 workflows', 'Priority support'],
     roadmap: ['AI Carbon Assistant', 'Supplier request hub', 'QuickBooks & Xero integrations', 'Audit trail & exports'],
   },
   growth: {
@@ -94,7 +94,7 @@ export const PLANS: Record<PlanId, Plan> = {
       'PDF emissions summary',
       'Priority support',
     ],
-    locked: [facilitiesLabel('pro'), 'Premium support & onboarding'],
+    locked: ['Premium support & onboarding'],
     roadmap: ['AI Carbon Assistant', 'Supplier request hub', 'QuickBooks & Xero integrations', 'Audit trail & report exports', 'Team permissions', 'API access'],
   },
   pro: {

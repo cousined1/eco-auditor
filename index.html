@@ -17,7 +17,7 @@
 
     <!-- Primary SEO -->
     <title>Eco-Auditor — GHG Carbon Accounting for SMBs</title>
-    <meta name="description" content="Eco-Auditor gives small and mid-size businesses reviewable GHG emissions data. Import activity data by CSV, connect integrations (roadmap), and generate Scope 1-3 reports aligned with the GHG Protocol." />
+    <meta name="description" content="Eco-Auditor gives small and mid-size businesses a calculated GHG inventory. Import activity data by CSV and export a PDF emissions summary. Some factors are provisional. Scope 2 is location-based." />
     <meta name="keywords" content="carbon accounting, GHG Protocol, Scope 1 2 3 emissions, sustainability reporting, SMB carbon footprint, ESG audit" />
     <meta name="author" content="Developer312" />
     <meta name="robots" content="index, follow" />
@@ -25,9 +25,7 @@
     <link rel="canonical" href="https://ecoauditor.io/" />
 
     <meta name="geo.region" content="US-CA" />
-    <meta name="geo.placename" content="San Francisco, California" />
-    <meta name="geo.position" content="37.7749;-122.4194" />
-    <meta name="ICBM" content="37.7749, -122.4194" />
+    <meta name="geo.placename" content="Hayward, California" />
 
     <!-- Open Graph (LinkedIn, Facebook, Slack) -->
     <meta property="og:type" content="website" />
@@ -48,7 +46,6 @@
     <meta name="twitter:description" content="Reviewable Scope 1-3 emissions data without enterprise software. GHG Protocol aligned." />
     <meta name="twitter:image" content="https://ecoauditor.io/og-image.png" />
     <meta name="twitter:image:alt" content="Eco-Auditor — Carbon accounting as easy as bookkeeping" />
-    <meta name="twitter:site" content="@developer312" />
 
     <!-- PWA & theme -->
     <meta name="theme-color" content="#16a34a" media="(prefers-color-scheme: light)" />
@@ -65,11 +62,6 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- Performance: preconnect to font origins -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
     {
@@ -84,7 +76,15 @@
           "description": "Carbon accounting and sustainability reporting platform for small and mid-size businesses",
           "parentOrganization": {
             "@type": "Organization",
-            "name": "NIGHT LITE USA LLC"
+            "name": "Night Lite USA LLC",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "25200 Carlos Bee Blvd",
+              "addressLocality": "Hayward",
+              "addressRegion": "CA",
+              "postalCode": "94542",
+              "addressCountry": "US"
+            }
           },
           "contactPoint": {
             "@type": "ContactPoint",
@@ -173,7 +173,7 @@
               "name": "What is Eco-Auditor?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "Eco-Auditor is a GHG Protocol-aligned carbon accounting and ESG disclosure platform purpose-built for small and mid-size enterprises navigating Scope 1, 2, and 3 emissions reporting, California SB 253, and EU CBAM mandates."
+                "text": "Eco-Auditor is carbon accounting for small and mid-size businesses. It calculates Scope 1, location-based Scope 2, and Scope 3 from imported activity data. Some factors are provisional internal estimates. A PDF emissions summary is what ships today. Framework-specific SB 253 and CBAM filing packages are on the roadmap."
               }
             },
             {
@@ -186,10 +186,10 @@
             },
             {
               "@type": "Question",
-              "name": "Is Eco-Auditor audit-ready for regulatory frameworks like California SB 253 and EU CBAM?",
+              "name": "What can Eco-Auditor export for a GHG inventory?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "Yes. Eco-Auditor produces verifiable audit trails, versioned calculation logs, methodology disclosures, executive-ready exportable PDF reports, and a machine-readable JSON data export suitable for third-party assurance."
+                "text": "Eco-Auditor exports a PDF emissions summary and a machine-readable JSON data export. Some factors are provisional internal estimates. A reviewable ledger and framework-specific assurance packages are on the roadmap, so the export is source material rather than an assurance opinion."
               }
             }
           ]

@@ -10,7 +10,7 @@ export const trustFacts = {
   encryptionAtRest: { value: 'AES-256', verified: true } as TrustFact<string>,
   accountDeletionRequestWindowDays: { value: 30, verified: true } as TrustFact<number>,
   contentUsedForModelTraining: { value: false, verified: true } as TrustFact<boolean>,
-  soc2Status: { value: 'in progress (Q3 2026)', verified: true } as TrustFact<string>,
+  soc2Status: { value: 'pursuing', verified: true } as TrustFact<string>,
   // ponytail: 'VERIFY' sentinel — do not assert a hosting provider; code says AWS, DPA says generic; resolve before launch.
   cloudHosting: {
     value: 'VERIFY',
@@ -18,11 +18,13 @@ export const trustFacts = {
     note: 'Deploy target unverified; code says AWS, DPA says generic. Confirm provider identity before publication.',
   } as TrustFact<string>,
   subprocessors: [
+    { name: 'Railway', purpose: 'Application hosting', processingRegion: 'VERIFY', dpaUrl: null, verified: false },
+    { name: 'Cloudflare', purpose: 'CDN and reverse proxy', processingRegion: 'Global edge network', dpaUrl: null, verified: true },
+    { name: 'InsForge', purpose: 'Authentication, Postgres database, and verification email', processingRegion: 'United States (us-east)', dpaUrl: null, verified: true },
     { name: 'Stripe, Inc.', purpose: 'Payment processing', processingRegion: 'United States', dpaUrl: null, verified: true },
-    { name: 'Cloud hosting provider', purpose: 'Application hosting', processingRegion: 'VERIFY', dpaUrl: null, verified: false },
-    { name: 'Analytics provider', purpose: 'Service monitoring', processingRegion: 'VERIFY', dpaUrl: null, verified: false },
-    { name: 'Email/communications provider', purpose: 'Transactional email', processingRegion: 'VERIFY', dpaUrl: null, verified: false },
-    { name: 'Customer support platform', purpose: 'Support ticketing', processingRegion: 'VERIFY', dpaUrl: null, verified: false },
+    { name: 'Google', purpose: 'Sign-in, and Google Tag Manager after analytics consent', processingRegion: 'No single city stated in this repository', dpaUrl: null, verified: true },
+    { name: 'Microsoft', purpose: 'Sign-in, only when the user chooses Microsoft', processingRegion: 'No single city stated in this repository', dpaUrl: null, verified: true },
+    { name: 'Apple', purpose: 'Sign-in, only when the user chooses Apple', processingRegion: 'No single city stated in this repository', dpaUrl: null, verified: true },
   ],
 };
 

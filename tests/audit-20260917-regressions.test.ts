@@ -93,27 +93,29 @@ describe('FE-02 methodology copy no longer claims all Scope 1/2 factors are cita
   });
 });
 
-describe('FE-04 DPA Annex III does not assert unverified processing locations', () => {
+describe('FE-04 DPA Annex III names the subprocessors the code actually uses', () => {
   const rows = dpaSrc
     .split('\n')
     .filter((l) => l.trim().startsWith("{ name: '") && l.includes('location:'));
 
   it('found the Annex III subprocessor rows', () => {
-    expect(rows.length).toBe(5);
+    expect(rows.length).toBe(7);
   });
 
-  it('keeps the concrete region only for the verified subprocessor (Stripe)', () => {
-    const stripe = rows.find((r) => r.includes("'Stripe, Inc.'"));
-    expect(stripe).toBeTruthy();
-    expect(stripe).toContain("'United States'");
-  });
-
-  it('renders pending-verification wording for unverified subprocessors', () => {
-    const unverified = rows.filter((r) => !r.includes("'Stripe, Inc.'"));
-    expect(unverified.length).toBe(4);
-    for (const row of unverified) {
-      expect(row).toContain('pending verification');
+  it('names Railway, Cloudflare, InsForge, Stripe, Google, Microsoft, and Apple', () => {
+    const text = rows.join('\n');
+    for (const name of ['Railway', 'Cloudflare', 'InsForge', 'Stripe, Inc.', 'Google', 'Microsoft', 'Apple']) {
+      expect(text).toContain(name);
     }
+  });
+
+  it('keeps a concrete United States region only where the repo supports it', () => {
+    const stripe = rows.find((r) => r.includes("'Stripe, Inc.'"));
+    const insforge = rows.find((r) => r.includes("'InsForge'"));
+    expect(stripe).toContain("'United States'");
+    expect(insforge).toContain('us-east');
+    const railway = rows.find((r) => r.includes("'Railway'"));
+    expect(railway).toContain('not stated in this repository');
   });
 });
 

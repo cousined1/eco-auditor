@@ -118,4 +118,37 @@ describe('sample report factor register agrees with the registry', () => {
       fixture.activityData.map((a: { entry_id: string }) => a.entry_id),
     );
   });
+
+  it('makes every activity row equal activity × factor in tonnes', () => {
+    for (const row of fixture.activityData) {
+      const unit = String(row.emission_factor_unit);
+      const raw = Number(row.activity_value) * Number(row.emission_factor);
+      const expected = unit.startsWith('kg') ? raw / 1000 : raw;
+      expect(Math.abs(expected - Number(row.tCO2e)), row.entry_id).toBeLessThanOrEqual(0.0005);
+      const csv = activityCsv.find((r) => r.entry_id === row.entry_id);
+      expect(csv, row.entry_id).toBeDefined();
+      expect(Math.abs(Number(csv!.tCO2e) - Number(row.tCO2e)), row.entry_id).toBeLessThanOrEqual(0.0005);
+    }
+  });
+
+  it('keeps scope totals within a rounding tolerance of the row sums', () => {
+    const sums = { 'Scope 1': 0, 'Scope 2': 0, 'Scope 3': 0 };
+    for (const row of fixture.activityData) sums[row.scope] += Number(row.tCO2e);
+    expect(Math.abs(sums['Scope 1'] - fixture.metrics.scope1.value)).toBeLessThanOrEqual(0.005);
+    expect(Math.abs(sums['Scope 2'] - fixture.metrics.scope2.value)).toBeLessThanOrEqual(0.005);
+    expect(Math.abs(sums['Scope 3'] - fixture.metrics.scope3.value)).toBeLessThanOrEqual(0.005);
+  });
+
+  it('labels R-410A with the catalog AR5 GWP, not the AR4 blend value', () => {
+    const row = fixture.activityData.find((r: { entry_id: string }) => r.entry_id === 'PFC-2026-S1-003');
+    expect(row.emission_factor).toBe(1924);
+    expect(row.emission_factor_source).toBe('ipcc-ar5-gwp100');
+    expect(row.tCO2e).toBeCloseTo(23.088, 3);
+    const register = fixture.factorRegister.find(
+      (r: { factor_id: string; factor_value: number }) => r.factor_id === 'ipcc-ar5-gwp100',
+    );
+    expect(register.factor_value).toBe(1924);
+    expect(register.gwp_basis).toBe('AR5');
+    expect(register.factor_gas).not.toMatch(/CH4/);
+  });
 });

@@ -58,7 +58,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-6 pt-6 border-t border-surface-200 dark:border-surface-800 flex flex-col md:flex-row items-center justify-between gap-3">
-          <p className="text-2xs text-surface-600 dark:text-surface-400">© {year} Eco-Auditor, a product operated by Developer312, a subsidiary of NIGHT LITE USA LLC. All rights reserved.</p>
+          <p className="text-2xs text-surface-600 dark:text-surface-400">© {year} Eco-Auditor, a product operated by Night Lite USA LLC. Developer312 is a brand (dba) of Night Lite USA LLC. All rights reserved.</p>
           <CookiePreferencesButton className="text-2xs text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200 transition-colors underline-offset-2 hover:underline" />
         </div>
 

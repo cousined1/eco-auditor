@@ -4,16 +4,9 @@
 
 /* Metric-matched fallback for Inter.
  *
- * index.html loads Inter with `display=swap`, so the browser paints in the
- * local sans-serif first and reflows when the webfont arrives. Lighthouse
- * attributed the home page's entire 0.212 CLS to that swap ("Web font loaded",
- * fonts.gstatic.com/.../Inter...woff2) — the cookie banner was only the element
- * it happened to move. A warm browser never shows it because the font is
- * already cached; a first-time mobile visitor sees it every time.
- *
- * size-adjust / ascent / descent scale the fallback so it occupies the same
- * space Inter will, making the swap visually invisible instead of a reflow.
- * Values are the standard Arial->Inter match used by Next.js's font optimizer.
+ * Inter is self-hosted (see src/main.tsx) with font-display: swap, so the
+ * browser can paint the local fallback first. size-adjust keeps that fallback
+ * the same width as Inter.
  */
 @font-face {
   font-family: 'Inter Fallback';

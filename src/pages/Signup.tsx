@@ -253,17 +253,13 @@ export default function Signup() {
               className={authInputClass}
             />
           </div>
-          {/* The submit button is disabled by the same isPasswordValid() test
-              that guards handleEmailSignup, so the policy message inside the
-              handler could never fire: a user who typed a non-conforming
-              password got a permanently greyed-out button, no explanation, and
-              no visible rule — the placeholder that stated it disappears as
-              soon as the field has a value. This surfaces the rule inline, the
-              way ForgotPassword already does for its mismatch case. */}
+          {/* The rule stays visible because a long placeholder is clipped by the
+              show-password control. The handler still rejects a password that
+              does not meet it. */}
           <PasswordInput
             id="signup-password"
             label="Password"
-            placeholder="Password (8+ characters, with a letter and a number)"
+            placeholder="Password"
             autoComplete="new-password"
             minLength={PASSWORD_MIN_LENGTH}
             value={password}
@@ -272,6 +268,9 @@ export default function Signup() {
             invalid={passwordInvalid}
             {...(passwordInvalid ? { errorId: 'signup-password-error' } : {})}
           >
+            <p id="signup-password-hint" className="text-xs text-surface-500 mt-1">
+              At least 8 characters, with a letter and a number.
+            </p>
             {passwordInvalid && (
               <p id="signup-password-error" className="text-xs text-risk-high mt-1" role="alert">
                 Password must be at least 8 characters and include at least one letter and one number.
@@ -280,7 +279,7 @@ export default function Signup() {
           </PasswordInput>
           <button
             type="submit"
-            disabled={busy || !email.trim() || !isPasswordValid(password)}
+            disabled={busy}
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
             <SubmitLabel submitting={submitting} idle="Create account" busy="Creating account…" />

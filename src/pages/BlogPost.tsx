@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useTheme } from '../hooks/useTheme';
 import { formatPublishedDate } from '../lib/formatDate';
+import { getPrerenderBlogDetail } from '../lib/ssrData';
 interface BlogPost {
   id: string;
   slug: string;
@@ -54,9 +55,35 @@ export default function BlogPostPage() {
   // Discarding it during render (rather than in an effect) is React's
   // documented adjustment pattern: the component re-renders immediately with
   // the reset state and never commits a frame showing the old slug's post.
-  const [state, setState] = useState<PostState>({ slug: null, post: null, loading: true, error: null });
   const currentSlug = slug ?? null;
-  if (state.slug !== currentSlug) {
+  const [state, setState] = useState<PostState>(() => {
+    const detail = getPrerenderBlogDetail();
+    if (detail && currentSlug && detail.slug === currentSlug) {
+      return {
+        slug: currentSlug,
+        post: {
+          id: detail.id,
+          slug: detail.slug,
+          title: detail.title,
+          meta_title: detail.meta_title,
+          meta_description: detail.meta_description,
+          body_html: detail.body_html,
+          primary_keyword: detail.primary_keyword,
+          faq: detail.faq,
+          internal_links: [],
+          external_links: [],
+          cta: detail.cta ?? { label: '', href: '' },
+          content_score: null,
+          geo_score: null,
+          published_at: detail.published_at,
+        },
+        loading: false,
+        error: null,
+      };
+    }
+    return { slug: null, post: null, loading: true, error: null };
+  });
+  if (state.slug !== currentSlug && !(state.post && state.post.slug === currentSlug)) {
     setState({ slug: currentSlug, post: null, loading: true, error: null });
   }
   const { post, loading, error } = state;
