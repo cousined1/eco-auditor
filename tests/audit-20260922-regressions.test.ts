@@ -343,6 +343,9 @@ describe('UAD-02 — ingest warnings are only collected for rows that actually p
       crypto: require('node:crypto'),
       companyId: 7,
       rawRows,
+      // Declared above the extracted slice (`const parseErrors = parsed.errors`).
+      // These cases pass already-parsed rows, so the parser error list is empty.
+      parseErrors: [] as Array<{ message: string }>,
       loadFacilities: async () => [],
       calculateEntry,
     };
