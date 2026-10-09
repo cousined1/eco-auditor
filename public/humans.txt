@@ -2,14 +2,16 @@
 Developer: Edward Brooks
 Contact: hello@developer312.com
 Phone: (510) 591-0163
-Location: United States
+Location: Hayward, CA
 
 /* COMPANY */
-Developer312 (subsidiary of NIGHT LITE USA LLC)
+Night Lite USA LLC
+Brand / dba: Developer312
+Address: 25200 Carlos Bee Blvd, Hayward, CA 94542
 Website: https://developer312.com
 
 /* SITE */
-Last update: 2026-05-21
+Last update: 2026-10-09
 Language: English
 Framework: React 19 + Vite + TypeScript
 Styling: Tailwind CSS 3.4

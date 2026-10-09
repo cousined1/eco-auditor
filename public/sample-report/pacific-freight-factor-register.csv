@@ -1,6 +1,11 @@
 factor_id,source_organization,dataset_name,dataset_version,publication_date,imported_at,effective_from,effective_to,geography,activity_unit,output_unit,factor_value,factor_gas,gwp_basis,checksum,status
-epa-efh-2025,US EPA,GHG Emission Factors Hub,2025,2025-04-15,2025-04-20,2024-01-01,,USA,therms,kgCO2e,5.3,CO2e,AR5,,active
-epa-egrid-2023,US EPA,eGRID2023,eGRID2023,2025-01-01,2025-02-01,2023-01-01,,USA-CAMX,kWh,kgCO2e,0.4296,CO2e,AR5,,active
-ipcc-ar5-gwp100,IPCC,IPCC AR5 GWP-100,AR5,2014-01-01,2024-01-10,2014-01-01,,Global,kg,kgCO2e,2088,CH4/HFC,AR5,,active
-exiobase-3.8,Exiobase Consortium,EXIOBASE 3.8 EEIO spend-based factors,3.8,2020-11-01,,2020-01-01,,Global,USD,tCO2e,0.000118,CO2e,AR5,,roadmap-not-wired
-survey-proxy-2026,EcoAuditor internal,Employee commute proxy (internal estimate),2026,2026-01-01,2026-03-15,2026-01-01,,Internal,employee-month,tCO2e,0.061,CO2e,AR5,,internal-estimate
+epa-efh-2025,US EPA,GHG Emission Factors Hub — natural gas,2025,2025-04-15,2025-04-20,2024-01-01,,USA,therms,kgCO2e,5.306,CO2,AR5,,active
+epa-efh-2025,US EPA,GHG Emission Factors Hub — diesel,2025,2025-04-15,2025-04-20,2024-01-01,,USA,gallons,kgCO2e,10.21,CO2,AR5,,active
+epa-efh-2025,US EPA,GHG Emission Factors Hub — propane,2025,2025-04-15,2025-04-20,2024-01-01,,USA,gallons,kgCO2e,5.72,CO2,AR5,,active
+ipcc-ar5-gwp100,IPCC,IPCC AR5 GWP-100 — R-410A,AR5,2014-01-01,2024-01-10,2014-01-01,,Global,kg,kgCO2e,1924,HFC-32/HFC-125,AR5,,active
+epa-egrid-2023,US EPA,eGRID2023 CAMX total output,eGRID2023,2025-01-01,2025-02-01,2023-01-01,,USA-CAMX,kWh,kgCO2e,0.19504,CO2e,AR5,,active
+internal-estimate,EcoAuditor internal,Provisional spend factor — inbound transport,catalog-2026-07-24,,2026-07-24,2026-01-01,,Unspecified,USD,kgCO2e,0.59,CO2e,AR5,,provisional
+internal-estimate,EcoAuditor internal,Provisional spend factor — purchased goods,catalog-2026-07-24,,2026-07-24,2026-01-01,,Unspecified,USD,kgCO2e,0.25,CO2e,AR5,,provisional
+internal-estimate,EcoAuditor internal,Provisional activity factor — air short-haul,catalog-2026-07-24,,2026-07-24,2026-01-01,,Unspecified,passenger-miles,kgCO2e,0.255,CO2e,AR5,,provisional
+internal-estimate,EcoAuditor internal,Provisional activity factor — landfill,catalog-2026-07-24,,2026-07-24,2026-01-01,,Unspecified,kg,kgCO2e,0.586,CO2e,AR5,,provisional
+survey-proxy-2026,EcoAuditor internal,Employee commute proxy (internal estimate),2026,2026-01-01,2026-03-15,2026-01-01,,Internal,employee-month,tCO2e,0.061,CO2e,AR5,,provisional

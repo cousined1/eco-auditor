@@ -49,18 +49,19 @@ export default function PrivacyPolicy() {
 
       <article className="flex-1 max-w-3xl mx-auto px-6 py-10 lg:px-12">
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
+        <p className="text-sm text-surface-500">Last updated: October 9, 2026</p>
 
         <LegalSection id="introduction" title="1. Introduction" onScroll={setActiveSection}>
-          <p>Developer312 ("we," "us," or "our") operates the Eco-Auditor platform, a carbon accounting and emissions management service. This Privacy Policy describes how we collect, use, disclose, and protect information when you use our service.</p>
+          <p>Night Lite USA LLC ("we," "us," or "our") operates the Eco-Auditor platform, a carbon accounting and emissions management service. Developer312 is a brand (dba) of Night Lite USA LLC. This Privacy Policy describes how we collect, use, disclose, and protect information when you use our service.</p>
           <p>By accessing or using Eco-Auditor, you agree to the collection and use of information in accordance with this policy. If you do not agree with the terms of this policy, please do not access the service.</p>
           <p>This policy applies to all users of Eco-Auditor, including account holders, team members invited by account holders, and visitors to our website.</p>
         </LegalSection>
 
         <LegalSection id="who-we-are" title="2. Who We Are" onScroll={setActiveSection}>
-          <p>Developer312 is a subsidiary of NIGHT LITE USA LLC. We provide the Eco-Auditor platform from the United States.</p>
+          <p>Night Lite USA LLC operates the Eco-Auditor platform from Hayward, CA. Developer312 is a brand (dba) of Night Lite USA LLC.</p>
           <p>Contact information:</p>
           <ul>
+            <li>Night Lite USA LLC, 25200 Carlos Bee Blvd, Hayward, CA 94542</li>
             <li>Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></li>
             <li>Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></li>
           </ul>
@@ -78,6 +79,7 @@ export default function PrivacyPolicy() {
             <li><strong>Billing and contact information:</strong> Payment details, billing address, and designated billing contacts</li>
             <li><strong>Support communications:</strong> Messages, attachments, and correspondence submitted through our support channels</li>
             <li><strong>Uploaded documents and data:</strong> Utility bills, invoices, freight records, supplier spreadsheets, and other files you upload for emissions processing</li>
+            <li><strong>Sales chat:</strong> Messages you type in the on-site sales chat. If you book a demo or ask to be contacted, we also store your name, email, company, and the date, time, or message you submit. The browser keeps a session id named ecochat_session_id in local storage. The assistant runs on Eco-Auditor&apos;s own application server. It does not send the conversation to a third-party AI model. Those lead details are stored in the application database.</li>
             <li><strong>Configuration choices:</strong> Organizational boundaries, emission factors, methodology selections, and reporting preferences</li>
           </ul>
           <p>We process this information to deliver the service you requested, maintain your account, and communicate with you about our platform.</p>
@@ -113,7 +115,7 @@ export default function PrivacyPolicy() {
           <ul>
             <li>Provide, operate, and maintain the Eco-Auditor platform</li>
             <li>Process and organize uploaded documents and data into emissions records, estimates, and reports</li>
-            <li>Operate AI-assisted features such as the Carbon Assistant for methodology guidance and classification suggestions</li>
+            <li>Answer the on-site sales chat and store demo or contact requests you submit there</li>
             <li>Communicate with you about your account, billing, support requests, and product updates</li>
             <li>Improve our service, develop new features, and conduct internal analytics</li>
             <li>Detect, prevent, and address technical issues, security threats, and fraud</li>
@@ -134,13 +136,14 @@ export default function PrivacyPolicy() {
           <h4>Service Providers and Subprocessors</h4>
           <p>We engage third-party service providers who process data on our behalf to deliver our service. These providers are contractually obligated to process data only as instructed and to maintain appropriate security measures. Categories include:</p>
           <ul>
-            <li><strong>Cloud hosting:</strong> Infrastructure providers that host our application and data</li>
-            <li><strong>Payments and billing:</strong> Payment processors such as Stripe, Inc. to handle subscription billing</li>
-            <li><strong>Analytics:</strong> Service-level monitoring and aggregated usage analytics</li>
-            <li><strong>Communications:</strong> Email delivery and notification services</li>
-            <li><strong>Support:</strong> Customer support platforms that process support communications</li>
+            <li><strong>Railway:</strong> Hosts the application. The project region is not stated in this repository.</li>
+            <li><strong>Cloudflare:</strong> CDN and reverse proxy in front of the application.</li>
+            <li><strong>InsForge:</strong> Authentication (including Google, Microsoft, and Apple sign-in), the Postgres database, and verification or password-reset email. The project API host is in us-east.</li>
+            <li><strong>Stripe, Inc.:</strong> Subscription billing.</li>
+            <li><strong>Google:</strong> Sign-in, and Google Tag Manager after you accept analytics cookies.</li>
+            <li><strong>Microsoft and Apple:</strong> Sign-in, only if you choose those buttons.</li>
           </ul>
-          <p>Our current subprocessor list is available upon request. We will notify customers of material changes to our subprocessors.</p>
+          <p>The sales chat does not use a separate AI vendor. Fonts are served from this application, not from Google Fonts. The Data Processing Addendum lists the same parties. A copy is available on the DPA page and on request.</p>
 
           <h4>Compliance and Legal Requirements</h4>
           <p>We may disclose information when required by law, regulation, legal process, or governmental request, or when we believe in good faith that disclosure is necessary to protect our rights, your safety, or the safety of others.</p>
@@ -206,8 +209,9 @@ export default function PrivacyPolicy() {
         <LegalSection id="privacy-request" title="14. How to Submit a Privacy Request" onScroll={setActiveSection}>
           <p>To submit a privacy request, exercise your rights, or ask questions about this policy, you may contact us through:</p>
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
-            <p className="font-medium text-surface-800 dark:text-surface-200">Developer312 Privacy Team</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-1">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="font-medium text-surface-800 dark:text-surface-200">Night Lite USA LLC Privacy Team</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-1">25200 Carlos Bee Blvd, Hayward, CA 94542</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
           </div>
           <p>We will verify your identity before processing your request and respond within the timeframe required by applicable law, typically within 30 days. If more time is needed, we will notify you of the reason and the expected timeline.</p>
@@ -241,9 +245,10 @@ export default function PrivacyPolicy() {
         <LegalSection id="contact" title="18. Contact Information" onScroll={setActiveSection}>
           <p>If you have any questions about this Privacy Policy or our data practices, please contact:</p>
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
-            <p className="font-medium text-surface-800 dark:text-surface-200">Developer312</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
+            <p className="font-medium text-surface-800 dark:text-surface-200">Night Lite USA LLC</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Eco-Auditor is offered under the Developer312 brand (a dba of Night Lite USA LLC).</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">25200 Carlos Bee Blvd, Hayward, CA 94542</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
           </div>
         </LegalSection>

@@ -15,18 +15,21 @@ import { renderToString } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
 import { ThemeProvider } from './hooks/useTheme';
 import { ConsentProvider } from './lib/consent-context';
-import { setPrerenderBlogPosts, type PrerenderBlogPost } from './lib/ssrData';
+import { setPrerenderBlogDetail, setPrerenderBlogPosts, type PrerenderBlogDetail, type PrerenderBlogPost } from './lib/ssrData';
 import App from './App';
 
 export interface RenderOptions {
   /** Build-time blog posts, so /blog prerenders with real links. */
   blogPosts?: PrerenderBlogPost[] | null;
+  /** The one post /blog/:slug should render into static HTML. */
+  blogDetail?: PrerenderBlogDetail | null;
 }
 
 export function render(url: string, options: RenderOptions = {}): string {
   // Must be set before renderToString: renderToString never runs effects, so
   // BlogList's fetch could not populate the static HTML by itself.
   setPrerenderBlogPosts(options.blogPosts ?? null);
+  setPrerenderBlogDetail(options.blogDetail ?? null);
   try {
     return renderToString(
       <StaticRouter location={url}>
@@ -40,5 +43,6 @@ export function render(url: string, options: RenderOptions = {}): string {
   } finally {
     // Leave the module clean so a later render() cannot inherit stale posts.
     setPrerenderBlogPosts(null);
+    setPrerenderBlogDetail(null);
   }
 }

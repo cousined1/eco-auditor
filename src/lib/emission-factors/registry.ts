@@ -77,6 +77,18 @@ export const EMISSION_FACTOR_REGISTRY: EmissionFactorVersion[] = [
     verified: true,
   },
   {
+    // Catalog Scope 3 (and a few process) rows cite this id. It is a
+    // placeholder, not a published dataset, so it stays verified:false.
+    id: 'internal-estimate',
+    label: 'Provisional internal estimate',
+    publisher: 'EcoAuditor internal',
+    publishedYear: 2026,
+    dataYear: 2026,
+    scopes: ['Scope 1', 'Scope 3'],
+    verified: false,
+    note: 'Placeholder used where a published dataset is not wired in. Not a published source.',
+  },
+  {
     // Internal proxy, not a published dataset. The sample report cited this id
     // without it ever appearing here, which broke the catalog's own rule that
     // every factorSource resolves to a registry id — consumers got

@@ -42,7 +42,7 @@ export default function TermsOfService() {
 
       <article className="flex-1 max-w-3xl mx-auto px-6 py-10 lg:px-12">
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-2">Terms of Service</h1>
-        <p className="text-sm text-surface-500">Last updated: June 12, 2026</p>
+        <p className="text-sm text-surface-500">Last updated: October 9, 2026</p>
 
         <Sec id="acceptance" title="1. Acceptance of Terms" onScroll={setActiveSection}>
           <p>By accessing or using the Eco-Auditor platform ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you are using the Service on behalf of an organization, you represent that you have the authority to bind that organization to these Terms.</p>
@@ -50,7 +50,7 @@ export default function TermsOfService() {
         </Sec>
 
         <Sec id="company" title="2. Company Identity" onScroll={setActiveSection}>
-          <p>The Eco-Auditor platform is operated by Developer312. Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
+          <p>The Eco-Auditor platform is operated by Night Lite USA LLC, 25200 Carlos Bee Blvd, Hayward, CA 94542. Developer312 is a brand (dba) of Night Lite USA LLC. Night Lite USA LLC is the contracting party under these Terms.</p>
           <p>Contact: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a> | <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
         </Sec>
 
@@ -129,13 +129,13 @@ export default function TermsOfService() {
         </Sec>
 
         <Sec id="ip" title="10. Intellectual Property" onScroll={setActiveSection}>
-          <p>The Service, including its software, interface, design, documentation, and underlying technology, is owned by Developer312 and its licensors and is protected by intellectual property laws. These Terms do not grant you any ownership interest in the Service.</p>
+          <p>The Service, including its software, interface, design, documentation, and underlying technology, is owned by Night Lite USA LLC and its licensors and is protected by intellectual property laws. These Terms do not grant you any ownership interest in the Service.</p>
           <p>Our name, logo, and product names are trademarks of Developer312 or NIGHT LITE USA LLC. You may not use these marks without our prior written permission.</p>
         </Sec>
 
         <Sec id="customer-data" title="11. Customer Data and Content" onScroll={setActiveSection}>
           <p>You retain ownership of the data and content you upload to the Service, including emissions data, documents, reports, and configuration settings.</p>
-          <p>You grant Developer312 a limited, non-exclusive license to process your data solely for the purpose of providing the Service, including generating emissions estimates, organizing audit trails, and producing reports.</p>
+          <p>You grant Night Lite USA LLC a limited, non-exclusive license to process your data solely for the purpose of providing the Service, including generating emissions estimates, organizing audit trails, and producing reports.</p>
           <p>You are responsible for ensuring that any data you upload complies with applicable laws and does not infringe the rights of third parties.</p>
         </Sec>
 
@@ -158,7 +158,7 @@ export default function TermsOfService() {
 
         <Sec id="warranties" title="15. Disclaimer of Warranties" onScroll={setActiveSection}>
           <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE.</p>
-          <p>TO THE FULLEST EXTENT PERMITTED BY LAW, DEVELOPER312 DISCLAIMS ALL WARRANTIES, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.</p>
+          <p>TO THE FULLEST EXTENT PERMITTED BY LAW, NIGHT LITE USA LLC DISCLAIMS ALL WARRANTIES, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.</p>
           <p>WE DO NOT WARRANT THAT:</p>
           <ul>
             <li>The Service will be uninterrupted, timely, secure, or error-free</li>
@@ -169,13 +169,13 @@ export default function TermsOfService() {
         </Sec>
 
         <Sec id="liability" title="16. Limitation of Liability" onScroll={setActiveSection}>
-          <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL DEVELOPER312, ITS AFFILIATES, OFFICERS, DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, BUSINESS OPPORTUNITIES, OR REPUTATION, ARISING OUT OF OR IN CONNECTION WITH THE SERVICE OR THESE TERMS.</p>
-          <p>DEVELOPER312'S TOTAL CUMULATIVE LIABILITY FOR ANY CLAIMS ARISING FROM OR RELATED TO THE SERVICE OR THESE TERMS SHALL NOT EXCEED THE GREATER OF (A) THE TOTAL FEES PAID BY YOU TO DEVELOPER312 IN THE TWELVE (12) MONTHS PRECEDING THE EVENT GIVING RISE TO THE CLAIM, OR (B) $5,000.</p>
+          <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL NIGHT LITE USA LLC, ITS AFFILIATES, OFFICERS, DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, BUSINESS OPPORTUNITIES, OR REPUTATION, ARISING OUT OF OR IN CONNECTION WITH THE SERVICE OR THESE TERMS.</p>
+          <p>NIGHT LITE USA LLC'S TOTAL CUMULATIVE LIABILITY FOR ANY CLAIMS ARISING FROM OR RELATED TO THE SERVICE OR THESE TERMS SHALL NOT EXCEED THE GREATER OF (A) THE TOTAL FEES PAID BY YOU TO NIGHT LITE USA LLC IN THE TWELVE (12) MONTHS PRECEDING THE EVENT GIVING RISE TO THE CLAIM, OR (B) $5,000.</p>
           <p>Some jurisdictions do not allow the exclusion or limitation of certain warranties or liabilities, so some of the above limitations may not apply to you.</p>
         </Sec>
 
         <Sec id="indemnification" title="17. Indemnification" onScroll={setActiveSection}>
-          <p>You agree to indemnify, defend, and hold harmless Developer312, its affiliates, and their respective officers, directors, employees, and agents from and against any claims, damages, losses, and expenses (including reasonable attorneys' fees) arising out of or in connection with:</p>
+          <p>You agree to indemnify, defend, and hold harmless Night Lite USA LLC, its affiliates, and their respective officers, directors, employees, and agents from and against any claims, damages, losses, and expenses (including reasonable attorneys' fees) arising out of or in connection with:</p>
           <ul>
             <li>Your use of the Service in violation of these Terms</li>
             <li>Your violation of applicable laws or regulations</li>
@@ -186,12 +186,12 @@ export default function TermsOfService() {
 
         <Sec id="compliance" title="18. Compliance Responsibilities" onScroll={setActiveSection}>
           <p>You are solely responsible for determining the applicability of any environmental, regulatory, or reporting requirements to your business. The Service provides tools to help organize and calculate emissions data, but you must independently verify all outputs, assumptions, and methodologies before relying on them for any filing, disclosure, or regulatory submission.</p>
-          <p>Developer312 does not represent that the Service satisfies the requirements of any specific regulation, standard, or framework, including but not limited to California SB 253, California SB 261, EU CBAM, or GHG Protocol.</p>
+          <p>Night Lite USA LLC does not represent that the Service satisfies the requirements of any specific regulation, standard, or framework, including but not limited to California SB 253, California SB 261, EU CBAM, or GHG Protocol.</p>
         </Sec>
 
         <Sec id="governing-law" title="19. Governing Law and Dispute Resolution" onScroll={setActiveSection}>
           <p>These Terms shall be governed by and construed in accordance with the laws of the State of California, without regard to its conflict-of-law provisions.</p>
-          <p>Any disputes arising out of or in connection with these Terms shall be resolved through binding arbitration in the State of California, excluding jury trial.</p>
+          <p>Any dispute arising out of or in connection with these Terms shall be resolved in the state or federal courts located in Alameda County, California, under California law.</p>
         </Sec>
 
         <Sec id="changes" title="20. Changes to Terms" onScroll={setActiveSection}>
@@ -201,8 +201,9 @@ export default function TermsOfService() {
 
         <Sec id="contact" title="21. Contact Information" onScroll={setActiveSection}>
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 my-3">
-            <p className="font-medium text-surface-800 dark:text-surface-200">Developer312</p>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Developer312 is a subsidiary of NIGHT LITE USA LLC.</p>
+            <p className="font-medium text-surface-800 dark:text-surface-200">Night Lite USA LLC</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Eco-Auditor is offered under the Developer312 brand (a dba of Night Lite USA LLC).</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">25200 Carlos Bee Blvd, Hayward, CA 94542</p>
             <p className="text-sm text-surface-600 dark:text-surface-400 mt-2">Email: <a href="mailto:hello@developer312.com" className="text-accent-text hover:underline">hello@developer312.com</a></p>
             <p className="text-sm text-surface-600 dark:text-surface-400">Phone: <a href="tel:+15105910163" className="text-accent-text hover:underline">(510) 591-0163</a></p>
           </div>

@@ -226,7 +226,7 @@ export default function SampleReport() {
             <svg className="w-8 h-8 text-brand-600 dark:text-brand-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6 0v6m-6 0h12M4.5 4.5h15v3h-15v-3z" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-surface-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Factor register (CSV)</h3>
-              <p className="text-2xs text-surface-500">Source, version, geography, effective period · 5 factors</p>
+              <p className="text-2xs text-surface-500">Source, version, geography, effective period · 10 factors</p>
             </div>
             <span className="text-2xs text-brand-600 dark:text-brand-400 font-medium">Download</span>
           </a>

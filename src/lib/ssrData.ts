@@ -39,17 +39,33 @@ export interface PrerenderBlogPost {
 }
 
 let blogPosts: PrerenderBlogPost[] | null = null;
+let blogDetail: PrerenderBlogDetail | null = null;
 
-/**
- * Called by prerender.mjs before render(). Pass null when the build could not
- * reach the posts, so BlogList falls back to its loading state rather than
- * rendering an empty list that looks like "we have no posts".
- */
+export interface PrerenderBlogDetail {
+  id: string;
+  slug: string;
+  title: string;
+  meta_title: string;
+  meta_description: string;
+  body_html: string;
+  primary_keyword: string;
+  faq: Array<{ question: string; answer: string }>;
+  cta: { label: string; href: string } | null;
+  published_at: string;
+}
+
 export function setPrerenderBlogPosts(posts: PrerenderBlogPost[] | null): void {
   blogPosts = posts;
 }
 
-/** Build-time posts, or null on the client and when the build had no data. */
 export function getPrerenderBlogPosts(): PrerenderBlogPost[] | null {
   return blogPosts;
+}
+
+export function setPrerenderBlogDetail(post: PrerenderBlogDetail | null): void {
+  blogDetail = post;
+}
+
+export function getPrerenderBlogDetail(): PrerenderBlogDetail | null {
+  return blogDetail;
 }

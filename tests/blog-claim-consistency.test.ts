@@ -228,18 +228,57 @@ describe('SB 253 thresholds are stated correctly', () => {
     expect(text).toContain('November 10, 2026');
   });
 
-  it('presents the deferral as proposed, not settled', () => {
+  it('cites CARB September 2026 guidance and does not treat a later assurance year as settled', () => {
     const text = bodyOf(SB253);
-    expect(text).toMatch(/proposed/i);
-    // It must not state a pending change as fact.
+    expect(text).toContain('August 10, 2026');
+    expect(text).toContain('November 10, 2026');
+    expect(text).toMatch(/September 2026/);
+    expect(text).toMatch(/Office of Administrative Law/);
+    expect(text).not.toMatch(/2028/);
     expect(text).not.toMatch(/the deadline (?:is|has been) moved to November 10/i);
+    expect(text).not.toMatch(/still subject to the comment period/i);
   });
 
-  it('the FAQ deadline answer uses the verified threshold and date', () => {
+  it('the FAQ deadline answer uses the verified threshold and the 2026 guidance', () => {
     const deadline = qaPairsOf(SB253).find((p) => /deadline/i.test(p.question));
     expect(deadline, 'the deadline FAQ is missing').toBeTruthy();
     expect(deadline!.answer).not.toMatch(/\$2\s*B/);
     expect(deadline!.answer).toContain('$1 billion');
-    expect(deadline!.answer).toMatch(/proposed/i);
+    expect(deadline!.answer).toContain('November 10, 2026');
+    expect(deadline!.answer).toMatch(/Office of Administrative Law/);
+    expect(deadline!.answer).not.toMatch(/2028/);
+  });
+});
+
+describe('blog posts do not contradict pricing, methodology, or current rules', () => {
+  it('does not advertise a $49 starting price or deny facility add-ons', () => {
+    for (const slug of ALL_SLUGS) {
+      const text = `${bodyOf(slug)} ${answersOf(slug).join(' ')}`;
+      expect(text, slug).not.toMatch(/starting at \$49|plans start at \$49|from \$49/i);
+      expect(text, slug).not.toMatch(/no per-facility/i);
+    }
+  });
+
+  it('does not say Scope 3 assurance starts in 2028', () => {
+    for (const slug of ALL_SLUGS) {
+      const text = `${bodyOf(slug)} ${answersOf(slug).join(' ')}`;
+      expect(text, slug).not.toMatch(/assurance[^.]{0,80}2028|2028[^.]{0,80}assurance/i);
+    }
+  });
+
+  it('does not say CBAM certificates must be bought in 2026', () => {
+    const text = `${bodyOf('cbam-supply-chain-guide-smb')} ${answersOf('cbam-supply-chain-guide-smb').join(' ')}`;
+    expect(text).toMatch(/1 February 2027|February 2027/);
+    expect(text).toMatch(/50 tonnes/);
+    expect(text).not.toMatch(/certificates must be purchased/i);
+    expect(text).not.toMatch(/must purchase CBAM certificates/i);
+  });
+
+  it('does not present SEC climate rules as current pressure', () => {
+    for (const slug of ALL_SLUGS) {
+      const text = `${bodyOf(slug)} ${answersOf(slug).join(' ')}`;
+      expect(text, slug).not.toMatch(/pressure from SB 253, CBAM, and SEC/i);
+      expect(text, slug).not.toMatch(/SEC climate disclosure rules means/i);
+    }
   });
 });

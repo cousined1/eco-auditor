@@ -1,12 +1,12 @@
 entry_id,scope,category,activity,activity_value,activity_unit,emission_factor,emission_factor_unit,emission_factor_source,tCO2e,data_quality_level,source_document,reviewer,review_timestamp
-PFC-2026-S1-001,Scope 1,Stationary combustion,Natural gas - boiler A,128400,therms,5.3,kgCO2e/therm,epa-efh-2025,707,L1,utility_bill_pg&e_jan2026.pdf,m.smith,2026-02-18T09:14:00Z
-PFC-2026-S1-002,Scope 1,Mobile combustion,Diesel - fleet,9800,gallons,10.21,kgCO2e/gallon,epa-efh-2025,104,L2,fuel_card_feb2026.csv,m.smith,2026-02-18T09:22:00Z
-PFC-2026-S1-003,Scope 1,Refrigerant,Refrigerant R-410A top-up,12,kg,2088,kgCO2e/kg,ipcc-ar5-gwp100,2603,L2,hvac_maintenance_log_q1.pdf,j.patel,2026-03-01T11:00:00Z
-PFC-2026-S1-004,Scope 1,Stationary combustion,Propane - forklifts,1200,gallons,5.74,kgCO2e/gallon,epa-efh-2025,7,L2,fuel_invoice_propane_q1.csv,m.smith,2026-03-05T14:30:00Z
-PFC-2026-S2-001,Scope 2,Purchased electricity,Grid power - Facility A,548000,kWh,0.4296,kgCO2e/kWh,epa-egrid-2023,2137,L2,utility_bill_pg&e_q1.pdf,m.smith,2026-02-18T09:31:00Z
-PFC-2026-S2-002,Scope 2,Purchased electricity,Grid power - Facility B,4900,kWh,0.4296,kgCO2e/kWh,epa-egrid-2023,19,L2,utility_bill_socal_q1.pdf,m.smith,2026-03-05T14:45:00Z
-PFC-2026-S3-001,Scope 3,Upstream transportation,Freight inbound (road),1850000,USD-km spend,0.000118,tCO2e/USD,exiobase-3.8,6139,L3,procurement_spend_q1.csv,j.patel,2026-03-10T10:00:00Z
-PFC-2026-S3-002,Scope 3,Purchased goods,Paper & packaging,64000,USD spend,0.000242,tCO2e/USD,exiobase-3.8,436,L3,procurement_spend_q1.csv,j.patel,2026-03-10T10:15:00Z
-PFC-2026-S3-003,Scope 3,Business travel,Air travel (short-haul),42,flights-segment,0.18,tCO2e/segment,exiobase-3.8,213,L3,travel_booking_log_q1.csv,j.patel,2026-03-12T09:00:00Z
-PFC-2026-S3-004,Scope 3,Waste,Landfill waste,18,tonnes,0.547,tCO2e/tonne,epa-efh-2025,277,L4,waste_hauler_q1_summary.pdf,j.patel,2026-03-12T09:30:00Z
-PFC-2026-S3-005,Scope 3,Employee commuting,Estimated commute,120,employees-month,0.061,tCO2e/employee-month,survey-proxy-2026,205,L4,commute_survey_2026_estimated.xlsx,j.patel,2026-03-15T12:00:00Z
+PFC-2026-S1-001,Scope 1,Stationary combustion,Natural gas - boiler A,128400,therms,5.306,kgCO2e/therm,epa-efh-2025,681.2904,L1,utility_bill_pg&e_jan2026.pdf,m.smith,2026-02-18T09:14:00Z
+PFC-2026-S1-002,Scope 1,Mobile combustion,Diesel - fleet,9800,gallons,10.21,kgCO2e/gallon,epa-efh-2025,100.058,L2,fuel_card_feb2026.csv,m.smith,2026-02-18T09:22:00Z
+PFC-2026-S1-003,Scope 1,Refrigerant,Refrigerant R-410A top-up,12,kg,1924,kgCO2e/kg,ipcc-ar5-gwp100,23.088,L2,hvac_maintenance_log_q1.pdf,j.patel,2026-03-01T11:00:00Z
+PFC-2026-S1-004,Scope 1,Stationary combustion,Propane - forklifts,1200,gallons,5.72,kgCO2e/gallon,epa-efh-2025,6.864,L2,fuel_invoice_propane_q1.csv,m.smith,2026-03-05T14:30:00Z
+PFC-2026-S2-001,Scope 2,Purchased electricity,Grid power - Facility A,548000,kWh,0.19504,kgCO2e/kWh,epa-egrid-2023,106.88192,L2,utility_bill_pg&e_q1.pdf,m.smith,2026-02-18T09:31:00Z
+PFC-2026-S2-002,Scope 2,Purchased electricity,Grid power - Facility B,4900,kWh,0.19504,kgCO2e/kWh,epa-egrid-2023,0.955696,L2,utility_bill_socal_q1.pdf,m.smith,2026-03-05T14:45:00Z
+PFC-2026-S3-001,Scope 3,Upstream transportation,Freight inbound (road),1850000,USD,0.59,kgCO2e/USD,internal-estimate,1091.5,L3,procurement_spend_q1.csv,j.patel,2026-03-10T10:00:00Z
+PFC-2026-S3-002,Scope 3,Purchased goods,Paper and packaging,64000,USD,0.25,kgCO2e/USD,internal-estimate,16,L3,procurement_spend_q1.csv,j.patel,2026-03-10T10:15:00Z
+PFC-2026-S3-003,Scope 3,Business travel,Air travel short-haul (42 flights x 500 mi),21000,passenger-miles,0.255,kgCO2e/passenger-mile,internal-estimate,5.355,L3,travel_booking_log_q1.csv,j.patel,2026-03-12T09:00:00Z
+PFC-2026-S3-004,Scope 3,Waste,Landfill waste,18000,kg,0.586,kgCO2e/kg,internal-estimate,10.548,L4,waste_hauler_q1_summary.pdf,j.patel,2026-03-12T09:30:00Z
+PFC-2026-S3-005,Scope 3,Employee commuting,Estimated commute,120,employee-months,0.061,tCO2e/employee-month,survey-proxy-2026,7.32,L4,commute_survey_2026_estimated.xlsx,j.patel,2026-03-15T12:00:00Z

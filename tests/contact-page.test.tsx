@@ -71,8 +71,8 @@ describe('Footer brand identity (P1-13)', () => {
     expect(footerSrc).toContain('subject=Privacy%20and%20DPA%20request');
   });
 
-  it('names the operator consistently (Developer312 / NIGHT LITE USA LLC)', () => {
-    expect(footerSrc).toContain('Developer312');
-    expect(footerSrc).toContain('NIGHT LITE USA LLC');
+  it('names the operator consistently (Night Lite USA LLC, Developer312 as dba)', () => {
+    expect(footerSrc).toContain('Night Lite USA LLC');
+    expect(footerSrc).toContain('Developer312 is a brand (dba) of Night Lite USA LLC');
   });
 });

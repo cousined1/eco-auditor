@@ -38,7 +38,7 @@ export default function Pricing() {
     document.title = 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs';
 
     const meta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
-    if (meta) meta.content = 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly plans.';
+    if (meta) meta.content = 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo. 14-day trial on monthly Starter and Growth. Choosing a plan at checkout asks for a card.';
 
     const script = document.createElement('script');
     script.type = 'application/ld+json';
@@ -103,9 +103,8 @@ export default function Pricing() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {([PLANS.starter, PLANS.growth, PLANS.pro]).map((plan) => {
-          const price = billing === 'annual' ? plan.annual : plan.monthly;
           const annualMonthly = Math.round(plan.annual / 12);
-          const isPopular = plan.id === 'growth';
+          const isPopular = Boolean(plan.popular);
           // Server only honors trials on monthly billing (TRIAL_ELIGIBLE_PLANS in server.cjs)
           const trialEligible = Boolean(plan.trial) && billing === 'monthly';
 
@@ -120,24 +119,35 @@ export default function Pricing() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-surface-900 dark:text-white">{plan.name}</h3>
                   {!isPopular && plan.badge && <span className="badge-gray text-2xs max-w-[120px] text-center">{plan.badge}</span>}
-                  {isPopular && <span className="badge-green text-2xs">{plan.badge}</span>}
                 </div>
                 <div className="mb-4">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-surface-900 dark:text-white">${billing === 'annual' ? annualMonthly : price}</span>
-                    <span className="text-sm text-surface-500">/month</span>
+                    <span className="text-3xl font-bold text-surface-900 dark:text-white">
+                      ${(billing === 'annual' ? plan.annual : plan.monthly).toLocaleString()}
+                    </span>
+                    <span className="text-sm text-surface-500">{billing === 'annual' ? '/year' : '/month'}</span>
                   </div>
                   {billing === 'monthly' && (
-                    <div className="text-xs text-surface-500 mt-1">${price}/month, billed monthly</div>
+                    <div className="text-xs text-surface-500 mt-1">${plan.monthly.toLocaleString()}/month, billed monthly</div>
                   )}
                   {billing === 'annual' && (
                     <div className="text-xs text-surface-500 mt-1">
-                      ${annualMonthly}/month equivalent · ${plan.annual.toLocaleString()}/year billed annually · save ${(plan.monthly * 12 - plan.annual).toLocaleString()} vs monthly
+                      ${annualMonthly.toLocaleString()}/month equivalent, billed annually · save ${(plan.monthly * 12 - plan.annual).toLocaleString()} vs monthly
                     </div>
                   )}
-                  {billing === 'annual' && plan.trial && (
+                  {plan.trial && billing === 'annual' && (
                     <div className="text-2xs text-surface-600 dark:text-surface-400 mt-1">
-                      Free trial available on monthly billing
+                      The 14-day trial is on monthly billing only. Choosing a plan at checkout asks for a card.
+                    </div>
+                  )}
+                  {plan.trial && billing === 'monthly' && (
+                    <div className="text-2xs text-surface-600 dark:text-surface-400 mt-1">
+                      14-day trial. A card is required at checkout, and the plan starts unless you cancel.
+                    </div>
+                  )}
+                  {!plan.trial && (
+                    <div className="text-2xs text-surface-600 dark:text-surface-400 mt-1">
+                      No free trial on this plan. A card is required at checkout.
                     </div>
                   )}
                 </div>
@@ -176,7 +186,7 @@ export default function Pricing() {
                   className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     isPopular
                       ? 'bg-brand-600 hover:bg-brand-700 text-white'
-                      : 'bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-800 dark:text-surface-200'
+                      : 'border border-surface-900 bg-white text-surface-900 hover:bg-surface-50 dark:border-white dark:bg-surface-900 dark:text-white dark:hover:bg-surface-800'
                   }`}
                 >
                   {checkoutPending === plan.id

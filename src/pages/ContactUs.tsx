@@ -104,7 +104,9 @@ export default function ContactUs() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">Company</h3>
-            <p className="text-sm text-surface-600 dark:text-surface-400">Eco-Auditor</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Night Lite USA LLC</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">Eco-Auditor (Developer312, a brand / dba)</p>
+            <p className="text-sm text-surface-600 dark:text-surface-400">25200 Carlos Bee Blvd, Hayward, CA 94542</p>
           </div>
         </div>
       </div>

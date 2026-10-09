@@ -23,7 +23,7 @@
  */
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
@@ -71,7 +71,7 @@ const HEAD = {
   },
   '/security': {
     title: 'Security & Trust — Eco-Auditor | Data Protection and Compliance',
-    description: 'Eco-Auditor security and trust: AES-256 encryption, TLS 1.2+ in transit, SOC 2-aligned controls, GDPR-aligned DPA.',
+    description: 'Eco-Auditor security and trust: AES-256 encryption, TLS 1.2+ in transit. SOC 2 is being pursued. GDPR-aligned DPA.',
   },
   '/pricing': {
     title: 'Pricing — Eco-Auditor | Carbon Accounting Plans for SMBs',
@@ -80,15 +80,15 @@ const HEAD = {
     // page defaults to the annual toggle and displayed $124/$333/$833 while this
     // description advertised $149/$399/$999.
     // See ecoauditor-mvp-readiness-audit-2026-08-20.md (E-7, L-2).
-    description: 'Eco-Auditor pricing: Starter $149/mo, Growth $399/mo, Pro $999/mo — or from $124/mo billed annually. Reviewable Scope 1-3 emissions tracking. 14-day free trial on monthly Starter and Growth plans.',
+    description: 'Eco-Auditor pricing: Starter $149/mo or $1,490/year, Growth $399/mo or $3,990/year, Pro $999/mo or $9,990/year. 14-day trial on monthly Starter and Growth. Choosing a plan at checkout asks for a card.',
   },
   '/sample-report': {
     title: 'Sample Carbon Report — Eco-Auditor | See What You Get',
-    description: 'See a sample Eco-Auditor carbon report — Scope 1, 2, 3 emissions breakdown, quality scores, and reviewable ledger entries.',
+    description: 'See a sample Eco-Auditor carbon report. Scope totals, factor register, and evidence index for a fictional company. Some Scope 3 factors in the sample are provisional.',
   },
   '/login': {
     title: 'Sign In — Eco-Auditor',
-    description: 'Sign in to Eco-Auditor to access your emissions ledger, reports, and compliance dashboard.',
+    description: 'Sign in to Eco-Auditor to access your emissions dashboard, reports, and settings.',
   },
   '/signup': {
     title: 'Start Your Free Trial — Eco-Auditor',
@@ -99,7 +99,7 @@ const HEAD = {
   },
   '/forgot-password': {
     title: 'Reset Your Password — Eco-Auditor',
-    description: 'Reset your Eco-Auditor password and regain access to your emissions ledger, reports, and compliance dashboard.',
+    description: 'Reset your Eco-Auditor password and regain access to your emissions dashboard.',
   },
   '/demo': {
     title: 'Book a Demo — Eco-Auditor | 30-Minute Carbon Accounting Walkthrough',
@@ -128,58 +128,123 @@ const HEAD = {
 };
 
 /**
- * Blog posts for the prerendered /blog index.
+ * The four posts in server.cjs are the copy this build should publish.
+ * A live database can still hold an older body because the first seed used
+ * ON CONFLICT DO NOTHING. Seeded slugs therefore win. Database rows are used
+ * for published_at and for any extra slug that is not in the seed.
+ */
+function loadSeedPosts() {
+  const src = readFileSync(path.join(ROOT, 'server.cjs'), 'utf8');
+  const start = src.indexOf('async function seedBlogPosts');
+  const postsAt = src.indexOf('const posts = [', start);
+  if (postsAt < 0) throw new Error('seed posts array not found');
+  const end = src.indexOf('\n  ];', postsAt);
+  const arrayText = src.slice(postsAt + 'const posts = '.length, end + '\n  ];'.length);
+  return new Function('JSON', 'return ' + arrayText)(JSON);
+}
+
+function parseJson(value, fallback) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return value;
+  if (typeof value !== 'string' || !value) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function toDetail(post, publishedAt) {
+  const faq = parseJson(post.faq, []);
+  const cta = parseJson(post.cta, null);
+  const published = publishedAt ? new Date(publishedAt) : null;
+  return {
+    id: String(post.id),
+    slug: post.slug,
+    title: post.title || '',
+    meta_title: post.meta_title || post.title || '',
+    meta_description: post.meta_description || '',
+    body_html: post.body_html || '',
+    primary_keyword: post.primary_keyword || '',
+    faq: Array.isArray(faq) ? faq : [],
+    cta: cta && cta.href ? { label: cta.label || '', href: cta.href } : null,
+    published_at: published && !Number.isNaN(published.getTime()) ? published.toISOString() : '',
+  };
+}
+
+function toListCard(detail) {
+  return {
+    id: detail.id,
+    slug: detail.slug,
+    title: detail.title,
+    meta_description: detail.meta_description,
+    excerpt: excerptFor(detail),
+    read_minutes: readMinutesFor(detail.body_html),
+    primary_keyword: detail.primary_keyword || null,
+    published_at: detail.published_at,
+  };
+}
+
+/**
+ * Blog posts for the prerendered /blog index and for each /blog/<slug> page.
  *
  * renderToString never runs effects, so the index used to ship with zero
- * /blog/<slug> links — the content marketing surface's own landing page
- * reached crawlers and no-JS visitors empty. The posts live in Postgres, so the
- * build needs DATABASE_URL to render them.
- *
- * When it is absent the render still succeeds: BlogList falls back to its
- * loading state, exactly as before. We log loudly rather than silently shipping
- * an empty index again, because that failure is invisible in the output.
+ * /blog/<slug> links. The seeded posts are in server.cjs and are prerendered
+ * even when DATABASE_URL is absent. DATABASE_URL adds published_at and any
+ * extra slug that is not one of the four seeded posts.
  */
-async function loadBlogPosts() {
+async function loadBlogDetails() {
+  let seed = [];
+  try {
+    seed = loadSeedPosts();
+  } catch (err) {
+    console.warn(`[prerender] could not read seeded posts (${String(err)})`);
+  }
+
   const url = process.env.DATABASE_URL;
+  let dbRows = [];
   if (!url) {
     console.warn(
-      '[prerender] DATABASE_URL not set — /blog will prerender WITHOUT post links.\n' +
-      '            Set DATABASE_URL at build time so the blog index ships its content.'
+      '[prerender] DATABASE_URL not set — database-only posts are omitted.\n' +
+      '            Seeded posts in server.cjs are still prerendered.'
     );
-    return null;
+  } else {
+    let Pool;
+    try {
+      ({ Pool } = (await import('pg')).default ?? (await import('pg')));
+    } catch {
+      console.warn('[prerender] pg module unavailable — database-only posts are omitted.');
+    }
+    if (Pool) {
+      const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 5000, query_timeout: 5000 });
+      try {
+        // Same projection family as server.cjs /api/blog-posts.
+        const { rows } = await pool.query(
+          'SELECT id, slug, title, meta_title, meta_description, body_html, primary_keyword, faq, cta, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 50'
+        );
+        dbRows = rows;
+      } catch (err) {
+        console.warn(`[prerender] blog post query failed (${String(err)}) — database-only posts are omitted.`);
+      } finally {
+        await pool.end().catch(() => {});
+      }
+    }
   }
-  let Pool;
-  try {
-    ({ Pool } = (await import('pg')).default ?? (await import('pg')));
-  } catch {
-    console.warn('[prerender] pg module unavailable — /blog will prerender WITHOUT post links.');
-    return null;
+
+  const dbBySlug = new Map(dbRows.map((row) => [row.slug, row]));
+  const details = [];
+  for (const post of seed) {
+    const db = dbBySlug.get(post.slug);
+    details.push(toDetail(post, db ? db.published_at : ''));
+    dbBySlug.delete(post.slug);
   }
-  const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 5000, query_timeout: 5000 });
-  try {
-    // Same projection and ordering as server.cjs /api/blog-posts, so the static
-    // index and the live endpoint cannot disagree.
-    const { rows } = await pool.query(
-      'SELECT id, slug, title, meta_description, body_html, primary_keyword, published_at FROM blog_posts ORDER BY published_at DESC LIMIT 50'
-    );
-    return rows.map((row) => ({
-      id: String(row.id),
-      slug: row.slug,
-      title: row.title,
-      meta_description: row.meta_description ?? '',
-      excerpt: excerptFor(row),
-      read_minutes: readMinutesFor(row.body_html),
-      primary_keyword: row.primary_keyword ?? null,
-      content_score: null,
-      geo_score: null,
-      published_at: row.published_at,
-    }));
-  } catch (err) {
-    console.warn(`[prerender] blog post query failed (${String(err)}) — /blog will prerender WITHOUT post links.`);
-    return null;
-  } finally {
-    await pool.end().catch(() => {});
+  for (const row of dbBySlug.values()) {
+    details.push(toDetail(row, row.published_at));
   }
+  if (details.length === 0) {
+    console.warn('[prerender] no blog posts to prerender — the index will ship WITHOUT post links.');
+  }
+  return details;
 }
 
 /** Mirrors blogListExcerpt() in server.cjs so the two lists read identically. */
@@ -243,9 +308,96 @@ async function main() {
     process.exit(1);
   }
 
-  const blogPosts = await loadBlogPosts();
+  const blogDetails = await loadBlogDetails();
+  const blogPosts = blogDetails.length > 0 ? blogDetails.map(toListCard) : null;
   if (blogPosts) {
     console.log(`[prerender] blog index: ${blogPosts.length} posts available for /blog`);
+  }
+
+  function escapeAttr(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  async function writeRoute(route, html, head) {
+    let out = templateHtml.replace('<div id="root"></div>', `<div id="root">${html}</div>`);
+
+    if (NOINDEX_ROUTES.has(route)) {
+      out = out.replace(
+        /<meta name="robots" content="index, follow" \/>/,
+        '<meta name="robots" content="noindex,nofollow" />',
+      );
+    }
+
+    if (head) {
+      if (head.title) {
+        const title = escapeAttr(head.title);
+        out = out.replace(/<title>[^<]*<\/title>/, () => `<title>${title}</title>`);
+        out = out.replace(
+          /<meta property="og:title" content="[^"]*" \/>/,
+          `<meta property="og:title" content="${title}" />`,
+        );
+        out = out.replace(
+          /<meta name="twitter:title" content="[^"]*" \/>/,
+          `<meta name="twitter:title" content="${title}" />`,
+        );
+      }
+      if (head.description) {
+        const description = escapeAttr(head.description);
+        out = out.replace(
+          /(<meta name="description" content=")[^"]*(")/,
+          (_, p1, p2) => `${p1}${description}${p2}`,
+        );
+        out = out.replace(
+          /<meta property="og:description" content="[^"]*" \/>/,
+          `<meta property="og:description" content="${description}" />`,
+        );
+        out = out.replace(
+          /<meta name="twitter:description" content="[^"]*" \/>/,
+          `<meta name="twitter:description" content="${description}" />`,
+        );
+      }
+
+      if (NOINDEX_ROUTES.has(route)) {
+        out = out.replace(/<link rel="canonical" href="[^"]*" \/?>\n? */, '');
+        out = out.replace(/<meta property="og:url" content="[^"]*" \/?>\n? */, '');
+      } else {
+        const canonical = head.canonical || ('https://ecoauditor.io' + (route === '/' ? '' : route) + '/');
+        out = out.replace(
+          /(<link rel="canonical" href=")[^"]*(" \/>)/,
+          (_, p1, p2) => `${p1}${canonical}${p2}`,
+        );
+        out = out.replace(
+          /(<meta property="og:url" content=")[^"]*(" \/>)/,
+          (_, p1, p2) => `${p1}${canonical}${p2}`,
+        );
+        out = out.replace(
+          /(<meta name="twitter:url" content=")[^"]*(" \/>)/,
+          (_, p1, p2) => `${p1}${canonical}${p2}`,
+        );
+      }
+
+      if (head.jsonLd) {
+        const jsonLd = JSON.stringify(head.jsonLd, null, 2)
+          .replace(/</g, '\\u003c')
+          .replace(/>/g, '\\u003e')
+          .replace(/&/g, '\\u0026');
+        out = out.replace(
+          /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
+          `<script type="application/ld+json">\n    ${jsonLd}\n    </script>`,
+        );
+      }
+    }
+
+    if (route === '/') {
+      await fs.writeFile(TEMPLATE_PATH, out, 'utf8');
+    } else {
+      const routeDir = path.join(STATIC_DIR, route);
+      await fs.mkdir(routeDir, { recursive: true });
+      await fs.writeFile(path.join(routeDir, 'index.html'), out, 'utf8');
+    }
   }
 
   let ok = 0;
@@ -254,90 +406,44 @@ async function main() {
     try {
       const html = render(route, { blogPosts });
       if (!html || html.length < 50) {
-        // A near-empty render is a strong signal something blew up silently.
         throw new Error(`rendered output suspiciously short (${html.length} chars)`);
       }
-      let out = templateHtml.replace('<div id="root"></div>', `<div id="root">${html}</div>`);
+      await writeRoute(route, html, HEAD[route]);
+      console.log(`[prerender] ✓ ${route}  (${html.length} chars)`);
+      ok += 1;
+    } catch (err) {
+      console.error(`[prerender] ✗ ${route} failed:`, err && err.message ? err.message : err);
+      fail += 1;
+    }
+  }
 
-      // P0-01: noindex auth routes. The template has a single
-      // <meta name="robots" content="index, follow" /> (I5 verified), so
-      // replace it with noindex,nofollow for /login and /signup.
-      if (NOINDEX_ROUTES.has(route)) {
-        out = out.replace(
-          /<meta name="robots" content="index, follow" \/>/,
-          '<meta name="robots" content="noindex,nofollow" />',
-        );
+  for (const detail of blogDetails) {
+    const route = `/blog/${detail.slug}`;
+    try {
+      const html = render(route, { blogPosts, blogDetail: detail });
+      if (!html || !html.includes(detail.title)) {
+        throw new Error('rendered post is missing its title');
       }
-
-      // AF-4: per-route <title> and <meta name="description">. Template has
-      // exactly one of each (I5 verified), so the regex hits the single
-      // homepage tag. '/' keeps the homepage title/description from the
-      // template (no HEAD entry) — that's the canonical homepage meta.
-      const head = HEAD[route];
-      if (head) {
-        if (head.title) {
-          out = out.replace(/<title>[^<]*<\/title>/, () => `<title>${head.title}</title>`);
-        }
-        if (head.description) {
-          // Use a function replacement so `$` characters in head.description
-          // (e.g. "$149/mo") are not interpreted as capture-group refs.
-          out = out.replace(
-            /(<meta name="description" content=")[^"]*(")/,
-            (_, p1, p2) => `${p1}${head.description}${p2}`,
-          );
-        }
-
-        // M33: per-route canonical URL and og:url. The template ships the
-        // homepage canonical. Use trailing-slash canonicals to match the
-        // URLs actually served by the Express static mapping.
-        if (NOINDEX_ROUTES.has(route)) {
-          // Canonical on noindex pages is contradictory; remove them.
-          out = out.replace(/<link rel="canonical" href="[^"]*" \/?>\n? */, '');
-          out = out.replace(/<meta property="og:url" content="[^"]*" \/?>\n? */, '');
-        } else {
-          const canonical = head.canonical || ('https://ecoauditor.io' + (route === '/' ? '' : route) + '/');
-          out = out.replace(
-            /(<link rel="canonical" href=")[^"]*(" \/>)/,
-            (_, p1, p2) => `${p1}${canonical}${p2}`,
-          );
-          out = out.replace(
-            /(<meta property="og:url" content=")[^"]*(" \/>)/,
-            (_, p1, p2) => `${p1}${canonical}${p2}`,
-          );
-        }
-
-        // Sync Open Graph and Twitter title/description to the page meta.
-        if (head.title) {
-          out = out.replace(
-            /<meta property="og:title" content="[^"]*" \/>/,
-            `<meta property="og:title" content="${head.title}" />`,
-          );
-          out = out.replace(
-            /<meta name="twitter:title" content="[^"]*" \/>/,
-            `<meta name="twitter:title" content="${head.title}" />`,
-          );
-        }
-        if (head.description) {
-          out = out.replace(
-            /<meta property="og:description" content="[^"]*" \/>/,
-            `<meta property="og:description" content="${head.description}" />`,
-          );
-          out = out.replace(
-            /<meta name="twitter:description" content="[^"]*" \/>/,
-            `<meta name="twitter:description" content="${head.description}" />`,
-          );
-        }
-      }
-
-      if (route === '/') {
-        await fs.writeFile(TEMPLATE_PATH, out, 'utf8');
-        console.log(`[prerender] ✓ /  → static/index.html  (${html.length} chars)`);
-      } else {
-        const routeDir = path.join(STATIC_DIR, route);
-        await fs.mkdir(routeDir, { recursive: true });
-        await fs.writeFile(path.join(routeDir, 'index.html'), out, 'utf8');
-        console.log(`[prerender] ✓ ${route}  → static${route}/index.html  (${html.length} chars)`);
-      }
+      const canonical = `https://ecoauditor.io/blog/${detail.slug}/`;
+      const title = detail.meta_title || detail.title;
+      await writeRoute(route, html, {
+        title: title.includes('Eco-Auditor') ? title : `${title} | Eco-Auditor`,
+        description: detail.meta_description,
+        canonical,
+        jsonLd: {
+          '@context': 'https://schema.org',
+          '@type': 'BlogPosting',
+          headline: detail.title,
+          description: detail.meta_description || undefined,
+          url: canonical,
+          mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+          datePublished: detail.published_at || undefined,
+          dateModified: detail.published_at || undefined,
+          publisher: { '@type': 'Organization', name: 'Eco-Auditor', url: 'https://ecoauditor.io' },
+          isPartOf: { '@type': 'Blog', name: 'Eco-Auditor Blog', url: 'https://ecoauditor.io/blog/' },
+        },
+      });
+      console.log(`[prerender] ✓ ${route}  (${html.length} chars)`);
       ok += 1;
     } catch (err) {
       console.error(`[prerender] ✗ ${route} failed:`, err && err.message ? err.message : err);

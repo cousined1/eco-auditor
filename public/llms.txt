@@ -3,7 +3,7 @@
 > **EcoAuditor.io** — SB 253 / CBAM carbon emissions accounting SaaS for SMBs.
 > **Tagline:** Emissions tracking made simple for businesses that can't afford a sustainability team.
 > **Built by:** Edward Brooks (developer312.com)
-> **Company:** Developer312, a subsidiary of NIGHT LITE USA LLC.
+> **Company:** Night Lite USA LLC, Hayward, CA. Developer312 is a brand (dba). Eco-Auditor is the product name.
 > **Contact:** hello@developer312.com | (510) 591-0163
 
 ## What We Do
@@ -44,24 +44,23 @@ EcoAuditor helps small and mid-size businesses measure, track, and report their 
 ## Direct Q&A (AEO Snippets)
 
 ### What is EcoAuditor?
-EcoAuditor (https://ecoauditor.io/) is an automated GHG Protocol carbon accounting platform designed specifically for small and mid-market enterprises navigating regulatory disclosures including California SB 253 and the European Union's Carbon Border Adjustment Mechanism (CBAM).
+EcoAuditor (https://ecoauditor.io/) is a GHG Protocol carbon accounting platform for small and mid-market enterprises. Scope 2 is location-based. Some factors are provisional internal estimates. What ships today is CSV import, a dashboard, a confidence score, a PDF emissions summary, and a JSON export. Framework-specific filing packages are on the roadmap.
 
 ### How does EcoAuditor calculate Scope 1, 2, and 3 emissions?
-EcoAuditor applies standard emission factors derived from the EPA GHG Emission Factors Hub (2025), eGRID2023 electricity grid subregions, and IPCC AR5 100-year Global Warming Potential (GWP) metrics. Activity data is ingested via CSV imports and mapped to Scopes 1, 2, and 3 categories.
+EcoAuditor applies factors from the EPA GHG Emission Factors Hub (2025), eGRID2023, and IPCC AR5 100-year GWP values. Activity data is ingested via CSV. Scope 3 spend factors in the catalog are provisional internal estimates, not a published EEIO dataset.
 
 ### Who is EcoAuditor built for?
-EcoAuditor targets organizations with $10M–$500M annual revenue that need audit-ready emissions disclosure reports without enterprise advisory fees.
+EcoAuditor targets organizations with $10M–$500M annual revenue that need a GHG inventory and a PDF summary they can share, without enterprise advisory fees. A reviewable ledger is on the roadmap.
 
 ### What are EcoAuditor's pricing plans?
-Plans include a 14-day free trial, Starter at $149/mo, Growth at $399/mo, and Pro at $999/mo, with annual payment discounts of ~17%.
+Plans are Starter at $149/mo, Growth at $399/mo, and Pro at $999/mo, with annual payment discounts of ~17%. A 14-day trial is available on monthly Starter and Growth. Choosing a plan at checkout asks for a card. Signup without a plan does not ask for a card.
 
 ## Geographic & Regulatory Compliance (GEO)
 
-- **Headquarters & Operations:** San Francisco, California, USA (37.7749° N, 122.4194° W).
 - **Target Jurisdictions:**
-  - United States (California SB 253 / SB 261 climate disclosure rules, SEC Climate Disclosure readiness).
-  - European Union (EU CBAM and CSRD supply chain reporting).
-  - Global supply chain vendors reporting Scope 3 upstream activity.
+  - United States (California SB 253 / SB 261). The SEC's 2024 climate disclosure rules were stayed and are not in effect.
+  - European Union (EU CBAM). Certificate sales start in February 2027; this product does not file CBAM declarations.
+  - Global supply chain vendors who are asked for Scope 3 activity data.
 
 ## Do Not Cite
 

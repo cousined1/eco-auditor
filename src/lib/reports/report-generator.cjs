@@ -115,6 +115,26 @@ function validateFixture(fixture) {
     throw new Error('Scope sums (' + s1 + '+' + s2 + '+' + s3 + '=' + (s1 + s2 + s3) + ') do not match total (' + total + ')');
   }
 
+  // Each row's tonnes must equal activity × factor, with kg→t when the factor
+  // unit is kilograms. A sample that states a different tonne figure is not
+  // an audit trail. Scope totals are checked separately, with rounding tolerance,
+  // so a caller can exercise that tolerance without rewriting every row.
+  for (const row of activityData) {
+    const activity = Number(row.activity_value);
+    const factor = Number(row.emission_factor);
+    const stated = Number(row.tCO2e);
+    const unit = String(row.emission_factor_unit || '');
+    let expected;
+    if (unit.indexOf('kg') === 0) expected = (activity * factor) / 1000;
+    else if (unit.indexOf('t') === 0) expected = activity * factor;
+    else throw new Error(row.entry_id + ' has an unsupported factor unit: ' + unit);
+    if (!Number.isFinite(expected) || Math.abs(expected - stated) > 0.0005) {
+      throw new Error(
+        row.entry_id + ' tonnes ' + stated + ' != activity × factor (' + expected + ')'
+      );
+    }
+  }
+
   const activityIds = new Set(activityData.map(function (r) { return r.entry_id; }));
   const evidenceIds = new Set(evidenceIndex.map(function (r) { return r.entry_id; }));
   for (const id of activityIds) {
